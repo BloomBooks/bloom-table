@@ -3,29 +3,29 @@ import {
   getEdgesH,
   getEdgesV,
   getEdgeDefault,
-  getGridCorners,
+  getTableCorners,
   getGapX,
   getGapY,
   type BorderSpec,
-} from "./grid-model";
+} from "./table-model";
 import { EDGE_DEFAULT } from "./defaults";
 import type {
   HEdgeEntry,
   VEdgeEntry,
   HVHorizontalEdgeCellSides,
   HVVerticalEdgeCellSides,
-} from "./grid-model";
+} from "./table-model";
 
 const MIN_COLUMN_WIDTH = "60px";
 const MIN_ROW_HEIGHT = "20px";
 
 // Note: We avoid hardcoding defaults in the renderer. Instead, we read
-// computed CSS variables from the grid element so stylesheet defaults and
+// computed CSS variables from the table element so stylesheet defaults and
 // table-level overrides participate via normal CSS precedence. Data-*
 // attributes still represent explicit user intent and win over inherited
 // styles.
 
-function makeGridRule(size: string, minimum: string): string {
+function makeSizeRule(size: string, minimum: string): string {
   const s = (size || "").trim();
   if (s === "hug") return `minmax(${minimum},max-content)`;
   if (s === "fill") return `minmax(${minimum},1fr)`;
@@ -38,9 +38,9 @@ function getAttrList(el: HTMLElement, name: string): string[] {
   return raw.split(",");
 }
 
-function getCells(grid: HTMLElement): HTMLElement[] {
+function getCells(table: HTMLElement): HTMLElement[] {
   const result: HTMLElement[] = [];
-  Array.from(grid.children).forEach((child) => {
+  Array.from(table.children).forEach((child) => {
     if (child instanceof HTMLElement && child.classList.contains("cell")) {
       result.push(child);
     }
@@ -51,7 +51,7 @@ function getCells(grid: HTMLElement): HTMLElement[] {
 // --- Helpers for reading CSS-derived defaults and normalizing specs ---
 //
 
-// Defaults can come from data-border-default or CSS variables on the grid element.
+// Defaults can come from data-border-default or CSS variables on the table element.
 
 function normalize(
   spec: BorderSpec | (Partial<BorderSpec> & Record<string, any>) | null | undefined,
@@ -79,8 +79,8 @@ function normalize(
 export interface RenderModel {
   columnWidths: string[]; // raw tokens from data-*
   rowHeights: string[]; // raw tokens from data-*
-  templateColumns: string; // resolved grid-template-columns
-  templateRows: string; // resolved grid-template-rows
+  templateColumns: string; // resolved table-template-columns
+  templateRows: string; // resolved table-template-rows
   spans: Array<{ index: number; x: number; y: number }>; // DOM order
   // resolved per-cell per-side borders
   cellBorders: Array<{
@@ -109,14 +109,14 @@ function stylePrecedence(style: string | undefined): number {
 
 //
 
-export function buildRenderModel(grid: HTMLElement): RenderModel {
-  const columnWidths = getAttrList(grid, "data-column-widths");
-  const rowHeights = getAttrList(grid, "data-row-heights");
+export function buildRenderModel(table: HTMLElement): RenderModel {
+  const columnWidths = getAttrList(table, "data-column-widths");
+  const rowHeights = getAttrList(table, "data-row-heights");
 
-  const templateColumns = columnWidths.map((x) => makeGridRule(x, MIN_COLUMN_WIDTH)).join(" ");
-  const templateRows = rowHeights.map((x) => makeGridRule(x, MIN_ROW_HEIGHT)).join(" ");
+  const templateColumns = columnWidths.map((x) => makeSizeRule(x, MIN_COLUMN_WIDTH)).join(" ");
+  const templateRows = rowHeights.map((x) => makeSizeRule(x, MIN_ROW_HEIGHT)).join(" ");
 
-  const cells = getCells(grid);
+  const cells = getCells(table);
   const spans = cells.map((cell, index) => {
     const x = parseInt(cell.getAttribute("data-span-x") || "1", 10) || 1;
     const y = parseInt(cell.getAttribute("data-span-y") || "1", 10) || 1;
@@ -134,15 +134,15 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
   const rows = rowHeights.length;
   const cols = columnWidths.length;
 
-  // Detect if this grid is embedded inside a parent cell. If so, we suppress
+  // Detect if this table is embedded inside a parent cell. If so, we suppress
   // its perimeter painting so that the shared boundary between the parent
-  // cell and this nested grid is represented by a single edge (the parent).
+  // cell and this nested table is represented by a single edge (the parent).
   // This keeps the mental model "one edge, one stroke" and avoids double 1px
   // borders showing side-by-side.
-  const isNestedGrid = !!(
-    grid.parentElement &&
-    grid.parentElement.classList &&
-    grid.parentElement.classList.contains("cell")
+  const isNestedTable = !!(
+    table.parentElement &&
+    table.parentElement.classList &&
+    table.parentElement.classList.contains("cell")
   );
 
   function idx(r: number, c: number): number {
@@ -150,19 +150,19 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
   }
 
   // Edge inputs
-  const edgesH = getEdgesH(grid) as HEdgeEntry[][] | null; // (R+1) x C of entries: interior rows 1..R-1, perimeters at 0 (top) and R (bottom)
-  const edgesV = getEdgesV(grid) as VEdgeEntry[][] | null; // R x (C+1) of entries: interior cols 1..C-1, perimeters at 0 (left) and C (right)
-  // Discover default edge: data-border-default wins; else read CSS vars on grid
-  let edgeDefault = normalize(getEdgeDefault(grid));
+  const edgesH = getEdgesH(table) as HEdgeEntry[][] | null; // (R+1) x C of entries: interior rows 1..R-1, perimeters at 0 (top) and R (bottom)
+  const edgesV = getEdgesV(table) as VEdgeEntry[][] | null; // R x (C+1) of entries: interior cols 1..C-1, perimeters at 0 (left) and C (right)
+  // Discover default edge: data-border-default wins; else read CSS vars on table
+  let edgeDefault = normalize(getEdgeDefault(table));
   if (!edgeDefault) {
-    const cs = getComputedStyle(grid);
+    const cs = getComputedStyle(table);
     let wRaw = cs.getPropertyValue("--edge-default-weight").trim();
     let sRaw = cs.getPropertyValue("--edge-default-style").trim();
     let cRaw = cs.getPropertyValue("--edge-default-color").trim();
     // jsdom may not propagate custom properties via computed style; fall back to inline style
-    if (!wRaw) wRaw = grid.style.getPropertyValue("--edge-default-weight").trim();
-    if (!sRaw) sRaw = grid.style.getPropertyValue("--edge-default-style").trim();
-    if (!cRaw) cRaw = grid.style.getPropertyValue("--edge-default-color").trim();
+    if (!wRaw) wRaw = table.style.getPropertyValue("--edge-default-weight").trim();
+    if (!sRaw) sRaw = table.style.getPropertyValue("--edge-default-style").trim();
+    if (!cRaw) cRaw = table.style.getPropertyValue("--edge-default-color").trim();
     if (wRaw || sRaw || cRaw) {
       const w = wRaw ? parseFloat(wRaw) : EDGE_DEFAULT.weight;
       const s = (sRaw || EDGE_DEFAULT.style) as BorderSpec["style"];
@@ -177,8 +177,8 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
       edgeDefault = normalize({ ...EDGE_DEFAULT });
     }
   }
-  const gapX = getGapX(grid);
-  const gapY = getGapY(grid);
+  const gapX = getGapX(table);
+  const gapY = getGapY(table);
 
   function hasPositiveGapX(c: number): boolean {
     // Allow a single value to apply to all boundaries, or provide per-boundary values
@@ -237,7 +237,7 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
         // interior boundaries map c in [1..cols-1] to row[c-1]
         if (c >= 1 && c <= cols - 1) e = row[c - 1];
       } else if (row.length === 1 && cols >= 2) {
-        // Special case: single interior boundary (e.g., 1x2 grid)
+        // Special case: single interior boundary (e.g., 1x2 table)
         if (c === 1) e = row[0];
       }
     }
@@ -312,7 +312,7 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
       const leftCell = cells[iLeft];
       const rightCell = cells[iRight];
       if (!leftCell || !rightCell) {
-        // No corresponding cells (e.g., empty grid shell): skip
+        // No corresponding cells (e.g., empty table shell): skip
         continue;
       }
       const leftIsSkip = leftCell.classList.contains("skip");
@@ -384,12 +384,12 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
   }
   // Perimeter from unified H/V edges: apply per-cell sides directly
   // Note: Per design spec, defaults are "Not applied across gaps or to perimeters".
-  // Additionally, when this grid is nested inside a parent cell, we default to
+  // Additionally, when this table is nested inside a parent cell, we default to
   // no outer perimeter. However, if the author explicitly provides perimeter
   // edges in the H/V arrays, we honor those perimeters (without falling back to
-  // edgeDefault for missing sides). Interior edges of the nested grid are still
+  // edgeDefault for missing sides). Interior edges of the nested table are still
   // resolved above.
-  if (!isNestedGrid) {
+  if (!isNestedTable) {
     // Top perimeter: H at r=0 - use south side (faces the cells)
     for (let c = 0; c < cols; c++) {
       const { south } = readH(0, c);
@@ -468,21 +468,21 @@ export function buildRenderModel(grid: HTMLElement): RenderModel {
   };
 }
 
-export function render(grid: HTMLElement): void {
-  const model = buildRenderModel(grid);
+export function render(table: HTMLElement): void {
+  const model = buildRenderModel(table);
 
-  // Apply grid templates
+  // Apply table templates
   if (model.templateColumns) {
-    grid.style.gridTemplateColumns = model.templateColumns;
-    grid.style.setProperty("--grid-column-count", String(model.columnWidths.length));
+    table.style.gridTemplateColumns = model.templateColumns;
+    table.style.setProperty("--table-column-count", String(model.columnWidths.length));
   }
   if (model.templateRows) {
-    grid.style.gridTemplateRows = model.templateRows;
-    grid.style.setProperty("--grid-row-count", String(model.rowHeights.length));
+    table.style.gridTemplateRows = model.templateRows;
+    table.style.setProperty("--table-row-count", String(model.rowHeights.length));
   }
 
   // Apply spans via CSS variables (maintains compatibility with existing CSS)
-  const cells = getCells(grid);
+  const cells = getCells(table);
   model.spans.forEach((s) => {
     const cell = cells[s.index];
     if (!cell) return;
@@ -526,14 +526,14 @@ export function render(grid: HTMLElement): void {
   });
 
   // Apply outer corner radii
-  const corners = getGridCorners(grid) ?? { radius: 0 };
+  const corners = getTableCorners(table) ?? { radius: 0 };
   if (Number.isFinite(corners.radius)) {
     const radiusPx = `${corners.radius}px`;
-    // set on grid as well (background corner), noting outline may not round
-    (grid.style as any).borderRadius = radiusPx;
+    // set on table as well (background corner), noting outline may not round
+    (table.style as any).borderRadius = radiusPx;
     const rows = model.rowHeights.length;
     const cols = model.columnWidths.length;
-    const cellsArr = getCells(grid);
+    const cellsArr = getCells(table);
     // reset all cell corner radii to default 0 first (ensures determinism across renders)
     cellsArr.forEach((cell) => {
       (cell.style as any).borderTopLeftRadius = "0px";
@@ -563,7 +563,7 @@ export function render(grid: HTMLElement): void {
     setCorner(Math.max(0, rows - 1), Math.max(0, cols - 1), "borderBottomRightRadius");
   }
 
-  // Nested grids: perimeters suppressed in buildRenderModel to avoid double borders with parent.
+  // Nested tables: perimeters suppressed in buildRenderModel to avoid double borders with parent.
 
   // Subtle boundary hints: show only where both sides are effectively none.
   // Helper to check if a rendered spec is effectively none.
@@ -587,7 +587,7 @@ export function render(grid: HTMLElement): void {
       const right = model.cellBorders[iRight]?.left;
       if (isNone(left) && isNone(right)) {
         const cell = cells[iLeft];
-        if (cell) cell.style.setProperty("--hint-right-color", "var(--grid-hint-color)");
+        if (cell) cell.style.setProperty("--hint-right-color", "var(--table-hint-color)");
       }
     }
   }
@@ -601,7 +601,7 @@ export function render(grid: HTMLElement): void {
       const bottom = model.cellBorders[iBottom]?.top;
       if (isNone(top) && isNone(bottom)) {
         const cell = cells[iTop];
-        if (cell) cell.style.setProperty("--hint-bottom-color", "var(--grid-hint-color)");
+        if (cell) cell.style.setProperty("--hint-bottom-color", "var(--table-hint-color)");
       }
     }
   }
@@ -613,7 +613,7 @@ export function render(grid: HTMLElement): void {
     const spec = model.cellBorders[i]?.top;
     if (isNone(spec)) {
       const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-top-color", "var(--grid-hint-color)");
+      if (cell) cell.style.setProperty("--hint-top-color", "var(--table-hint-color)");
     }
   }
   // Bottom row
@@ -622,7 +622,7 @@ export function render(grid: HTMLElement): void {
     const spec = model.cellBorders[i]?.bottom;
     if (isNone(spec)) {
       const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-bottom-color", "var(--grid-hint-color)");
+      if (cell) cell.style.setProperty("--hint-bottom-color", "var(--table-hint-color)");
     }
   }
   // Left col
@@ -631,7 +631,7 @@ export function render(grid: HTMLElement): void {
     const spec = model.cellBorders[i]?.left;
     if (isNone(spec)) {
       const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-left-color", "var(--grid-hint-color)");
+      if (cell) cell.style.setProperty("--hint-left-color", "var(--table-hint-color)");
     }
   }
   // Right col
@@ -640,7 +640,7 @@ export function render(grid: HTMLElement): void {
     const spec = model.cellBorders[i]?.right;
     if (isNone(spec)) {
       const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-right-color", "var(--grid-hint-color)");
+      if (cell) cell.style.setProperty("--hint-right-color", "var(--table-hint-color)");
     }
   }
 }

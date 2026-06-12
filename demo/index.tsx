@@ -14,13 +14,13 @@ const Demo: React.FC = () => {
 
   const attemptStorageKey = useMemo(() => {
     if (!currentExample) return null;
-    return `bloom-grid.attempt:${currentExample.group}/${currentExample.htmlFile}`;
+    return `bloom-table.attempt:${currentExample.group}/${currentExample.htmlFile}`;
   }, [currentExample]);
 
   const default2x2Grid = useMemo(() => {
     return `
       <div id="page" style="background: white; height: 600px; width: 500px">
-        <div id="main-grid" class="grid" data-column-widths="hug,hug" data-row-heights="hug,hug">
+        <div id="main-table" class="table" data-column-widths="hug,hug" data-row-heights="hug,hug">
           <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
           <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
           <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
@@ -74,7 +74,7 @@ const Demo: React.FC = () => {
     if (example.group === "exercises") {
       let attemptHtml = default2x2Grid;
       try {
-        const key = `bloom-grid.attempt:${example.group}/${example.htmlFile}`;
+        const key = `bloom-table.attempt:${example.group}/${example.htmlFile}`;
         const saved = localStorage.getItem(key);
         if (saved) attemptHtml = saved;
       } catch {}
@@ -199,7 +199,7 @@ const Demo: React.FC = () => {
               }
             }}
             className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded"
-            title="Clear your work and start over with an empty 2x2 grid"
+            title="Clear your work and start over with an empty 2x2 table"
             style={{ position: "absolute", left: 16, bottom: 16 }}
           >
             Start Over

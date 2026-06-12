@@ -1,5 +1,5 @@
 {
   "vitest.enable": true,
-  "vitest.commandLine": "yarn test",
+  "vitest.commandLine": "pnpm test",
   "vitest.include": ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"]
 }

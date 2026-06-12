@@ -1,26 +1,26 @@
 import { describe, it, expect } from "vite-plus/test";
-import { buildRenderModel, render } from "./grid-renderer";
+import { buildRenderModel, render } from "./table-renderer";
 
-function makeGrid(): HTMLElement {
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  return grid as HTMLElement;
+function makeTable(): HTMLElement {
+  const table = document.createElement("div");
+  table.className = "table";
+  return table as HTMLElement;
 }
 
-function addCell(grid: HTMLElement, spanX = 1, spanY = 1): HTMLElement {
+function addCell(table: HTMLElement, spanX = 1, spanY = 1): HTMLElement {
   const cell = document.createElement("div");
   cell.className = "cell";
   if (spanX !== 1) cell.setAttribute("data-span-x", String(spanX));
   if (spanY !== 1) cell.setAttribute("data-span-y", String(spanY));
-  grid.appendChild(cell);
+  table.appendChild(cell);
   return cell;
 }
 
-describe("grid-renderer", () => {
-  it("nested grid defaults to no outer perimeter; explicit perimeters are allowed", () => {
-    // Parent grid: 1 row x 2 cols; left cell will contain a nested grid
+describe("table-renderer", () => {
+  it("nested table defaults to no outer perimeter; explicit perimeters are allowed", () => {
+    // Parent table: 1 row x 2 cols; left cell will contain a nested table
     const parent = document.createElement("div");
-    parent.className = "grid";
+    parent.className = "table";
     parent.setAttribute("data-column-widths", "200px,200px");
     parent.setAttribute("data-row-heights", "120px");
 
@@ -51,16 +51,16 @@ describe("grid-renderer", () => {
 
     const leftCell = document.createElement("div");
     leftCell.className = "cell";
-    leftCell.dataset.contentType = "grid";
+    leftCell.dataset.contentType = "table";
     parent.appendChild(leftCell);
 
     const rightCell = document.createElement("div");
     rightCell.className = "cell";
     parent.appendChild(rightCell);
 
-    // Scenario A: Build a nested grid inside left cell WITHOUT explicit perimeters (interior-only arrays)
+    // Scenario A: Build a nested table inside left cell WITHOUT explicit perimeters (interior-only arrays)
     const nestedA = document.createElement("div");
-    nestedA.className = "grid";
+    nestedA.className = "table";
     nestedA.setAttribute("data-column-widths", "fill,fill");
     nestedA.setAttribute("data-row-heights", "fill,fill");
     // interior-only: H length = R-1 = 1, V length per row = C-1 = 1
@@ -80,7 +80,7 @@ describe("grid-renderer", () => {
         [{ weight: 1, style: "solid", color: "#000" }],
       ]),
     );
-    // Add four cells to nested grid A
+    // Add four cells to nested table A
     for (let i = 0; i < 4; i++) {
       const c = document.createElement("div");
       c.className = "cell";
@@ -89,7 +89,7 @@ describe("grid-renderer", () => {
     leftCell.appendChild(nestedA);
 
     const nestedModelA = buildRenderModel(nestedA);
-    // Expect that nested grid perimeters are not painted by default (no edgeDefault fallback on nested)
+    // Expect that nested table perimeters are not painted by default (no edgeDefault fallback on nested)
     expect(nestedModelA.cellBorders[0].top).toBeNull();
     expect(nestedModelA.cellBorders[1].top).toBeNull();
     expect(nestedModelA.cellBorders[2].bottom).toBeNull();
@@ -105,9 +105,9 @@ describe("grid-renderer", () => {
       expect(innerTopRight === null && innerTopLeft === null).toBe(false);
     }
 
-    // Scenario B: A nested grid WITH explicit perimeters in H and V arrays should honor those perimeters
+    // Scenario B: A nested table WITH explicit perimeters in H and V arrays should honor those perimeters
     const nestedB = document.createElement("div");
-    nestedB.className = "grid";
+    nestedB.className = "table";
     nestedB.setAttribute("data-column-widths", "fill,fill");
     nestedB.setAttribute("data-row-heights", "fill,fill");
     nestedB.setAttribute(
@@ -147,7 +147,7 @@ describe("grid-renderer", () => {
         ],
       ]),
     );
-    // Add four cells to nested grid B
+    // Add four cells to nested table B
     for (let i = 0; i < 4; i++) {
       const c = document.createElement("div");
       c.className = "cell";
@@ -199,17 +199,17 @@ describe("grid-renderer", () => {
     });
   });
   it("sided edges with gap allow neighbors to differ", () => {
-    const grid = document.createElement("div");
-    grid.className = "grid";
-    grid.setAttribute("data-column-widths", "100px,100px");
-    grid.setAttribute("data-row-heights", "30px");
-    grid.setAttribute("data-gap-x", "10px");
-    const a = addCell(grid); // left
-    const b = addCell(grid); // right
-    document.body.appendChild(grid);
+    const table = document.createElement("div");
+    table.className = "table";
+    table.setAttribute("data-column-widths", "100px,100px");
+    table.setAttribute("data-row-heights", "30px");
+    table.setAttribute("data-gap-x", "10px");
+    const a = addCell(table); // left
+    const b = addCell(table); // right
+    document.body.appendChild(table);
 
     // Vertical boundary at c=0: west (A's right) vs east (B's left)
-    grid.setAttribute(
+    table.setAttribute(
       "data-edges-v",
       JSON.stringify([
         [
@@ -221,7 +221,7 @@ describe("grid-renderer", () => {
       ]),
     );
 
-    render(grid);
+    render(table);
     // With positive gap, both sides render independently
     expect((a.style as any).borderRightWidth).toBe("2px");
     expect((a.style as any).borderRightStyle).toBe("solid");
@@ -230,7 +230,7 @@ describe("grid-renderer", () => {
   });
 
   it("zero gap resolves neighbors to a single stroke (heavier wins)", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     addCell(g);
@@ -257,7 +257,7 @@ describe("grid-renderer", () => {
     });
   });
   it("builds template strings from data attributes", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "hug,100px,fill");
     g.setAttribute("data-row-heights", "20px,hug");
     const m = buildRenderModel(g);
@@ -266,7 +266,7 @@ describe("grid-renderer", () => {
   });
 
   it("applies span css variables per cell", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
     const a = addCell(g, 2, 1);
@@ -283,7 +283,7 @@ describe("grid-renderer", () => {
   });
 
   it("edge default fills when one side is missing", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     g.setAttribute(
@@ -308,7 +308,7 @@ describe("grid-renderer", () => {
   });
 
   it("'none' trumps any other style/weight in conflicts", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     addCell(g);
@@ -335,8 +335,8 @@ describe("grid-renderer", () => {
     expect(m.cellBorders[1].left).toBeNull();
   });
 
-  it("uses grid inner borders when cells have none", () => {
-    const g = makeGrid();
+  it("uses table inner borders when cells have none", () => {
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     addCell(g);
@@ -357,7 +357,7 @@ describe("grid-renderer", () => {
   });
 
   it("does not apply edge default across positive gaps (sides unspecified render nothing)", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     g.setAttribute("data-gap-x", "8px");
@@ -378,7 +378,7 @@ describe("grid-renderer", () => {
   });
 
   it("applies default to perimeters when unspecified", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     addCell(g);
@@ -415,7 +415,7 @@ describe("grid-renderer", () => {
   });
 
   it("null is unspecified (no force); style:none forces no stroke", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     addCell(g);
@@ -450,7 +450,7 @@ describe("grid-renderer", () => {
   });
 
   it("perimeter via unified H/V applies directly to edge cells", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
     addCell(g);
@@ -485,7 +485,7 @@ describe("grid-renderer", () => {
   });
 
   it("renders only external border when interior is none", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
     // 2x2 cells
@@ -585,8 +585,8 @@ describe("grid-renderer", () => {
 
   // Borders are applied per-side; no outline usage.
 
-  it("applies grid corner radius to outermost cells", () => {
-    const g = makeGrid();
+  it("applies table corner radius to outermost cells", () => {
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
     const a = addCell(g);
@@ -602,13 +602,13 @@ describe("grid-renderer", () => {
     expect((d.style as any).borderBottomRightRadius).toBe("8px");
   });
 
-  // No special behavior for nested grids in border-only mode.
+  // No special behavior for nested tables in border-only mode.
 
   it("falls back to CSS var defaults when data-border-default is absent", () => {
-    const g = makeGrid();
+    const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
-    // Simulate :root CSS variables in jsdom by setting them on the grid
+    // Simulate :root CSS variables in jsdom by setting them on the table
     g.style.setProperty("--edge-default-weight", "1");
     g.style.setProperty("--edge-default-style", "solid");
     g.style.setProperty("--edge-default-color", "#000");
@@ -631,8 +631,8 @@ describe("grid-renderer", () => {
   });
 
   it("clamps 'double' style to at least 4px when rendering", () => {
-    const g = makeGrid();
-    g.className = "grid";
+    const g = makeTable();
+    g.className = "table";
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
     // create 2x2
@@ -667,7 +667,7 @@ describe("grid-renderer", () => {
     expect((a.style as any).borderLeftWidth).toBe("4px");
 
     // If explicit weight is 0 with style double, it should remain none (not forced visible)
-    const g2 = makeGrid();
+    const g2 = makeTable();
     g2.setAttribute("data-column-widths", "100px");
     g2.setAttribute("data-row-heights", "30px");
     const only = addCell(g2);

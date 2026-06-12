@@ -3,7 +3,7 @@ import { describe, it } from "vite-plus/test";
 
 describe("edge analysis for red cross pattern", () => {
   it("analyzes what edges are needed for complete borders on r1c1 and r2c2", () => {
-    // For a 2x2 grid:
+    // For a 2x2 table:
     // r1c1 | r1c2
     // -----------
     // r2c1 | r2c2

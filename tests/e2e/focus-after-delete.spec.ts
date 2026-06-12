@@ -14,30 +14,30 @@ function nthCellIndex(row: number, col: number, cols: number) {
 
 test.describe("Focus after delete", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/demo/pages/new-grid.html");
-    await expect(page.locator("#main-grid")).toBeVisible();
-    // Attach grid behavior by injecting a module script and exposing API
+    await page.goto("/demo/pages/new-table.html");
+    await expect(page.locator("#main-table")).toBeVisible();
+    // Attach table behavior by injecting a module script and exposing API
     await page.addScriptTag({
       type: "module",
       content: `
-        import { attachGrid, BloomGrid } from '/src/index.tsx';
-        const grid = document.querySelector('#main-grid');
-        window.__BG = { attachGrid, BloomGrid };
-        attachGrid(grid);
+        import { attachTable, BloomTable } from '/src/index.tsx';
+        const table = document.querySelector('#main-table');
+        window.__BG = { attachTable, BloomTable };
+        attachTable(table);
       `,
     });
   });
 
   test("Delete row focuses same column in neighbor row", async ({ page }) => {
-    const gridSel = "#main-grid";
+    const gridSel = "#main-table";
     // Start with 2x2: focus r0c1
     await focusCell(page, gridSel, nthCellIndex(0, 1, 2));
 
     // Delete current row (row 0)
     await page.evaluate(() => {
-      const { BloomGrid } = (window as any).__BG;
-      const grid = document.querySelector("#main-grid") as HTMLElement;
-      const controller = new BloomGrid(grid);
+      const { BloomTable } = (window as any).__BG;
+      const table = document.querySelector("#main-table") as HTMLElement;
+      const controller = new BloomTable(table);
       controller.removeRowAt(0);
     });
 
@@ -48,15 +48,15 @@ test.describe("Focus after delete", () => {
   });
 
   test("Delete column focuses same row in neighbor column", async ({ page }) => {
-    const gridSel = "#main-grid";
+    const gridSel = "#main-table";
     // Start with 2x2: focus r1c1
     await focusCell(page, gridSel, nthCellIndex(1, 1, 2));
 
     // Delete current column (column 1)
     await page.evaluate(() => {
-      const { BloomGrid } = (window as any).__BG;
-      const grid = document.querySelector("#main-grid") as HTMLElement;
-      const controller = new BloomGrid(grid);
+      const { BloomTable } = (window as any).__BG;
+      const table = document.querySelector("#main-table") as HTMLElement;
+      const controller = new BloomTable(table);
       controller.removeColumnAt(1);
     });
 

@@ -7,7 +7,7 @@ import { BorderControl } from "./BorderControl/BorderControl";
 import type { BorderStyle, BorderValueMap } from "./BorderControl/logic/types";
 import { applyCellPerimeter, ensureEdgesArrays } from "../edge-utils";
 import { getCellPerimeterValueMap } from "../border-state";
-import { render } from "../grid-renderer";
+import { render } from "../table-renderer";
 // icons
 // icons are now owned by CellContentType; no direct imports here
 // (leftover icons removed)
@@ -25,29 +25,29 @@ const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full t
 
 // --- Border helpers for a single cell ---
 const buildBorderMapFromCell = (c: HTMLElement): BorderValueMap => {
-  const grid = c.closest(".grid") as HTMLElement | null;
-  if (grid) ensureEdgesArrays(grid);
+  const table = c.closest(".table") as HTMLElement | null;
+  if (table) ensureEdgesArrays(table);
   return getCellPerimeterValueMap(c);
 };
 const applyBorderMapToCell = (c: HTMLElement, map: BorderValueMap) => {
   // Write via edge model so renderer picks it up deterministically
-  const grid = c.closest(".grid") as HTMLElement | null;
-  if (!grid) return;
-  const cs = getComputedStyle(grid);
+  const table = c.closest(".table") as HTMLElement | null;
+  if (!table) return;
+  const cs = getComputedStyle(table);
   const outerColor = (cs.color || "black").trim();
   const toUI = (w: number, s: BorderStyle) => ({
     weight: w,
     style: s,
     color: outerColor,
   });
-  applyCellPerimeter(grid, c, {
+  applyCellPerimeter(table, c, {
     top: toUI(map.top.weight, map.top.style),
     right: toUI(map.right.weight, map.right.style),
     bottom: toUI(map.bottom.weight, map.bottom.style),
     left: toUI(map.left.weight, map.left.style),
   });
   // Re-render to reflect the updated edge model
-  render(grid);
+  render(table);
 };
 
 const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend, onContract }) => {
@@ -61,9 +61,9 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
   // Compute a stable key for the current cell to remount BorderControl on cell change
   const borderControlKey: string | undefined = useMemo(() => {
     if (!currentCell) return undefined;
-    const grid = currentCell.closest(".grid") as HTMLElement | null;
-    if (!grid) return undefined;
-    const cells = Array.from(grid.children).filter(
+    const table = currentCell.closest(".table") as HTMLElement | null;
+    if (!table) return undefined;
+    const cells = Array.from(table.children).filter(
       (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("cell"),
     );
     const idx = cells.indexOf(currentCell);

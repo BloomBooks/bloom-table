@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vite-plus/test";
 import { setupContentsOfCell } from "./cell-contents";
-import { gridHistoryManager } from "./history";
+import { tableHistoryManager } from "./history";
 
 describe("setupContentsOfCell", () => {
   let cell: HTMLElement;
@@ -14,9 +14,9 @@ describe("setupContentsOfCell", () => {
 
   it("should change content type when specified", () => {
     cell = document.createElement("div");
-    setupContentsOfCell(cell, "grid");
-    expect(cell.innerHTML).toContain(`grid`);
-    expect(cell.dataset.contentType).toBe("grid");
+    setupContentsOfCell(cell, "table");
+    expect(cell.innerHTML).toContain(`table`);
+    expect(cell.dataset.contentType).toBe("table");
   });
 
   it("should not change content if type is the same", () => {
@@ -36,10 +36,10 @@ describe("setupContentsOfCell", () => {
 
   it("should use history when putInHistory is true", () => {
     cell = document.createElement("div");
-    const grid = document.createElement("div");
-    grid.classList.add("grid");
-    grid.appendChild(cell);
-    const addHistoryEntry = vi.spyOn(gridHistoryManager, "addHistoryEntry");
+    const table = document.createElement("div");
+    table.classList.add("table");
+    table.appendChild(cell);
+    const addHistoryEntry = vi.spyOn(tableHistoryManager, "addHistoryEntry");
     setupContentsOfCell(cell, "text", true);
     expect(addHistoryEntry).toHaveBeenCalled();
   });

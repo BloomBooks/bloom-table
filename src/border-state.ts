@@ -1,4 +1,4 @@
-import { buildRenderModel } from "./grid-renderer";
+import { buildRenderModel } from "./table-renderer";
 import { EDGE_DEFAULT } from "./defaults";
 import type {
   BorderStyle,
@@ -13,8 +13,8 @@ const snapWeight = (w: number): BorderWeight => {
   return 4;
 };
 
-export function getGridOuterBorderValueMap(grid: HTMLElement): BorderValueMap {
-  const model = buildRenderModel(grid);
+export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap {
+  const model = buildRenderModel(table);
   const rows = model.rowHeights.length;
   const cols = model.columnWidths.length;
 
@@ -68,8 +68,8 @@ export function getGridOuterBorderValueMap(grid: HTMLElement): BorderValueMap {
 }
 
 export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
-  const grid = cell.closest(".grid") as HTMLElement | null;
-  if (!grid) {
+  const table = cell.closest(".table") as HTMLElement | null;
+  if (!table) {
     return {
       top: { weight: 0, style: "none", radius: 0 },
       right: { weight: 0, style: "none", radius: 0 },
@@ -79,8 +79,8 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
       innerV: { weight: 0, style: "none", radius: 0 },
     } as BorderValueMap;
   }
-  const model = buildRenderModel(grid);
-  const cells = Array.from(grid.children).filter(
+  const model = buildRenderModel(table);
+  const cells = Array.from(table.children).filter(
     (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("cell"),
   );
   const index = cells.indexOf(cell);

@@ -1,6 +1,6 @@
 /**
  * Default edge (border) spec.
- * IMPORTANT: Keep in sync with CSS variables in src/bloom-grid.css:
+ * IMPORTANT: Keep in sync with CSS variables in src/bloom-table.css:
  *   --edge-default-weight, --edge-default-style, --edge-default-color
  */
 export const EDGE_DEFAULT = {

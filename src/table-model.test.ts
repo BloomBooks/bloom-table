@@ -6,8 +6,8 @@ import {
   setRowHeights,
   getSpan,
   setSpan,
-  getGridCorners,
-  setGridCorners,
+  getTableCorners,
+  setTableCorners,
   getCellCorners,
   setCellCorners,
   getEdgesV,
@@ -17,12 +17,12 @@ import {
   getEdgeDefault,
   setEdgeDefault,
   type BorderSpec,
-} from "./grid-model";
+} from "./table-model";
 
-function makeGrid(): HTMLElement {
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  return grid as HTMLElement;
+function makeTable(): HTMLElement {
+  const table = document.createElement("div");
+  table.className = "table";
+  return table as HTMLElement;
 }
 
 function makeCell(): HTMLElement {
@@ -31,9 +31,9 @@ function makeCell(): HTMLElement {
   return cell as HTMLElement;
 }
 
-describe("grid-model", () => {
+describe("table-model", () => {
   it("reads/writes column widths and row heights", () => {
-    const g = makeGrid();
+    const g = makeTable();
     setColumnWidths(g, ["hug", "100px", "fill"]);
     expect(getColumnWidths(g)).toEqual(["hug", "100px", "fill"]);
 
@@ -49,7 +49,7 @@ describe("grid-model", () => {
   });
 
   it("reads/writes edgesH, edgesV, and edge default", () => {
-    const g = makeGrid();
+    const g = makeTable();
     // Vertical edges: 1 row x 3 vertical boundaries (including perimeters)
     setEdgesV(g, [
       [null, { west: { weight: 2, style: "solid", color: "#000" }, east: null }, null],
@@ -81,9 +81,9 @@ describe("grid-model", () => {
   });
 
   it("reads/writes corners JSON", () => {
-    const g = makeGrid();
-    setGridCorners(g, { radius: 8 });
-    expect(getGridCorners(g)).toEqual({ radius: 8 });
+    const g = makeTable();
+    setTableCorners(g, { radius: 8 });
+    expect(getTableCorners(g)).toEqual({ radius: 8 });
 
     const c = makeCell();
     setCellCorners(c, { radius: 0 });
@@ -91,10 +91,10 @@ describe("grid-model", () => {
   });
 
   it("removes attributes when setting null", () => {
-    const g = makeGrid();
-    setGridCorners(g, { radius: 4 });
-    setGridCorners(g, null);
-    expect(getGridCorners(g)).toBeNull();
+    const g = makeTable();
+    setTableCorners(g, { radius: 4 });
+    setTableCorners(g, null);
+    expect(getTableCorners(g)).toBeNull();
 
     // No outer anymore; only test edge default removal
 

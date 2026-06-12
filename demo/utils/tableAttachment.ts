@@ -1,4 +1,4 @@
-import { attachGrid } from "../../src/attach";
+import { attachTable } from "../../src/attach";
 
 /**
  * Utility function to attach all grids on a page or within a container.
@@ -7,10 +7,10 @@ import { attachGrid } from "../../src/attach";
  *
  * @param container - The container to search for grids. If not provided, searches the entire document.
  */
-export function attachAllGrids(container: Document | HTMLElement = document): void {
-  const gridElements = container.querySelectorAll<HTMLElement>(".grid");
-  gridElements.forEach((grid) => {
-    attachGrid(grid);
+export function attachAllTables(container: Document | HTMLElement = document): void {
+  const gridElements = container.querySelectorAll<HTMLElement>(".table");
+  gridElements.forEach((table) => {
+    attachTable(table);
   });
 }
 
@@ -20,8 +20,8 @@ export function attachAllGrids(container: Document | HTMLElement = document): vo
  *
  * @param container - The container that had new content loaded
  */
-export function attachGridsAfterContentLoad(container: HTMLElement): void {
-  attachAllGrids(container);
+export function attachTablesAfterContentLoad(container: HTMLElement): void {
+  attachAllTables(container);
 
   // Dispatch a custom event to notify React components that new content has been loaded
   const event = new CustomEvent("exampleContentLoaded", {

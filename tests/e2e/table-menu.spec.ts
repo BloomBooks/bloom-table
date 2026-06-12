@@ -1,6 +1,6 @@
 import { test, expect, Page } from "@playwright/test";
 
-test.describe("GridMenu Integration Tests", () => {
+test.describe("TableMenu Integration Tests", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the main demo page which includes React components
     await page.goto("/demo/index.html");
@@ -11,13 +11,13 @@ test.describe("GridMenu Integration Tests", () => {
     // Wait for the example bar to load
     await page.waitForSelector("#example-list", { timeout: 10000 });
 
-    // Select the "new-grid" example if it's available, or use the first available example
+    // Select the "new-table" example if it's available, or use the first available example
     const exampleListItems = page.locator("#example-list .example-item");
     const exampleCount = await exampleListItems.count();
 
     if (exampleCount > 0) {
-      // Try to find "new-grid" example, otherwise use first
-      const newGridExample = page.locator("#example-list").getByText("new-grid", { exact: false });
+      // Try to find "new-table" example, otherwise use first
+      const newGridExample = page.locator("#example-list").getByText("new-table", { exact: false });
       const hasNewGrid = (await newGridExample.count()) > 0;
 
       if (hasNewGrid) {
@@ -26,9 +26,9 @@ test.describe("GridMenu Integration Tests", () => {
         await exampleListItems.first().click();
       }
 
-      // Wait for the example to load and grid to appear
+      // Wait for the example to load and table to appear
       await page.waitForTimeout(1000);
-      await page.waitForSelector("#example-container .grid", {
+      await page.waitForSelector("#example-container .table", {
         timeout: 10000,
       });
     }
@@ -41,12 +41,12 @@ test.describe("GridMenu Integration Tests", () => {
     await firstCellEditor.click();
     await page.waitForTimeout(200); // Give time for focus handling
 
-    // Check that GridMenu is visible and has proper content
-    const gridMenu = page.locator(".grid-menu");
+    // Check that TableMenu is visible and has proper content
+    const gridMenu = page.locator(".table-menu");
     await expect(gridMenu).toBeVisible();
     await expect(gridMenu).not.toContainText("Click in any table cell");
 
-    // Get initial grid state
+    // Get initial table state
     const initialColumnCount = await getColumnCount(page);
     const initialRowCount = await getRowCount(page);
     const initialCellCount = await getCellCount(page);
@@ -276,9 +276,9 @@ test.describe("GridMenu Integration Tests", () => {
     expect(afterUndoState.cellCount).toBe(initialState.cellCount);
   });
 
-  test("GridMenu appears and disappears when cell focus changes", async ({ page }) => {
-    // Initially no cell is focused, so GridMenu should show instructional message
-    const gridMenu = page.locator(".grid-menu");
+  test("TableMenu appears and disappears when cell focus changes", async ({ page }) => {
+    // Initially no cell is focused, so TableMenu should show instructional message
+    const gridMenu = page.locator(".table-menu");
     await expect(gridMenu).toBeVisible();
     await expect(gridMenu).toContainText("Click in any table cell");
 
@@ -288,18 +288,18 @@ test.describe("GridMenu Integration Tests", () => {
     await firstCellEditor.click();
     await page.waitForTimeout(200);
 
-    // GridMenu should now show the full menu
+    // TableMenu should now show the full menu
     await expect(gridMenu).not.toContainText("Click in any table cell");
     await expect(page.locator('button[aria-label="Insert Column Left"]')).toBeVisible();
     await expect(page.locator('button[aria-label="Insert Column Right"]')).toBeVisible();
     await expect(page.locator('button[aria-label="Insert Row Above"]')).toBeVisible();
     await expect(page.locator('button[aria-label="Insert Row Below"]')).toBeVisible();
 
-    // Click outside the grid (on the body)
+    // Click outside the table (on the body)
     await page.locator("body").click({ position: { x: 50, y: 50 } });
     await page.waitForTimeout(200);
 
-    // GridMenu should still be visible but might change content or become less functional
+    // TableMenu should still be visible but might change content or become less functional
     // Instead of expecting a specific message, verify that some key functionality is still present
     await expect(gridMenu).toBeVisible();
   });
@@ -308,16 +308,16 @@ test.describe("GridMenu Integration Tests", () => {
 // Helper functions
 async function getColumnCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
-    const grid = document.querySelector("#example-container .grid") as HTMLElement;
-    const columnWidths = grid?.getAttribute("data-column-widths");
+    const table = document.querySelector("#example-container .table") as HTMLElement;
+    const columnWidths = table?.getAttribute("data-column-widths");
     return columnWidths ? columnWidths.split(",").length : 0;
   });
 }
 
 async function getRowCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
-    const grid = document.querySelector("#example-container .grid") as HTMLElement;
-    const rowHeights = grid?.getAttribute("data-row-heights");
+    const table = document.querySelector("#example-container .table") as HTMLElement;
+    const rowHeights = table?.getAttribute("data-row-heights");
     return rowHeights ? rowHeights.split(",").length : 0;
   });
 }

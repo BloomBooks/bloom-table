@@ -7,8 +7,8 @@ import textIcon from "./components/icons/cell-content-text.svg";
 import tableIcon from "./components/icons/cell-content-table.svg";
 import imageIcon from "./components/icons/cell-content-image.svg";
 import videoIcon from "./components/icons/cell-content-video.svg";
-import { gridHistoryManager } from "./history";
-import { attachGrid } from "./attach";
+import { tableHistoryManager } from "./history";
+import { attachTable } from "./attach";
 
 export function contentTypeOptions(): {
   id: string;
@@ -31,16 +31,16 @@ export const defaultCellContentsForEachType: CellContentType[] = [
     regexToIdentify: /<div[^>]*contenteditable=['"]true['"][^>]*>/,
   },
   {
-    id: "grid",
-    englishName: "Grid",
+    id: "table",
+    englishName: "Table",
     icon: tableIcon,
-    templateHtml: `<div class='grid' data-column-widths='fill,fill' data-row-heights='fill,fill'>
+    templateHtml: `<div class='table' data-column-widths='fill,fill' data-row-heights='fill,fill'>
             <div class='cell' data-content-type='text'></div>
             <div class='cell' data-content-type='text'></div>
             <div class='cell' data-content-type='text'></div>
             <div class='cell' data-content-type='text'></div>
         </div>`,
-    regexToIdentify: /<div[^>]*class=['"][^'"]*grid[^'"]*['"][^>]*>/,
+    regexToIdentify: /<div[^>]*class=['"][^'"]*table[^'"]*['"][^>]*>/,
   },
   {
     id: "image",
@@ -65,6 +65,39 @@ export const defaultCellContentsForEachType: CellContentType[] = [
 
 let defaultCellContentTypeId: string = "text";
 
+// Name of the event dispatched on a cell after its contents are (re)initialized
+// by setupContentsOfCell. Host apps listen for this (bubbles up to the table /
+// document when the cell is attached) to wire host-specific behavior onto the
+// new content — e.g. attaching an editor to a freshly created text block.
+export const kTableCellContentChangedEvent = "tableCellContentChanged";
+
+// Register (or replace) a cell content type at runtime. Host apps use this to
+// supply their own templates — e.g. Bloom registers a "text" type whose
+// templateHtml is a bloom-translationGroup instead of a bare contenteditable.
+// If a type with the same id already exists it is replaced in place.
+export function registerCellContentType(
+  type: CellContentType,
+  options?: { makeDefault?: boolean },
+): void {
+  const existingIndex = defaultCellContentsForEachType.findIndex((c) => c.id === type.id);
+  if (existingIndex >= 0) {
+    defaultCellContentsForEachType[existingIndex] = type;
+  } else {
+    defaultCellContentsForEachType.push(type);
+  }
+  if (options?.makeDefault) {
+    defaultCellContentTypeId = type.id;
+  }
+}
+
+export function setDefaultCellContentTypeId(id: string): void {
+  defaultCellContentTypeId = id;
+}
+
+export function getDefaultCellContentTypeId(): string {
+  return defaultCellContentTypeId;
+}
+
 export function getCurrentContentTypeId(cell: HTMLElement): string | undefined {
   return (
     cell.dataset.contentType /* use regex to identify */ ||
@@ -77,7 +110,7 @@ export function setupContentsOfCell(
   targetType?: string,
   putInHistory: boolean = false,
 ): HTMLElement | null {
-  const grid = cell.closest<HTMLElement>(".grid");
+  const table = cell.closest<HTMLElement>(".table");
 
   // First we figure out what is already there in the cell.
   let existingContentType = cell.dataset.contentType;
@@ -119,21 +152,21 @@ export function setupContentsOfCell(
     cell.dataset.contentType = targetType;
     cell.innerHTML = content.templateHtml;
 
-    // if we just inserted a grid, set each of its cells to the default content type
-    if (targetType === "grid") {
-      const embeddedGrid = cell.querySelector<HTMLElement>(".grid");
-      if (embeddedGrid) {
-        const gridCells = embeddedGrid.querySelectorAll<HTMLElement>(".cell");
-        gridCells.forEach((gridCell) => {
-          gridCell.dataset.contentType = defaultCellContentTypeId;
+    // if we just inserted a table, set each of its cells to the default content type
+    if (targetType === "table") {
+      const embeddedTable = cell.querySelector<HTMLElement>(".table");
+      if (embeddedTable) {
+        const tableCells = embeddedTable.querySelectorAll<HTMLElement>(".cell");
+        tableCells.forEach((tableCell) => {
+          tableCell.dataset.contentType = defaultCellContentTypeId;
 
-          gridCell.innerHTML =
+          tableCell.innerHTML =
             defaultCellContentsForEachType.find((c) => c.id === defaultCellContentTypeId)
               ?.templateHtml || "!!!";
         });
 
-        // Attach the embedded grid to enable all grid functionality
-        attachGrid(embeddedGrid);
+        // Attach the embedded table to enable all table functionality
+        attachTable(embeddedTable);
       }
       // set tabindex to -1 so that it's possible to focus the parent cell
       cell.tabIndex = -1;
@@ -148,15 +181,29 @@ export function setupContentsOfCell(
     }
   };
 
-  if (putInHistory && grid) {
-    gridHistoryManager.addHistoryEntry(
-      grid,
+  if (putInHistory && table) {
+    tableHistoryManager.addHistoryEntry(
+      table,
       `Change Cell from ${existingContentType} to ${targetType}`,
       doIt,
     );
   } else {
     doIt();
   }
+
+  // Notify host apps that this cell's content was (re)initialized so they can
+  // wire host-specific behavior onto the new content. Dispatched after any
+  // history entry completes so handlers may safely run further table operations.
+  // The event bubbles (and crosses shadow boundaries) when the cell is attached;
+  // for cells created detached (e.g. new rows/columns) the host can re-scan on
+  // the "tableHistoryUpdated" event instead.
+  cell.dispatchEvent(
+    new CustomEvent(kTableCellContentChangedEvent, {
+      bubbles: true,
+      composed: true,
+      detail: { cell, contentType: targetType },
+    }),
+  );
 
   // for testing purposes, return the child
   return (cell.firstChild as HTMLElement) || null;

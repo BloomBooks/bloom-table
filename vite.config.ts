@@ -30,22 +30,32 @@ export default defineConfig({
   // `vp pack` builds the library (replaces the old `vite build` lib config and
   // the vite-plugin-dts / copy-css-file plugins).
   pack: {
-    entry: { "bloom-grid": "src/index.tsx" },
+    entry: { "bloom-table": "src/index.tsx" },
     format: ["esm", "umd"],
-    globalName: "BloomGrid",
+    globalName: "BloomTable",
     platform: "browser",
-    // Match the old Rollup contract: only React is external; MUI/Emotion are
-    // bundled into the library (tsdown otherwise auto-externalizes all deps).
+    // React, MUI, and Emotion are all peer dependencies, so they are external:
+    // the host app (e.g. Bloom) provides a single shared copy. The core attach
+    // path is framework-free; only the optional TableMenu React components pull
+    // these in, and consumers that don't import them never load them.
     deps: {
-      neverBundle: ["react", "react-dom", /^react-dom\//],
-      alwaysBundle: [/^@mui\//, /^@emotion\//],
+      neverBundle: [
+        "react",
+        "react-dom",
+        /^react-dom\//,
+        /^react\//,
+        /^@mui\//,
+        /^@emotion\//,
+      ],
     },
     // Inline the icon SVGs as data-URL strings so the published bundle is
     // self-contained (matches the old Vite lib build's asset inlining).
     loader: { ".svg": "dataurl" },
     dts: true,
-    // Ship the stylesheet next to the bundle (was the copy-css-file plugin).
-    copy: ["src/bloom-grid.css"],
+    // Ship the stylesheets next to the bundle (was the copy-css-file plugin).
+    // bloom-table.css holds the structural/read-time rules; bloom-table-edit.css
+    // holds the edit-only selection/hint rules.
+    copy: ["src/bloom-table.css", "src/bloom-table-edit.css"],
     outputOptions(options, format) {
       if (format === "umd") {
         options.globals = {

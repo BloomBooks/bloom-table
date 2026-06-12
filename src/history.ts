@@ -1,34 +1,35 @@
-export interface GridState {
+export interface TableState {
   innerHTML: string;
   attributes?: Record<string, string>;
 }
 
 export interface HistoryEntry {
-  state: GridState; // The state *before* the operation was performed
+  state: TableState; // The state *before* the operation was performed
   timestamp: number;
   label: string;
-  undoOperation?: (grid: HTMLElement, prevState: GridState) => void;
+  table?: HTMLElement; // The top-level table this entry applies to
+  undoOperation?: (table: HTMLElement, prevState: TableState) => void;
 }
 
-class GridHistoryManager {
+class TableHistoryManager {
   private history: HistoryEntry[] = [];
   private maxHistorySize: number = 50;
-  private attachedGrids = new Set<HTMLElement>();
+  private attachedTables = new Set<HTMLElement>();
   private operationInProgress = false; // Prevents nested or concurrent operations
 
   // For testing purposes only
   reset(): void {
     this.history = [];
-    this.attachedGrids = new Set();
+    this.attachedTables = new Set();
     this.operationInProgress = false;
   }
-  private captureGridState(grid: HTMLElement): GridState {
+  private captureTableState(table: HTMLElement): TableState {
     const attributes: Record<string, string> = {};
 
     // Safely iterate through attributes
-    if (grid.attributes) {
-      for (let i = 0; i < grid.attributes.length; i++) {
-        const attr = grid.attributes[i];
+    if (table.attributes) {
+      for (let i = 0; i < table.attributes.length; i++) {
+        const attr = table.attributes[i];
         if (attr && attr.name) {
           attributes[attr.name] = attr.value || "";
         }
@@ -36,36 +37,36 @@ class GridHistoryManager {
     }
 
     return {
-      innerHTML: grid.innerHTML,
+      innerHTML: table.innerHTML,
       attributes,
     };
   }
   addHistoryEntry(
-    grid: HTMLElement,
+    table: HTMLElement,
     description: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     performOperation: () => void, // The function that actually performs the DOM change
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    undoOperation?: (grid: HTMLElement, prevState: GridState) => void,
+    undoOperation?: (table: HTMLElement, prevState: TableState) => void,
   ): void {
-    // Find the top-level grid - we may have been handed a child grid, but our history is for the top-level grid
-    const topLevelGrid = this.findTopLevelGrid(grid);
+    // Find the top-level table - we may have been handed a child table, but our history is for the top-level table
+    const topLevelTable = this.findTopLevelTable(table);
 
-    if (!topLevelGrid || !this.isAttached(topLevelGrid)) {
+    if (!topLevelTable || !this.isAttached(topLevelTable)) {
       console.warn(
-        "GridHistoryManager: Attempted to add history entry for a detached or null grid.",
+        "TableHistoryManager: Attempted to add history entry for a detached or null table.",
       );
       return;
     }
     if (this.operationInProgress) {
       console.warn(
-        "GridHistoryManager: Operation already in progress. Skipping new history entry.",
+        "TableHistoryManager: Operation already in progress. Skipping new history entry.",
       );
       return;
     }
 
-    // Capture the state of the grid
-    const stateBeforeOperation = this.captureGridState(topLevelGrid);
+    // Capture the state of the table
+    const stateBeforeOperation = this.captureTableState(topLevelTable);
 
     this.operationInProgress = true;
     let operationSuccess = false;
@@ -78,42 +79,43 @@ class GridHistoryManager {
         state: stateBeforeOperation,
         timestamp: Date.now(),
         label: description,
-        undoOperation: undoOperation || ((grid, state) => this.defaultUndoOperation(grid, state)),
+        table: topLevelTable,
+        undoOperation: undoOperation || ((table, state) => this.defaultUndoOperation(table, state)),
       };
       this.history.push(entry);
       if (this.history.length > this.maxHistorySize) {
         this.history.shift();
       }
     } catch (error) {
-      console.error("GridHistoryManager: Error during operation execution:", error);
+      console.error("TableHistoryManager: Error during operation execution:", error);
     } finally {
       this.operationInProgress = false;
       if (operationSuccess) {
-        const event = new CustomEvent("gridHistoryUpdated", {
+        const event = new CustomEvent("tableHistoryUpdated", {
           detail: { operation: description, canUndo: this.canUndo() },
         });
         document.dispatchEvent(event);
       }
     }
   }
-  undo(grid: HTMLElement): boolean {
+  undo(table: HTMLElement): boolean {
     if (!this.canUndo()) {
       console.warn(
-        "GridHistoryManager: Cannot undo. Either history is empty or an operation is in progress.",
+        "TableHistoryManager: Cannot undo. Either history is empty or an operation is in progress.",
       );
       return false;
     }
 
     const entry = this.history.pop();
     if (!entry) {
-      console.warn("GridHistoryManager: History is empty, cannot undo.");
+      console.warn("TableHistoryManager: History is empty, cannot undo.");
       return false;
     }
 
-    // Find the top-level grid to ensure we're undoing on the same grid level that was captured
-    const topLevelGrid = this.findTopLevelGrid(grid);
-    if (!topLevelGrid || !this.isAttached(topLevelGrid)) {
-      console.warn("GridHistoryManager: Cannot undo. Top-level grid not found or not attached.");
+    // Find the top-level table to ensure we're undoing on the same table level that was captured
+    const topLevelTable = this.findTopLevelTable(table);
+    if (!topLevelTable || !this.isAttached(topLevelTable)) {
+      console.warn("TableHistoryManager: Cannot undo. Top-level table not found or not attached.");
       // Put the entry back since we couldn't undo
       this.history.push(entry);
       return false;
@@ -123,16 +125,16 @@ class GridHistoryManager {
     let undoSuccess = false;
     try {
       const undoOp =
-        entry.undoOperation || ((grid, state) => this.defaultUndoOperation(grid, state));
-      undoOp(topLevelGrid, entry.state);
+        entry.undoOperation || ((table, state) => this.defaultUndoOperation(table, state));
+      undoOp(topLevelTable, entry.state);
       undoSuccess = true;
     } catch (error) {
-      console.error("GridHistoryManager: Error during undo operation:", error);
+      console.error("TableHistoryManager: Error during undo operation:", error);
       // Put the entry back since the undo failed
       this.history.push(entry);
     } finally {
       this.operationInProgress = false;
-      const event = new CustomEvent("gridHistoryUpdated", {
+      const event = new CustomEvent("tableHistoryUpdated", {
         detail: {
           operation: `Undo ${entry.label}`,
           undoSuccess: undoSuccess,
@@ -144,18 +146,36 @@ class GridHistoryManager {
     return undoSuccess;
   }
 
-  attachGrid(grid: HTMLElement): void {
-    this.attachedGrids.add(grid);
-    //console.info("GridHistoryManager: Grid attached.");
+  // Undo the most recent operation without the caller needing to hold a table
+  // reference. Uses the table recorded on the entry (falling back to any
+  // attached table). Convenient for host apps wiring table undo into an app-wide
+  // undo command.
+  undoLast(): boolean {
+    if (!this.canUndo()) return false;
+    const entry = this.history[this.history.length - 1];
+    const target =
+      entry.table && this.isAttached(entry.table)
+        ? entry.table
+        : this.attachedTables.values().next().value;
+    if (!target) {
+      console.warn("TableHistoryManager: No attached table available to undo against.");
+      return false;
+    }
+    return this.undo(target);
   }
 
-  detachGrid(grid: HTMLElement): void {
-    this.attachedGrids.delete(grid);
-    //console.info("GridHistoryManager: Grid detached.");
+  attachTable(table: HTMLElement): void {
+    this.attachedTables.add(table);
+    //console.info("TableHistoryManager: Table attached.");
   }
 
-  isAttached(grid: HTMLElement): boolean {
-    return this.attachedGrids.has(grid);
+  detachTable(table: HTMLElement): void {
+    this.attachedTables.delete(table);
+    //console.info("TableHistoryManager: Table detached.");
+  }
+
+  isAttached(table: HTMLElement): boolean {
+    return this.attachedTables.has(table);
   }
 
   canUndo(): boolean {
@@ -171,18 +191,18 @@ class GridHistoryManager {
 
   clearHistory(): void {
     this.history = [];
-    //    console.info("GridHistoryManager: History cleared.");
+    //    console.info("TableHistoryManager: History cleared.");
     // Dispatch a custom event to notify that history has been cleared
-    const event = new CustomEvent("gridHistoryUpdated", {
+    const event = new CustomEvent("tableHistoryUpdated", {
       detail: { operation: "Clear History" },
     });
     document.dispatchEvent(event);
   }
-  private defaultUndoOperation(grid: HTMLElement, prevState: GridState): void {
+  private defaultUndoOperation(table: HTMLElement, prevState: TableState): void {
     // First, remove all existing attributes
     const attributesToRemove: string[] = [];
-    for (let i = 0; i < grid.attributes.length; i++) {
-      const attr = grid.attributes[i];
+    for (let i = 0; i < table.attributes.length; i++) {
+      const attr = table.attributes[i];
       if (attr && attr.name) {
         attributesToRemove.push(attr.name);
       }
@@ -190,33 +210,33 @@ class GridHistoryManager {
 
     // Remove attributes
     attributesToRemove.forEach((name) => {
-      grid.removeAttribute(name);
+      table.removeAttribute(name);
     });
 
     // Then restore the previous attributes
     if (prevState.attributes) {
       Object.entries(prevState.attributes).forEach(([name, value]) => {
-        grid.setAttribute(name, value);
+        table.setAttribute(name, value);
       });
     }
 
     // Finally, restore the innerHTML
-    grid.innerHTML = prevState.innerHTML;
+    table.innerHTML = prevState.innerHTML;
   }
 
-  private findTopLevelGrid(grid: HTMLElement): HTMLElement {
-    // Start from the current grid and traverse up to find the top-level grid
-    let currentGrid = grid;
-    let parentGrid = currentGrid.parentElement?.closest<HTMLElement>(".grid");
+  private findTopLevelTable(table: HTMLElement): HTMLElement {
+    // Start from the current table and traverse up to find the top-level table
+    let currentTable = table;
+    let parentTable = currentTable.parentElement?.closest<HTMLElement>(".table");
 
-    // Keep moving up until we find a grid that has no parent grid
-    while (parentGrid) {
-      currentGrid = parentGrid;
-      parentGrid = currentGrid.parentElement?.closest<HTMLElement>(".grid");
+    // Keep moving up until we find a table that has no parent table
+    while (parentTable) {
+      currentTable = parentTable;
+      parentTable = currentTable.parentElement?.closest<HTMLElement>(".table");
     }
 
-    return currentGrid;
+    return currentTable;
   }
 }
 
-export const gridHistoryManager = new GridHistoryManager();
+export const tableHistoryManager = new TableHistoryManager();

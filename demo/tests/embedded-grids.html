@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <title>Embedded Grids Demo</title>
-    <link rel="stylesheet" href="../../src/bloom-grid.css" />
+    <link rel="stylesheet" href="../../src/bloom-table.css" />
+    <link rel="stylesheet" href="../../src/bloom-table-edit.css" />
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -22,16 +23,16 @@
       </p>
       <br />
       <div
-        id="main-grid"
-        class="grid"
+        id="main-table"
+        class="table"
         data-column-widths="200px,200px,200px"
         data-row-heights="150px"
         data-edges-h='[[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}],[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}]]'
         data-edges-v='[[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}]]'
       >
-        <div class="cell" data-content-type="grid">
+        <div class="cell" data-content-type="table">
           <div
-            class="grid"
+            class="table"
             data-column-widths="fill,fill"
             data-row-heights="fill,fill"
             data-edges-h='[[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}],[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}],[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}] ]'

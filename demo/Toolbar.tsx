@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from "react";
-import GridMenu from "../src/components/GridMenu";
-import { gridHistoryManager } from "../src";
+import TableMenu from "../src/components/TableMenu";
+import { tableHistoryManager } from "../src";
 
 const Toolbar: React.FC<{}> = () => {
   const [currentCell, setCurrentCell] = useState<HTMLDivElement | null>(null);
-  const [canUndo, setCanUndo] = useState(gridHistoryManager.canUndo());
-  const [lastOperation, setLastOperation] = useState(gridHistoryManager.getLastOperationLabel());
+  const [canUndo, setCanUndo] = useState(tableHistoryManager.canUndo());
+  const [lastOperation, setLastOperation] = useState(tableHistoryManager.getLastOperationLabel());
 
   useEffect(() => {
     const handleHistoryUpdate = () => {
-      setCanUndo(gridHistoryManager.canUndo());
-      setLastOperation(gridHistoryManager.getLastOperationLabel());
+      setCanUndo(tableHistoryManager.canUndo());
+      setLastOperation(tableHistoryManager.getLastOperationLabel());
     };
 
-    document.addEventListener("gridHistoryUpdated", handleHistoryUpdate);
+    document.addEventListener("tableHistoryUpdated", handleHistoryUpdate);
 
     const handleCellFocus = (event: FocusEvent) => {
       const target = event.target as HTMLDivElement;
@@ -27,7 +27,7 @@ const Toolbar: React.FC<{}> = () => {
     document.addEventListener("focusin", handleCellFocus, true);
 
     return () => {
-      document.removeEventListener("gridHistoryUpdated", handleHistoryUpdate);
+      document.removeEventListener("tableHistoryUpdated", handleHistoryUpdate);
       document.removeEventListener("focusin", handleCellFocus, true);
     };
   }, []);
@@ -37,14 +37,14 @@ const Toolbar: React.FC<{}> = () => {
 
   return (
     <>
-      <GridMenu currentCell={currentCell} />
+      <TableMenu currentCell={currentCell} />
       <div style={{ display: "flex", gap: "10px" }}>
         <button
           disabled={!isUndoable}
           onMouseDown={(e) => e.preventDefault()} // Prevent default to avoid losing focus
           onClick={() => {
             if (currentCell) {
-              gridHistoryManager.undo(currentCell!.closest(".grid") as HTMLElement);
+              tableHistoryManager.undo(currentCell!.closest(".table") as HTMLElement);
             }
           }}
           style={{

@@ -1,6 +1,6 @@
 import React from "react";
-import * as Grid from "../";
-import { BloomGrid } from "../";
+import * as Table from "../";
+import { BloomTable } from "../";
 import addColumnLeftIcon from "./icons/column-add-before.svg";
 import addColumnRightIcon from "./icons/column-add-after.svg";
 import deleteColumnIcon from "./icons/column-delete.svg";
@@ -12,7 +12,7 @@ import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
 
 type Props = {
-  grid?: HTMLElement;
+  table?: HTMLElement;
   currentCell?: HTMLElement | null;
   onInsertLeft: () => void;
   onInsertRight: () => void;
@@ -24,7 +24,7 @@ type Props = {
 // IconButton now comes from ./IconButton and defaults to 64x64.
 
 export const ColumnSection: React.FC<Props> = ({
-  grid,
+  table,
   currentCell,
   onInsertLeft,
   onInsertRight,
@@ -34,9 +34,9 @@ export const ColumnSection: React.FC<Props> = ({
   let selectedSize: "grow" | "hug" | "fixed" = "hug";
   let fixedLabel = "mm";
   try {
-    if (grid && currentCell) {
-      const { column: columnIndex } = Grid.getRowAndColumn(grid, currentCell);
-      const controller = new BloomGrid(grid);
+    if (table && currentCell) {
+      const { column: columnIndex } = Table.getRowAndColumn(table, currentCell);
+      const controller = new BloomTable(table);
       const raw = controller.getColumnWidth(columnIndex) || "hug";
       const w = typeof raw === "string" ? raw.trim() : raw;
       if (w === "hug") selectedSize = "hug";
@@ -57,9 +57,9 @@ export const ColumnSection: React.FC<Props> = ({
   ];
 
   const onChangeSize = (id: string) => {
-    if (!grid || !currentCell) return;
-    const { column: columnIndex } = Grid.getRowAndColumn(grid, currentCell);
-    const controller = new BloomGrid(grid);
+    if (!table || !currentCell) return;
+    const { column: columnIndex } = Table.getRowAndColumn(table, currentCell);
+    const controller = new BloomTable(table);
     if (id === "grow") controller.setColumnWidth(columnIndex, "fill");
     else if (id === "hug") controller.setColumnWidth(columnIndex, "hug");
     else if (id === "fixed") {

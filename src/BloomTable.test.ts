@@ -1,48 +1,48 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
-import BloomGrid from "./BloomGrid";
-import { attachGrid } from "./attach";
-import { gridHistoryManager } from "./history";
+import BloomTable from "./BloomTable";
+import { attachTable } from "./attach";
+import { tableHistoryManager } from "./history";
 
-describe("BloomGrid controller", () => {
+describe("BloomTable controller", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
-    gridHistoryManager.reset?.();
+    tableHistoryManager.reset?.();
   });
 
-  function setupGrid(): { grid: HTMLElement; ctrl: BloomGrid } {
-    const grid = document.createElement("div");
-    document.body.appendChild(grid);
-    attachGrid(grid);
-    const ctrl = new BloomGrid(grid);
-    return { grid, ctrl };
+  function setupTable(): { table: HTMLElement; ctrl: BloomTable } {
+    const table = document.createElement("div");
+    document.body.appendChild(table);
+    attachTable(table);
+    const ctrl = new BloomTable(table);
+    return { table, ctrl };
   }
 
   it("renders immediately on each operation", () => {
-    const { grid, ctrl } = setupGrid();
+    const { table, ctrl } = setupTable();
 
-    const spy = vi.spyOn(grid.style, "setProperty");
+    const spy = vi.spyOn(table.style, "setProperty");
 
     ctrl.setColumnWidth(0, "120px");
     ctrl.setRowHeight(0, "34px");
 
     // renderer should have applied template props at least once
     const calls = spy.mock.calls.filter(
-      (c) => c[0] === "--grid-column-count" || c[0] === "--grid-row-count",
+      (c) => c[0] === "--table-column-count" || c[0] === "--table-row-count",
     );
     expect(calls.length).toBeGreaterThan(0);
   });
 
   it("updates data attributes for sizes via history-wrapped ops", () => {
-    const { grid, ctrl } = setupGrid();
-    const before = grid.getAttribute("data-column-widths");
+    const { table, ctrl } = setupTable();
+    const before = table.getAttribute("data-column-widths");
     ctrl.setColumnWidth(0, "200px");
-    expect(grid.getAttribute("data-column-widths")).not.toBe(before);
-    expect(grid.getAttribute("data-column-widths")?.startsWith("200px")).toBe(true);
+    expect(table.getAttribute("data-column-widths")).not.toBe(before);
+    expect(table.getAttribute("data-column-widths")?.startsWith("200px")).toBe(true);
   });
 
   it("sets spans and maintains skip semantics", () => {
-    const { grid, ctrl } = setupGrid();
-    const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+    const { table, ctrl } = setupTable();
+    const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
     expect(cells.length).toBeGreaterThan(0);
     const first = cells[0];
     ctrl.setSpan(first, 2, 1);
@@ -55,72 +55,72 @@ describe("BloomGrid controller", () => {
   });
 
   it("supports add/remove row/column and renders", () => {
-    const { grid, ctrl } = setupGrid();
-    const initialCells = grid.querySelectorAll(".cell").length;
+    const { table, ctrl } = setupTable();
+    const initialCells = table.querySelectorAll(".cell").length;
     ctrl.addRow();
     ctrl.addColumn();
-    const afterAdd = grid.querySelectorAll(".cell").length;
+    const afterAdd = table.querySelectorAll(".cell").length;
     expect(afterAdd).toBeGreaterThan(initialCells);
     ctrl.removeLastColumn();
     ctrl.removeLastRow();
-    const afterRemove = grid.querySelectorAll(".cell").length;
+    const afterRemove = table.querySelectorAll(".cell").length;
     expect(afterRemove).toBeLessThan(afterAdd);
   });
 
   it("addColumnAt inserts columns at correct positions", () => {
-    const { grid, ctrl } = setupGrid();
-    const initialCellCount = grid.querySelectorAll(".cell").length;
-    const initialColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const { table, ctrl } = setupTable();
+    const initialCellCount = table.querySelectorAll(".cell").length;
+    const initialColumnCount = table.getAttribute("data-column-widths")?.split(",").length || 0;
 
     // Add column at start
     ctrl.addColumnAt(0);
 
-    const afterStart = grid.querySelectorAll(".cell").length;
-    const startColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const afterStart = table.querySelectorAll(".cell").length;
+    const startColumnCount = table.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(startColumnCount).toBe(initialColumnCount + 1);
     expect(afterStart).toBeGreaterThan(initialCellCount);
 
     // Add column in middle
     ctrl.addColumnAt(1);
 
-    const afterMiddle = grid.querySelectorAll(".cell").length;
-    const middleColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const afterMiddle = table.querySelectorAll(".cell").length;
+    const middleColumnCount = table.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(middleColumnCount).toBe(startColumnCount + 1);
     expect(afterMiddle).toBeGreaterThan(afterStart);
 
     // Add column at end
     ctrl.addColumnAt(middleColumnCount);
 
-    const afterEnd = grid.querySelectorAll(".cell").length;
-    const endColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const afterEnd = table.querySelectorAll(".cell").length;
+    const endColumnCount = table.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(endColumnCount).toBe(middleColumnCount + 1);
     expect(afterEnd).toBeGreaterThan(afterMiddle);
   });
 
   it("addRowAt inserts rows at correct positions", () => {
-    const { grid, ctrl } = setupGrid();
-    const initialCellCount = grid.querySelectorAll(".cell").length;
-    const initialRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const { table, ctrl } = setupTable();
+    const initialCellCount = table.querySelectorAll(".cell").length;
+    const initialRowCount = table.getAttribute("data-row-heights")?.split(",").length || 0;
 
     // Add row at start
     ctrl.addRowAt(0);
 
-    const afterStart = grid.querySelectorAll(".cell").length;
-    const startRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const afterStart = table.querySelectorAll(".cell").length;
+    const startRowCount = table.getAttribute("data-row-heights")?.split(",").length || 0;
     expect(startRowCount).toBe(initialRowCount + 1);
     expect(afterStart).toBeGreaterThan(initialCellCount);
 
     // Add row in middle
     ctrl.addRowAt(1);
 
-    const afterMiddle = grid.querySelectorAll(".cell").length;
-    const middleRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const afterMiddle = table.querySelectorAll(".cell").length;
+    const middleRowCount = table.getAttribute("data-row-heights")?.split(",").length || 0;
     expect(middleRowCount).toBe(startRowCount + 1);
     expect(afterMiddle).toBeGreaterThan(afterStart);
   });
 
   it("removeColumnAt and removeRowAt work correctly", () => {
-    const { grid, ctrl } = setupGrid();
+    const { table, ctrl } = setupTable();
 
     // Add some extra columns and rows first
     ctrl.addColumn();
@@ -128,31 +128,31 @@ describe("BloomGrid controller", () => {
     ctrl.addRow();
     ctrl.addRow();
 
-    const beforeRemove = grid.querySelectorAll(".cell").length;
-    const beforeColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
-    const beforeRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const beforeRemove = table.querySelectorAll(".cell").length;
+    const beforeColumnCount = table.getAttribute("data-column-widths")?.split(",").length || 0;
+    const beforeRowCount = table.getAttribute("data-row-heights")?.split(",").length || 0;
 
     // Remove column
     ctrl.removeColumnAt(1);
 
-    const afterColumnRemove = grid.querySelectorAll(".cell").length;
-    const afterColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const afterColumnRemove = table.querySelectorAll(".cell").length;
+    const afterColumnCount = table.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(afterColumnCount).toBe(beforeColumnCount - 1);
     expect(afterColumnRemove).toBeLessThan(beforeRemove);
 
     // Remove row
     ctrl.removeRowAt(0);
 
-    const afterRowRemove = grid.querySelectorAll(".cell").length;
-    const afterRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const afterRowRemove = table.querySelectorAll(".cell").length;
+    const afterRowCount = table.getAttribute("data-row-heights")?.split(",").length || 0;
     expect(afterRowCount).toBe(beforeRowCount - 1);
     expect(afterRowRemove).toBeLessThan(afterColumnRemove);
   });
 
   describe("Cell merging and splitting", () => {
     it("can merge cells horizontally", () => {
-      const { grid, ctrl } = setupGrid();
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const { table, ctrl } = setupTable();
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
       const secondCell = cells[1];
 
@@ -176,13 +176,13 @@ describe("BloomGrid controller", () => {
     });
 
     it("can merge cells vertically", () => {
-      const { grid, ctrl } = setupGrid();
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const { table, ctrl } = setupTable();
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
 
       // Find the cell directly below the first cell
-      // In default grid setup, this should be at position based on column count
-      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 2;
+      // In default table setup, this should be at position based on column count
+      const columnCount = table.getAttribute("data-column-widths")?.split(",").length || 2;
       const cellBelow = cells[columnCount]; // Next row, same column
 
       expect(firstCell).toBeTruthy();
@@ -205,15 +205,15 @@ describe("BloomGrid controller", () => {
     });
 
     it("can merge cells in both directions (2x2 block)", () => {
-      const { grid, ctrl } = setupGrid();
+      const { table, ctrl } = setupTable();
 
       // Add extra rows and columns to ensure we have enough cells
       ctrl.addRow();
       ctrl.addColumn();
 
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
-      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 3;
+      const columnCount = table.getAttribute("data-column-widths")?.split(",").length || 3;
 
       // Find the cells that should be covered by a 2x2 span
       const rightCell = cells[1];
@@ -240,8 +240,8 @@ describe("BloomGrid controller", () => {
     });
 
     it("can split merged cells back to individual cells", () => {
-      const { grid, ctrl } = setupGrid();
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const { table, ctrl } = setupTable();
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
       const secondCell = cells[1];
 
@@ -265,15 +265,15 @@ describe("BloomGrid controller", () => {
     });
 
     it("can split a 2x2 merged cell back to individual cells", () => {
-      const { grid, ctrl } = setupGrid();
+      const { table, ctrl } = setupTable();
 
       // Add extra rows and columns to ensure we have enough cells
       ctrl.addRow();
       ctrl.addColumn();
 
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
-      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 3;
+      const columnCount = table.getAttribute("data-column-widths")?.split(",").length || 3;
 
       const rightCell = cells[1];
       const belowCell = cells[columnCount];
@@ -301,15 +301,15 @@ describe("BloomGrid controller", () => {
     });
 
     it("can modify span from one configuration to another", () => {
-      const { grid, ctrl } = setupGrid();
+      const { table, ctrl } = setupTable();
 
       // Add extra rows and columns for flexibility
       ctrl.addRow();
       ctrl.addColumn();
 
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
-      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 3;
+      const columnCount = table.getAttribute("data-column-widths")?.split(",").length || 3;
 
       // Start with horizontal span (1x2 -> 2 columns)
       ctrl.setSpan(firstCell, 2, 1);
@@ -338,8 +338,8 @@ describe("BloomGrid controller", () => {
     });
 
     it("maintains proper getSpan functionality", () => {
-      const { grid, ctrl } = setupGrid();
-      const firstCell = grid.querySelector<HTMLElement>(".cell");
+      const { table, ctrl } = setupTable();
+      const firstCell = table.querySelector<HTMLElement>(".cell");
       expect(firstCell).toBeTruthy();
 
       // Initially should be 1x1
@@ -361,11 +361,11 @@ describe("BloomGrid controller", () => {
     });
 
     it("renders when merging and splitting", () => {
-      const { grid, ctrl } = setupGrid();
-      const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
+      const { table, ctrl } = setupTable();
+      const cells = Array.from(table.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
 
-      const spy = vi.spyOn(grid.style, "setProperty");
+      const spy = vi.spyOn(table.style, "setProperty");
 
       // Merge cells
       ctrl.setSpan(firstCell, 2, 1);
@@ -373,9 +373,9 @@ describe("BloomGrid controller", () => {
       // Split cells back
       ctrl.setSpan(firstCell, 1, 1);
 
-      // Should have triggered renders (grid properties should be set)
+      // Should have triggered renders (table properties should be set)
       const calls = spy.mock.calls.filter(
-        (c) => c[0] === "--grid-column-count" || c[0] === "--grid-row-count",
+        (c) => c[0] === "--table-column-count" || c[0] === "--table-row-count",
       );
       expect(calls.length).toBeGreaterThan(0);
     });

@@ -1,6 +1,6 @@
 import React from "react";
-import * as Grid from "../";
-import { BloomGrid } from "../";
+import * as Table from "../";
+import { BloomTable } from "../";
 import addRowAboveIcon from "./icons/row-add-before.svg";
 import addRowBelowIcon from "./icons/row-add-after.svg";
 import deleteRowIcon from "./icons/row-delete.svg";
@@ -12,7 +12,7 @@ import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
 
 type Props = {
-  grid?: HTMLElement;
+  table?: HTMLElement;
   currentCell?: HTMLElement | null;
   onInsertAbove: () => void;
   onInsertBelow: () => void;
@@ -22,7 +22,7 @@ type Props = {
 // IconButton now comes from ./IconButton and defaults to 64x64.
 
 export const RowSection: React.FC<Props> = ({
-  grid,
+  table,
   currentCell,
   onInsertAbove,
   onInsertBelow,
@@ -32,10 +32,10 @@ export const RowSection: React.FC<Props> = ({
   let selectedSize: "grow" | "hug" | "fixed" = "hug";
   let fixedLabel = "mm";
   try {
-    if (grid && currentCell) {
-      const activeAttr = grid.getAttribute("data-ui-active-row-index");
-      const rowIndex = activeAttr ? parseInt(activeAttr, 10) : Grid.getRowIndex(currentCell);
-      const controller = new BloomGrid(grid);
+    if (table && currentCell) {
+      const activeAttr = table.getAttribute("data-ui-active-row-index");
+      const rowIndex = activeAttr ? parseInt(activeAttr, 10) : Table.getRowIndex(currentCell);
+      const controller = new BloomTable(table);
       const raw = controller.getRowHeight(rowIndex) || "hug";
       const h = typeof raw === "string" ? raw.trim() : raw;
       if (h === "hug") selectedSize = "hug";
@@ -55,9 +55,9 @@ export const RowSection: React.FC<Props> = ({
   ];
 
   const onChangeSize = (id: string) => {
-    if (!grid || !currentCell) return;
-    const rowIndex = Grid.getRowIndex(currentCell);
-    const controller = new BloomGrid(grid);
+    if (!table || !currentCell) return;
+    const rowIndex = Table.getRowIndex(currentCell);
+    const controller = new BloomTable(table);
     if (id === "grow") controller.setRowHeight(rowIndex, "fill");
     else if (id === "hug") controller.setRowHeight(rowIndex, "hug");
     else if (id === "fixed") {

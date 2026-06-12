@@ -1,22 +1,22 @@
 import { test, expect } from "@playwright/test";
-import { attachGridsToPage } from "./utils/grid-attachment";
+import { attachTablesToPage } from "./utils/table-attachment";
 
 test.describe("Embedded Grids", () => {
-  test("validates embedded grid rendering and layout", async ({ page }) => {
+  test("validates embedded table rendering and layout", async ({ page }) => {
     // Navigate to the embedded grids demo
-    await page.goto("/demo/tests/embedded-grids.html");
+    await page.goto("/demo/tests/embedded-tables.html");
 
     // Wait for the page to load
-    await page.waitForSelector(".grid");
+    await page.waitForSelector(".table");
 
     // Manually attach grids since we removed script tags from HTML files
-    await attachGridsToPage(page);
+    await attachTablesToPage(page);
 
-    // === Test the main grid with embedded grid ===
-    const mainGrid = page.locator("#main-grid");
+    // === Test the main table with embedded table ===
+    const mainGrid = page.locator("#main-table");
     await expect(mainGrid).toBeVisible();
 
-    // Check that the main grid has 3 columns in 1 row as expected
+    // Check that the main table has 3 columns in 1 row as expected
     const mainGridStyles = await mainGrid.evaluate((el) => {
       const computed = getComputedStyle(el);
       return {
@@ -26,16 +26,16 @@ test.describe("Embedded Grids", () => {
       };
     });
 
-    expect(mainGridStyles.display).toBe("grid");
+    expect(mainGridStyles.display).toBe("table");
     // Should have 3 columns of 200px each
     expect(mainGridStyles.gridTemplateColumns).toBe("200px 200px 200px");
     expect(mainGridStyles.gridTemplateRows).toBe("150px");
 
-    // === Test the embedded grid structure ===
-    const embeddedGrid = mainGrid.locator(".cell[data-content-type='grid'] > .grid");
+    // === Test the embedded table structure ===
+    const embeddedGrid = mainGrid.locator(".cell[data-content-type='table'] > .table");
     await expect(embeddedGrid).toBeVisible();
 
-    // Check that the embedded grid has proper 2x2 layout
+    // Check that the embedded table has proper 2x2 layout
     const embeddedGridStyles = await embeddedGrid.evaluate((el) => {
       const computed = getComputedStyle(el);
       return {
@@ -45,14 +45,14 @@ test.describe("Embedded Grids", () => {
       };
     });
 
-    expect(embeddedGridStyles.display).toBe("grid");
-    // The grid should have 2 columns - the exact size doesn't matter as much as having 2 equal columns
+    expect(embeddedGridStyles.display).toBe("table");
+    // The table should have 2 columns - the exact size doesn't matter as much as having 2 equal columns
     const columns = embeddedGridStyles.gridTemplateColumns.split(" ");
     expect(columns).toHaveLength(2);
     const rows = embeddedGridStyles.gridTemplateRows.split(" ");
     expect(rows).toHaveLength(2);
 
-    // === Test embedded grid cells ===
+    // === Test embedded table cells ===
     const embeddedCells = embeddedGrid.locator(".cell");
     await expect(embeddedCells).toHaveCount(4);
 
@@ -67,7 +67,7 @@ test.describe("Embedded Grids", () => {
     expect(cellContents).toEqual(["A1", "A2", "B1", "B2"]);
 
     // === Test that borders are applied ===
-    // Check that embedded grid cells have borders
+    // Check that embedded table cells have borders
     for (let i = 0; i < 4; i++) {
       const cell = embeddedCells.nth(i);
       const cellStyles = await cell.evaluate((el) => {
@@ -105,20 +105,20 @@ test.describe("Embedded Grids", () => {
   });
 
   test("validates that embedded grids fill their parent cell", async ({ page }) => {
-    await page.goto("/demo/tests/embedded-grids.html");
-    await page.waitForSelector(".grid");
+    await page.goto("/demo/tests/embedded-tables.html");
+    await page.waitForSelector(".table");
 
-    const parentCell = page.locator("#main-grid .cell[data-content-type='grid']");
-    const embeddedGrid = parentCell.locator("> .grid");
+    const parentCell = page.locator("#main-table .cell[data-content-type='table']");
+    const embeddedGrid = parentCell.locator("> .table");
 
-    // Get dimensions of parent cell and embedded grid
+    // Get dimensions of parent cell and embedded table
     const parentRect = await parentCell.boundingBox();
     const embeddedRect = await embeddedGrid.boundingBox();
 
     expect(parentRect).not.toBeNull();
     expect(embeddedRect).not.toBeNull();
 
-    // Embedded grid should fill most of the parent cell (allowing for any padding)
+    // Embedded table should fill most of the parent cell (allowing for any padding)
     const widthRatio = embeddedRect!.width / parentRect!.width;
     const heightRatio = embeddedRect!.height / parentRect!.height;
 

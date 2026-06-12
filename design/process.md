@@ -6,11 +6,11 @@ This document explains the major parts of Bloom Grid, how they interact, and the
 
 - Single source of truth in `data-*` attributes on the DOM. Renderer reads these; it never writes them.
 - Deterministic, testable rendering. Conflict rules produce a single, stable visual result.
-- Clear public surface for UI and features via `BloomGrid` plus focused helpers.
+- Clear public surface for UI and features via `BloomTable` plus focused helpers.
 
 ## Key modules
 
-- `grid-model.ts` — Data accessors & validation for the DOM model
+- `table-model.ts` — Data accessors & validation for the DOM model
   - Track sizing: `data-column-widths`, `data-row-heights` with helpers `get/setColumnWidths`, `get/setRowHeights`.
   - Spans: per-cell `data-span-x`, `data-span-y` via `getSpan` / `setSpan`.
   - Gaps: `data-gap-x`, `data-gap-y` lists or single values via `get/setGapX`, `get/setGapY`.
@@ -22,7 +22,7 @@ This document explains the major parts of Bloom Grid, how they interact, and the
   - Corners: `data-corners` JSON on grid and (optionally) cells via `get/setGridCorners`, `get/setCellCorners`.
   - Types: `BorderSpec`, `SpanSpec`, sided-edge entry types, with runtime JSON parsing and assertions.
 
-- `grid-renderer.ts` — Pure rendering of model to CSS styles
+- `table-renderer.ts` — Pure rendering of model to CSS styles
   - Reads model attributes and computes:
     - Templates: `grid-template-columns/rows` from track tokens (supporting `hug` and `fill`).
     - Spans: reads `data-span-x/y` on cells and sets CSS vars `--span-x/--span-y` used by CSS.
@@ -39,7 +39,7 @@ This document explains the major parts of Bloom Grid, how they interact, and the
   - Example: `getGridOuterBorderValueMap(grid)` derives the outer (table) border control values by building the render model and sampling perimeter cell sides. It honors `data-border-default` and CSS custom properties (`--edge-default-*`).
   - Keeps defaults centralized and out of UI code; UI reads from these helpers instead of inferring from the raw DOM.
 
-- `grid-renderer.ts` — Pure rendering function from DOM data to visual styles
+- `table-renderer.ts` — Pure rendering function from DOM data to visual styles
   - Pure function: reads `data-*` from DOM → writes inline CSS styles.
   - Capabilities:
     - Templates: `grid-template-columns/rows` from track tokens (supporting `hug` and `fill`).
@@ -52,13 +52,13 @@ This document explains the major parts of Bloom Grid, how they interact, and the
     - Determinism: 'none' beats any other style; else weight (px); else style precedence (double > solid > dashed > dotted); ties favor left/top.
   - Does not mutate `data-*` and never changes DOM structure.
 
-- `BloomGrid.ts` — Controller for high-level operations
+- `BloomTable.ts` — Controller for high-level operations
   - Wraps structural and model updates and then renders immediately.
   - Structure: `addRow`, `removeLastRow`, `addColumn`, `removeLastColumn`, and positioned variants (via `structure.ts`).
-  - Sizing: `setColumnWidth`, `setRowHeight` using `grid-model` helpers.
+  - Sizing: `setColumnWidth`, `setRowHeight` using `table-model` helpers.
   - Borders & corners: `setGridBorder`/`setCellBorder` (present placeholders), `setGridCorners`.
   - Spans: `setSpan(cell, x, y)` writes data attributes and calls `structure.setCellSpan()` to maintain skip semantics today.
-  - History: Every operation creates a history entry via `gridHistoryManager`.
+  - History: Every operation creates a history entry via `tableHistoryManager`.
 
 - `structure.ts` — DOM structure operations
   - Grid cell management and track strings; default size token is `hug` for both rows and columns.
@@ -72,8 +72,8 @@ This document explains the major parts of Bloom Grid, how they interact, and the
 
 ## Data flow and lifecycle
 
-1. UI or caller invokes a `BloomGrid` method (e.g., `addColumn()`, `setRowHeight(i, '120px')`, `setSpan(cell, 2, 1)`).
-2. Method updates DOM attributes and/or structure via `grid-model` and `structure` and records history.
+1. UI or caller invokes a `BloomTable` method (e.g., `addColumn()`, `setRowHeight(i, '120px')`, `setSpan(cell, 2, 1)`).
+2. Method updates DOM attributes and/or structure via `table-model` and `structure` and records history.
 3. Method calls `render(grid)` directly to apply visual changes immediately.
 4. Renderer reads `data-*` and current DOM (cells), computes per-cell styles, and writes inline CSS only.
 

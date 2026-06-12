@@ -1,5 +1,5 @@
-This project uses yarn 1.22.22
-Never use npm commands
+This project uses Vite+ (`vp` commands) with pnpm as the package manager.
+Never use npm or yarn commands; use pnpm (e.g. `pnpm install`) and `vp` tasks.
 This project uses a bash terminal, so always use forward slashes in paths.
 The model/schema is defined in design/model.md. Implementation information is available at design/process.md. This is the source of truth that requires a human to approve changes to. It is thus vital that it is precise while also being easy for a human to read. It is vital that it be kept up to date. Everything else should be derived from this model.
 
@@ -19,9 +19,9 @@ If you can't quite figure out something that happens at UI-time, you may use the
 - `isBackground: false` - Uses current terminal, waits for completion
 - `isBackground: true` - Creates NEW terminal, returns immediately
 
-For example, you might `yarn dev` with `isBackground: false` but then you would need yarn e2e with `isBackground: true` in order to give that its own terminal.
+For example, you might `pnpm dev` with `isBackground: false` but then you would need `pnpm e2e` with `isBackground: true` in order to give that its own terminal.
 
-Before starting a server, test to see if it is already running. You can do that by doing a CURL for some known path, e.g. http://localhost:5173/demo/pages/new-grid.html. E.g. the dev server is normally at http://localhost:5173. If you run another one without checking, you'll just create a new one at 5174 and then get confused.
+Before starting a server, test to see if it is already running. You can do that by doing a CURL for some known path, e.g. http://localhost:5173/demo/pages/new-table.html. E.g. the dev server is normally at http://localhost:5173. If you run another one without checking, you'll just create a new one at 5174 and then get confused.
 
 # Communication
 

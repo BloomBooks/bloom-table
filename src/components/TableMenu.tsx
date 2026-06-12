@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import * as Grid from "../";
-import { BloomGrid } from "../";
+import * as Table from "../";
+import { BloomTable } from "../";
 import { setupContentsOfCell } from "../cell-contents";
 
 import TableSection from "./TableSection";
@@ -8,31 +8,31 @@ import RowSection from "./RowSection";
 import ColumnSection from "./ColumnSection";
 import CellSection from "./CellSection";
 
-const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (props) => {
+const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (props) => {
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
     const handler = () => {
-      // Force a re-render when the grid history is updated
+      // Force a re-render when the table history is updated
       forceUpdate((x) => x + 1);
     };
-    document.addEventListener("gridHistoryUpdated", handler);
-    return () => document.removeEventListener("gridHistoryUpdated", handler);
+    document.addEventListener("tableHistoryUpdated", handler);
+    return () => document.removeEventListener("tableHistoryUpdated", handler);
   }, []);
 
   useEffect(() => {
     if (!props.currentCell) return;
-    const grid = props.currentCell.closest(".grid");
-    if (!grid) return;
+    const table = props.currentCell.closest(".table");
+    if (!table) return;
 
     const observer = new MutationObserver(() => {
       forceUpdate((x) => x + 1);
     });
 
-    // We're interested in when the grid's columns change, which is stored
+    // We're interested in when the table's columns change, which is stored
     // in the data-column-widths attribute. We also watch style in case
     // other things change that should cause a re-render.
-    observer.observe(grid, {
+    observer.observe(table, {
       attributes: true,
       // Re-render when column widths, row heights, active drag row, or style change
       attributeFilter: [
@@ -48,17 +48,17 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pro
     };
   }, [props.currentCell]);
 
-  const getTargetGridFromSelection = (): HTMLElement => {
+  const getTargetTableFromSelection = (): HTMLElement => {
     // Using props.currentCell is more reliable than document.activeElement,
     // because focus can move to the menu itself when we click a menu item.
-    const grid = props.currentCell!.closest(".grid") as HTMLElement;
-    return grid;
+    const table = props.currentCell!.closest(".table") as HTMLElement;
+    return table;
   };
-  const getTargetGridFromCell = (cell: HTMLElement): HTMLElement => {
+  const getTargetTableFromCell = (cell: HTMLElement): HTMLElement => {
     // Using props.currentCell is more reliable than document.activeElement,
     // because focus can move to the menu itself when we click a menu item.
-    const grid = cell.closest(".grid") as HTMLElement;
-    return grid;
+    const table = cell.closest(".table") as HTMLElement;
+    return table;
   };
   const handleSetCellContentType = (contentTypeId: string) => {
     assert(!!props.currentCell, "No cell selected");
@@ -67,86 +67,86 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pro
 
   const handleExtendCell = () => {
     assert(!!props.currentCell, "No cell selected");
-    const grid = getTargetGridFromCell(props.currentCell!);
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromCell(props.currentCell!);
+    const controller = new BloomTable(table);
     const current = controller.getSpan(props.currentCell!);
     controller.setSpan(props.currentCell!, (current.x || 1) + 1, current.y || 1);
   };
 
   const handleContractCell = () => {
     assert(!!props.currentCell, "No cell selected");
-    const grid = getTargetGridFromCell(props.currentCell!);
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromCell(props.currentCell!);
+    const controller = new BloomTable(table);
     const current = controller.getSpan(props.currentCell!);
     const nextX = Math.max(1, (current.x || 1) - 1);
     controller.setSpan(props.currentCell!, nextX, current.y || 1);
   };
   const handleInsertRowAbove = () => {
-    const grid = getTargetGridFromSelection();
-    const rowIndex = Grid.getRowIndex(props.currentCell!);
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromSelection();
+    const rowIndex = Table.getRowIndex(props.currentCell!);
+    const controller = new BloomTable(table);
     controller.addRowAt(rowIndex);
   };
   const handleInsertRowBelow = () => {
-    const grid = getTargetGridFromSelection();
-    const rowIndex = Grid.getRowIndex(props.currentCell!);
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromSelection();
+    const rowIndex = Table.getRowIndex(props.currentCell!);
+    const controller = new BloomTable(table);
     controller.addRowAt(rowIndex + 1);
   };
   const handleDeleteRow = () => {
-    const grid = getTargetGridFromSelection();
-    const rowIndex = Grid.getRowIndex(props.currentCell!);
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromSelection();
+    const rowIndex = Table.getRowIndex(props.currentCell!);
+    const controller = new BloomTable(table);
     controller.removeRowAt(rowIndex);
   };
   const handleInsertColumnLeft = () => {
-    const grid = getTargetGridFromCell(props.currentCell!); // TODO doesn't have cell param
-    const columnIndex = Grid.getRowAndColumn(grid, props.currentCell!).column;
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromCell(props.currentCell!); // TODO doesn't have cell param
+    const columnIndex = Table.getRowAndColumn(table, props.currentCell!).column;
+    const controller = new BloomTable(table);
     controller.addColumnAt(columnIndex);
   };
 
   const handleInsertColumnRight = () => {
     const cell = props.currentCell!;
-    const grid = getTargetGridFromCell(cell);
-    const columnIndex = Grid.getRowAndColumn(grid, cell).column;
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromCell(cell);
+    const columnIndex = Table.getRowAndColumn(table, cell).column;
+    const controller = new BloomTable(table);
     controller.addColumnAt(columnIndex + 1);
   };
 
   const handleDeleteColumn = () => {
-    const grid = getTargetGridFromSelection();
-    const columnIndex = Grid.getRowAndColumn(grid, props.currentCell!).column;
-    const controller = new BloomGrid(grid);
+    const table = getTargetTableFromSelection();
+    const columnIndex = Table.getRowAndColumn(table, props.currentCell!).column;
+    const controller = new BloomTable(table);
     controller.removeColumnAt(columnIndex);
   };
 
   const handleSelectParentCell = () => {
-    const grid = getTargetGridFromSelection();
-    const parentCell = grid.parentElement?.closest(".cell") as HTMLElement | null;
+    const table = getTargetTableFromSelection();
+    const parentCell = table.parentElement?.closest(".cell") as HTMLElement | null;
     if (parentCell) {
       parentCell.focus();
     }
   };
   const handleUndo = () => {
-    const grid = props.currentCell ? getTargetGridFromSelection() : null;
-    if (!grid) return;
-    Grid.undoLastOperation(grid);
+    const table = props.currentCell ? getTargetTableFromSelection() : null;
+    if (!table) return;
+    Table.undoLastOperation(table);
   };
 
   // (Old border toggle handlers removed in favor of BorderControl)
 
-  const grid = props.currentCell ? getTargetGridFromSelection() : undefined;
-  const parentCell = grid?.parentElement?.closest(".cell");
+  const table = props.currentCell ? getTargetTableFromSelection() : undefined;
+  const parentCell = table?.parentElement?.closest(".cell");
 
   // no-op placeholder removed: variable was unused
-  // If there's no current context (no selected cell or not within a grid),
+  // If there's no current context (no selected cell or not within a table),
   // show an instructional message instead of the full menu.
-  const hasContext = !!props.currentCell && !!props.currentCell.closest(".grid");
+  const hasContext = !!props.currentCell && !!props.currentCell.closest(".table");
   if (!hasContext) {
     return (
       <div
-        className="grid-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
+        className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
         style={{ backgroundColor: "#2E2E2E", color: "rgba(255,255,255,0.95)" }}
       >
         Click in any table cell.
@@ -156,7 +156,7 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pro
 
   return (
     <div
-      className="grid-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
+      className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
       /* if haveSelectedCell is false, dim/disable the menu */
       style={{
         backgroundColor: "#2E2E2E",
@@ -169,9 +169,9 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pro
       // TODO
     >
       {/* Table section */}
-      <TableSection grid={grid} />
+      <TableSection table={table} />
       <RowSection
-        grid={grid}
+        table={table}
         currentCell={props.currentCell}
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
@@ -179,7 +179,7 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pro
       />
 
       <ColumnSection
-        grid={grid}
+        table={table}
         currentCell={props.currentCell}
         onInsertLeft={handleInsertColumnLeft}
         onInsertRight={handleInsertColumnRight}
@@ -197,12 +197,12 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pro
         <button
           className="px-2 py-1 rounded-md text-sm"
           style={{
-            backgroundColor: Grid.canUndo() && grid ? "#2D8294" : "#555",
+            backgroundColor: Table.canUndo() && table ? "#2D8294" : "#555",
             color: "rgba(255,255,255,0.95)",
-            cursor: Grid.canUndo() && grid ? "pointer" : "not-allowed",
-            opacity: Grid.canUndo() && grid ? 1 : 0.6,
+            cursor: Table.canUndo() && table ? "pointer" : "not-allowed",
+            opacity: Table.canUndo() && table ? 1 : 0.6,
           }}
-          disabled={!Grid.canUndo() || !grid}
+          disabled={!Table.canUndo() || !table}
           onClick={handleUndo}
         >
           Undo
@@ -243,40 +243,40 @@ const [canUndo, setCanUndo] = useState(false);
   const [cellSelected, setCellSelected] = useState(false);
   // Reference to the currently selected cell
   const selectedCellRef = useRef<HTMLElement | null>(null);
-  // Store the grid reference
-  const gridRef = useRef<HTMLElement | null>(null);
+  // Store the table reference
+  const tableRef = useRef<HTMLElement | null>(null);
 
-  // Helper function to get grid state information
-  const getGridState = (grid: HTMLElement | null) => {
-    if (!grid) return { rowCount: 0, columnCount: 0, hasBorders: false };
+  // Helper function to get table state information
+  const getTableState = (table: HTMLElement | null) => {
+    if (!table) return { rowCount: 0, columnCount: 0, hasBorders: false };
 
-    const rowHeightsAttr = grid.getAttribute("data-row-heights");
+    const rowHeightsAttr = table.getAttribute("data-row-heights");
     const rowCount = rowHeightsAttr ? rowHeightsAttr.split(",").length : 0;
 
-    const columnWidthsAttr = grid.getAttribute("data-column-widths");
+    const columnWidthsAttr = table.getAttribute("data-column-widths");
     const columnCount = columnWidthsAttr
       ? columnWidthsAttr.split(",").length
       : 0;
 
     const borderWidth =
-      grid.style.getPropertyValue("--cell-border-width") ||
-      getComputedStyle(grid).getPropertyValue("--cell-border-width");
+      table.style.getPropertyValue("--cell-border-width") ||
+      getComputedStyle(table).getPropertyValue("--cell-border-width");
     const hasBorders = borderWidth !== "0px" && borderWidth !== "0";
 
     return { rowCount, columnCount, hasBorders };
-  }; // Update all UI state based on current grid
+  }; // Update all UI state based on current table
   const updateUIState = () => {
-    const grid = Grid.getTargetGrid();
-    gridRef.current = grid;
-    const { rowCount, columnCount, hasBorders } = getGridState(grid);
+    const table = Table.getTargetTable();
+    tableRef.current = table;
+    const { rowCount, columnCount, hasBorders } = getTableState(table);
 
-    setCanUndo(Grid.canUndo());
+    setCanUndo(Table.canUndo());
     setCanRemoveRow(rowCount > 1);
     setCanRemoveColumn(columnCount > 1);
     setShowBorders(hasBorders);
-    // we can always add rows/columns if we have the focus is in a grid
-    setCanAddColumn(!!grid);
-    setCanAddRow(!!grid);
+    // we can always add rows/columns if we have the focus is in a table
+    setCanAddColumn(!!table);
+    setCanAddRow(!!table);
 
     // Check if a cell is selected and update our stored reference
     const currentlyFocusedCell = document.activeElement?.closest(
@@ -304,4 +304,4 @@ const [canUndo, setCanUndo] = useState(false);
 
 // SizeControl moved into ColumnSection
 
-export default GridMenu;
+export default TableMenu;

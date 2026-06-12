@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
-import { applyBorderMapToGrid } from "../TableSection";
+import { applyBorderMapToTable } from "../TableSection";
 import { BorderValueMap } from "./logic/types";
-import { render } from "../../grid-renderer";
+import { render } from "../../table-renderer";
 
-// Helper to create a basic 2x2 grid
-function createTestGrid(): HTMLElement {
-  const grid = document.createElement("div");
-  grid.className = "grid";
-  grid.setAttribute("data-column-widths", "100px,100px");
-  grid.setAttribute("data-row-heights", "50px,50px");
+// Helper to create a basic 2x2 table
+function createTestTable(): HTMLElement {
+  const table = document.createElement("div");
+  table.className = "table";
+  table.setAttribute("data-column-widths", "100px,100px");
+  table.setAttribute("data-row-heights", "50px,50px");
 
   // Add 4 cells
   for (let i = 0; i < 4; i++) {
@@ -18,22 +18,22 @@ function createTestGrid(): HTMLElement {
     const content = document.createElement("div");
     content.contentEditable = "true";
     cell.appendChild(content);
-    grid.appendChild(cell);
+    table.appendChild(cell);
   }
 
-  document.body.appendChild(grid);
-  return grid;
+  document.body.appendChild(table);
+  return table;
 }
 
 describe("BorderControl", () => {
-  let grid: HTMLElement;
+  let table: HTMLElement;
 
   beforeEach(() => {
-    grid = createTestGrid();
+    table = createTestTable();
   });
 
   afterEach(() => {
-    document.body.removeChild(grid);
+    document.body.removeChild(table);
   });
 
   describe("dashed border functionality", () => {
@@ -48,15 +48,15 @@ describe("BorderControl", () => {
         innerV: { weight: 1, style: "solid", radius: 0 },
       };
 
-      // Apply the border map to the grid
-      applyBorderMapToGrid(grid, borderMap);
+      // Apply the border map to the table
+      applyBorderMapToTable(table, borderMap);
 
-      // Render the grid to apply the borders to the DOM
-      render(grid);
+      // Render the table to apply the borders to the DOM
+      render(table);
 
       // Check that the data attributes contain the correct border styles
-      const edgesV = JSON.parse(grid.getAttribute("data-edges-v") || "[]");
-      const edgesH = JSON.parse(grid.getAttribute("data-edges-h") || "[]");
+      const edgesV = JSON.parse(table.getAttribute("data-edges-v") || "[]");
+      const edgesH = JSON.parse(table.getAttribute("data-edges-h") || "[]");
 
       // Top border should be dashed
       expect(edgesH[0][0].style).toBe("dashed");
@@ -75,7 +75,7 @@ describe("BorderControl", () => {
       expect(edgesV[0][0].weight).toBe(2);
 
       // Check that the actual cell styles are applied correctly
-      const cells = grid.querySelectorAll(".cell");
+      const cells = table.querySelectorAll(".cell");
       const topLeftCell = cells[0] as HTMLElement;
 
       // Top border should be dashed 2px
@@ -98,12 +98,12 @@ describe("BorderControl", () => {
         innerV: { weight: 0, style: "none", radius: 0 },
       };
 
-      applyBorderMapToGrid(grid, borderMap);
-      render(grid);
+      applyBorderMapToTable(table, borderMap);
+      render(table);
 
       // Verify that each side has its own style
-      const edgesV = JSON.parse(grid.getAttribute("data-edges-v") || "[]");
-      const edgesH = JSON.parse(grid.getAttribute("data-edges-h") || "[]");
+      const edgesV = JSON.parse(table.getAttribute("data-edges-v") || "[]");
+      const edgesH = JSON.parse(table.getAttribute("data-edges-h") || "[]");
 
       expect(edgesH[0][0].style).toBe("dashed"); // top
       expect(edgesV[0][2].style).toBe("solid"); // right

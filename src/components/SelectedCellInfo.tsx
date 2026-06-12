@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import * as Grid from "../";
+import * as Table from "../";
 
 interface SelectedCellInfoProps {
   updateTrigger?: any; // Optional prop that can be used to trigger updates
@@ -21,8 +21,8 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({ updateTrigger }) =>
   });
 
   const updateSelectedCellInfo = () => {
-    const grid = Grid.getTargetGrid();
-    if (!grid) {
+    const table = Table.getTargetTable();
+    if (!table) {
       setCellInfo({
         selected: false,
         row: -1,
@@ -46,7 +46,7 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({ updateTrigger }) =>
     }
 
     // Get cell position information
-    const { row, column } = Grid.getRowAndColumn(grid, selectedCell);
+    const { row, column } = Table.getRowAndColumn(table, selectedCell);
     const spanX = parseInt(selectedCell.style.getPropertyValue("--span-x")) || 1;
     const spanY = parseInt(selectedCell.style.getPropertyValue("--span-y")) || 1;
 
@@ -68,21 +68,21 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({ updateTrigger }) =>
       updateSelectedCellInfo();
     };
 
-    // Listen for grid history updates which may affect selection
-    const handleGridHistoryUpdated = () => {
+    // Listen for table history updates which may affect selection
+    const handleTableHistoryUpdated = () => {
       updateSelectedCellInfo();
     };
 
     // Add event listeners
     document.addEventListener("focusin", handleFocusChange);
     document.addEventListener("focusout", handleFocusChange);
-    document.addEventListener("gridHistoryUpdated", handleGridHistoryUpdated);
+    document.addEventListener("tableHistoryUpdated", handleTableHistoryUpdated);
 
     // Cleanup on unmount
     return () => {
       document.removeEventListener("focusin", handleFocusChange);
       document.removeEventListener("focusout", handleFocusChange);
-      document.removeEventListener("gridHistoryUpdated", handleGridHistoryUpdated);
+      document.removeEventListener("tableHistoryUpdated", handleTableHistoryUpdated);
     };
   }, [updateTrigger]); // Re-attach listeners if updateTrigger changes
 

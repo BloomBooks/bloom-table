@@ -1,23 +1,25 @@
-// Four edge "+" buttons shown around the visible bounds of the selected grid.
+// Four edge "+" buttons shown around the visible bounds of the selected table.
 // Right/Left insert columns; Top/Bottom insert rows.
 
-import { BloomGrid } from "./BloomGrid";
+import { BloomTable } from "./BloomTable";
 import {
   addColumnAt,
   addRowAt,
-  getGridInfo,
+  getTableInfo,
   getRowAndColumn,
   removeColumnAt,
   removeRowAt,
 } from "./structure";
 import { ProximityDiv } from "./ProximityDiv";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { kBloomBlue } from "./constants";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import { gridHistoryManager } from "./history";
-import { render } from "./grid-renderer";
+import { tableHistoryManager } from "./history";
+import { render } from "./table-renderer";
+
+// Inline SVG icons (MUI "Add" and "Delete" glyph paths) so the core attach
+// path stays free of React / MUI. fill:currentColor lets the button color
+// drive the glyph color.
+const kAddIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="width:18px;height:18px;display:block;fill:currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+const kDeleteIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="width:18px;height:18px;display:block;fill:currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 
 let installed = false;
 // Unique ID source for anchor names
@@ -28,7 +30,7 @@ export function resetTableSizeButtons(): void {
   installed = false;
   cornerHandle = null;
   proxCornerHandle = null;
-  overlayGrid = null;
+  overlayTable = null;
 
   // Reset other overlay elements
   overlayRight = null;
@@ -73,9 +75,9 @@ export function ensureTableSizeButtons(): void {
         scheduleOverlayReposition();
         return;
       }
-      const grid = cell.closest(".grid") as HTMLElement | null;
-      if (!grid) return;
-      showEdgeOverlays(grid);
+      const table = cell.closest(".table") as HTMLElement | null;
+      if (!table) return;
+      showEdgeOverlays(table);
     },
     true,
   );
@@ -86,7 +88,7 @@ export function ensureTableSizeButtons(): void {
   window.addEventListener("scroll", scheduleOverlayReposition, {
     passive: true,
   });
-  document.addEventListener("gridHistoryUpdated", scheduleOverlayReposition as EventListener);
+  document.addEventListener("tableHistoryUpdated", scheduleOverlayReposition as EventListener);
 }
 
 // --- Small "+" overlays on four sides ---
@@ -112,7 +114,7 @@ let proxRightGroup: ProximityDiv | null = null;
 let proxLeftGroup: ProximityDiv | null = null;
 let proxTopGroup: ProximityDiv | null = null;
 let proxBottomGroup: ProximityDiv | null = null;
-let overlayGrid: HTMLElement | null = null;
+let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
 
 // --- Corner drag affordance (lower-right grow/shrink handle) ---
@@ -123,7 +125,7 @@ let cornerInitialState: {
   innerHTML: string;
   attributes: Record<string, string>;
 } | null = null;
-let cornerDragGrid: HTMLElement | null = null;
+let cornerDragTable: HTMLElement | null = null;
 let cornerStartX = 0;
 let cornerStartY = 0;
 let cornerStartRows = 0;
@@ -132,7 +134,7 @@ let cornerUpdateRaf = 0; // RAF handle for throttling updates
 // Store initial selection state to restore after drag ends
 let cornerInitialSelection: {
   activeCell: HTMLElement | null;
-  selectedGrid: HTMLElement | null;
+  selectedTable: HTMLElement | null;
 } | null = null;
 
 const kCornerUnitColPx = 20; // pixels per column step - reduced for better responsiveness
@@ -149,7 +151,7 @@ function ensureCornerHandle() {
   }
   cornerHandle = null;
   const el = document.createElement("div");
-  el.setAttribute("data-bgrid-corner-handle", "");
+  el.setAttribute("data-btable-corner-handle", "");
   Object.assign(el.style, {
     width: "16px",
     height: "16px",
@@ -171,16 +173,16 @@ function ensureCornerHandle() {
       clientY: e.clientY,
     });
 
-    const grid =
-      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".grid") ||
-      overlayGrid ||
-      (document.querySelector(".grid") as HTMLElement | null);
-    if (!grid) {
-      console.log("🔴 No grid found for corner drag");
+    const table =
+      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".table") ||
+      overlayTable ||
+      (document.querySelector(".table") as HTMLElement | null);
+    if (!table) {
+      console.log("🔴 No table found for corner drag");
       return;
     }
 
-    console.log("🎯 Found grid for corner drag", { grid: grid.tagName });
+    console.log("🎯 Found table for corner drag", { table: table.tagName });
 
     e.preventDefault();
     e.stopPropagation();
@@ -188,43 +190,43 @@ function ensureCornerHandle() {
     // Store initial selection state to restore after drag
     const initialActiveCell =
       document.querySelector(".cell.cell--selected") || document.activeElement?.closest(".cell");
-    const initialSelectedGrid = initialActiveCell?.closest(".grid");
+    const initialSelectedTable = initialActiveCell?.closest(".table");
     cornerInitialSelection = {
       activeCell: initialActiveCell as HTMLElement | null,
-      selectedGrid: initialSelectedGrid as HTMLElement | null,
+      selectedTable: initialSelectedTable as HTMLElement | null,
     };
     console.log("💾 Stored initial selection", {
       hasActiveCell: !!cornerInitialSelection.activeCell,
-      hasSelectedGrid: !!cornerInitialSelection.selectedGrid,
+      hasSelectedTable: !!cornerInitialSelection.selectedTable,
     });
 
     // Capture start and initial counts
     cornerDragging = true;
-    cornerDragGrid = grid as HTMLElement;
+    cornerDragTable = table as HTMLElement;
 
-    // Ensure overlayGrid points to our target grid throughout the drag
-    overlayGrid = cornerDragGrid;
-    console.log("🎯 Set overlayGrid to cornerDragGrid for stable targeting");
+    // Ensure overlayTable points to our target table throughout the drag
+    overlayTable = cornerDragTable;
+    console.log("🎯 Set overlayTable to cornerDragTable for stable targeting");
 
     cornerStartX = e.clientX;
     cornerStartY = e.clientY;
     try {
-      const info = getGridInfo(grid as HTMLElement);
+      const info = getTableInfo(table as HTMLElement);
       cornerStartRows = info.rowCount;
       cornerStartCols = info.columnCount;
-      console.log("📊 Initial grid state", {
+      console.log("📊 Initial table state", {
         startRows: cornerStartRows,
         startCols: cornerStartCols,
         startX: cornerStartX,
         startY: cornerStartY,
       });
     } catch (err) {
-      console.log("🔴 Error getting grid info:", err);
+      console.log("🔴 Error getting table info:", err);
       cornerStartRows = 0;
       cornerStartCols = 0;
     }
-    cornerInitialState = snapshotGrid(grid as HTMLElement);
-    console.log("📸 Grid snapshot taken");
+    cornerInitialState = snapshotTable(table as HTMLElement);
+    console.log("📸 Table snapshot taken");
 
     // Install global listeners once per drag
     console.log("👂 Installing mousemove and mouseup listeners");
@@ -241,43 +243,43 @@ function ensureCornerHandle() {
   return el;
 }
 
-function snapshotGrid(grid: HTMLElement): {
+function snapshotTable(table: HTMLElement): {
   innerHTML: string;
   attributes: Record<string, string>;
 } {
   const attributes: Record<string, string> = {};
-  for (let i = 0; i < grid.attributes.length; i++) {
-    const a = grid.attributes[i];
+  for (let i = 0; i < table.attributes.length; i++) {
+    const a = table.attributes[i];
     attributes[a.name] = a.value || "";
   }
-  return { innerHTML: grid.innerHTML, attributes };
+  return { innerHTML: table.innerHTML, attributes };
 }
 
-function restoreGrid(
-  grid: HTMLElement,
+function restoreTable(
+  table: HTMLElement,
   state: { innerHTML: string; attributes: Record<string, string> },
 ) {
   // Remove all current attributes
   const toRemove: string[] = [];
-  for (let i = 0; i < grid.attributes.length; i++) {
-    toRemove.push(grid.attributes[i].name);
+  for (let i = 0; i < table.attributes.length; i++) {
+    toRemove.push(table.attributes[i].name);
   }
-  toRemove.forEach((n) => grid.removeAttribute(n));
+  toRemove.forEach((n) => table.removeAttribute(n));
   // Restore saved
-  Object.entries(state.attributes).forEach(([n, v]) => grid.setAttribute(n, v));
-  grid.innerHTML = state.innerHTML;
+  Object.entries(state.attributes).forEach(([n, v]) => table.setAttribute(n, v));
+  table.innerHTML = state.innerHTML;
 }
 
 function handleCornerDragMove(e: MouseEvent) {
   console.log("🔵 handleCornerDragMove called", {
     cornerDragging,
-    cornerDragGrid: !!cornerDragGrid,
+    cornerDragTable: !!cornerDragTable,
     clientX: e.clientX,
     clientY: e.clientY,
   });
 
-  if (!cornerDragging || !cornerDragGrid) {
-    console.log("🔴 Early return - not dragging or no grid");
+  if (!cornerDragging || !cornerDragTable) {
+    console.log("🔴 Early return - not dragging or no table");
     return;
   }
   e.preventDefault();
@@ -302,14 +304,14 @@ function handleCornerDragMove(e: MouseEvent) {
     "floor(dy/unitRowPx)": Math.floor(dy / kCornerUnitRowPx),
   });
 
-  const info = getGridInfo(cornerDragGrid);
-  console.log("🔢 Current grid info", {
+  const info = getTableInfo(cornerDragTable);
+  console.log("🔢 Current table info", {
     currentCols: info.columnCount,
     currentRows: info.rowCount,
   });
 
-  // During drag, we always use the stored grid reference - no need to check DOM selection
-  console.log("🎯 Using stored cornerDragGrid for all operations (no DOM selection dependency)");
+  // During drag, we always use the stored table reference - no need to check DOM selection
+  console.log("🎯 Using stored cornerDragTable for all operations (no DOM selection dependency)");
 
   let colChanges = 0;
   let rowChanges = 0;
@@ -329,7 +331,7 @@ function handleCornerDragMove(e: MouseEvent) {
       currentCols: info.columnCount,
       targetCols,
     });
-    addColumnAt(cornerDragGrid, info.columnCount, true);
+    addColumnAt(cornerDragTable, info.columnCount, true);
     info.columnCount++;
     colChanges++;
   }
@@ -338,25 +340,25 @@ function handleCornerDragMove(e: MouseEvent) {
       currentCols: info.columnCount,
       targetCols,
     });
-    removeColumnAt(cornerDragGrid, info.columnCount - 1, true);
+    removeColumnAt(cornerDragTable, info.columnCount - 1, true);
     info.columnCount--;
     colChanges++;
   }
   // Adjust rows
   while (info.rowCount < targetRows) {
     console.log("➕ Adding row", { currentRows: info.rowCount, targetRows });
-    addRowAt(cornerDragGrid, info.rowCount, true);
+    addRowAt(cornerDragTable, info.rowCount, true);
     info.rowCount++;
     rowChanges++;
   }
   while (info.rowCount > targetRows && info.rowCount > 1) {
     console.log("➖ Removing row", { currentRows: info.rowCount, targetRows });
-    removeRowAt(cornerDragGrid, info.rowCount - 1, true);
+    removeRowAt(cornerDragTable, info.rowCount - 1, true);
     info.rowCount--;
     rowChanges++;
   }
 
-  console.log("⚡ Grid adjustments", {
+  console.log("⚡ Table adjustments", {
     colChanges,
     rowChanges,
     newCols: info.columnCount,
@@ -372,13 +374,13 @@ function handleCornerDragMove(e: MouseEvent) {
 
   const updateVisuals = () => {
     console.log("🎨 Running visual update");
-    if (!cornerDragGrid) {
-      console.log("🔴 No grid in visual update");
+    if (!cornerDragTable) {
+      console.log("🔴 No table in visual update");
       return;
     }
 
     try {
-      render(cornerDragGrid);
+      render(cornerDragTable);
       console.log("✅ Render completed");
     } catch (err) {
       console.log("🔴 Render error:", err);
@@ -406,8 +408,8 @@ function handleCornerDragMove(e: MouseEvent) {
 function handleCornerDragUp() {
   console.log("🛑 Corner drag up - ending drag session");
 
-  if (!cornerDragging || !cornerDragGrid) {
-    console.log("🔴 Not dragging or no grid on mouseup");
+  if (!cornerDragging || !cornerDragTable) {
+    console.log("🔴 Not dragging or no table on mouseup");
     return;
   }
 
@@ -422,89 +424,89 @@ function handleCornerDragUp() {
   // Remove the move listener installed at drag start
   document.removeEventListener("mousemove", handleCornerDragMove);
 
-  const grid = cornerDragGrid;
+  const table = cornerDragTable;
   const saved = cornerInitialState;
   const savedSelection = cornerInitialSelection;
 
-  // Reset drag state but keep overlayGrid pointing to our target
+  // Reset drag state but keep overlayTable pointing to our target
   cornerDragging = false;
-  cornerDragGrid = null;
+  cornerDragTable = null;
   cornerInitialState = null;
   cornerInitialSelection = null;
 
-  // Important: Keep overlayGrid pointing to our target grid so overlays don't get confused
-  overlayGrid = grid;
-  console.log("🔄 Drag state reset, overlayGrid preserved for target grid");
+  // Important: Keep overlayTable pointing to our target table so overlays don't get confused
+  overlayTable = table;
+  console.log("🔄 Drag state reset, overlayTable preserved for target table");
 
-  // Restore selection to the grid we were working with
-  if (savedSelection && grid) {
-    console.log("🔄 Restoring selection to grid after drag", {
+  // Restore selection to the table we were working with
+  if (savedSelection && table) {
+    console.log("🔄 Restoring selection to table after drag", {
       hadActiveCell: !!savedSelection.activeCell,
-      hadSelectedGrid: !!savedSelection.selectedGrid,
-      gridCellCount: grid.querySelectorAll(".cell").length,
+      hadSelectedTable: !!savedSelection.selectedTable,
+      tableCellCount: table.querySelectorAll(".cell").length,
     });
 
     try {
-      // Find the first cell in the potentially resized grid
-      const firstCell = grid.querySelector(".cell") as HTMLElement;
+      // Find the first cell in the potentially resized table
+      const firstCell = table.querySelector(".cell") as HTMLElement;
       if (firstCell) {
         // Explicitly clear any existing selection before setting new one
         document
           .querySelectorAll(".cell.cell--selected")
           .forEach((el) => el.classList.remove("cell--selected"));
         document
-          .querySelectorAll(".grid.grid--selected")
-          .forEach((el) => el.classList.remove("grid--selected"));
+          .querySelectorAll(".table.table--selected")
+          .forEach((el) => el.classList.remove("table--selected"));
 
         // Apply selection classes directly to ensure they're set
         firstCell.classList.add("cell--selected");
-        grid.classList.add("grid--selected");
+        table.classList.add("table--selected");
 
         // Also focus to ensure proper interaction state
         const editable = firstCell.querySelector<HTMLElement>("[contenteditable]");
         if (editable) {
           editable.focus();
-          console.log("✅ Selection restored to grid via editable focus + direct class setting", {
+          console.log("✅ Selection restored to table via editable focus + direct class setting", {
             cellClasses: firstCell.className,
-            gridClasses: grid.className,
+            tableClasses: table.className,
             activeElement:
               document.activeElement?.tagName + "." + document.activeElement?.className,
           });
         } else {
           firstCell.focus();
-          console.log("✅ Selection restored to grid via cell focus + direct class setting", {
+          console.log("✅ Selection restored to table via cell focus + direct class setting", {
             cellClasses: firstCell.className,
-            gridClasses: grid.className,
+            tableClasses: table.className,
             activeElement:
               document.activeElement?.tagName + "." + document.activeElement?.className,
           });
         }
       } else {
-        console.log("🔴 No cells found in grid for selection restoration");
+        console.log("🔴 No cells found in table for selection restoration");
       }
 
       // Add a slight delay then verify the final state
       setTimeout(() => {
         const finalSelectedCell = document.querySelector(".cell.cell--selected");
-        const finalSelectedGrid = document.querySelector(".grid.grid--selected");
+        const finalSelectedTable = document.querySelector(".table.table--selected");
         const finalActiveElement = document.activeElement;
 
         console.log("🔍 Final selection state after restoration", {
           hasSelectedCell: !!finalSelectedCell,
-          hasSelectedGrid: !!finalSelectedGrid,
-          selectedGridMatchesOurGrid: finalSelectedGrid === grid,
+          hasSelectedTable: !!finalSelectedTable,
+          selectedTableMatchesOurTable: finalSelectedTable === table,
           activeElementTag: finalActiveElement?.tagName,
           activeElementClass: (finalActiveElement as HTMLElement)?.className,
-          activeElementInOurGrid:
-            !!finalActiveElement?.closest(".grid") && finalActiveElement?.closest(".grid") === grid,
+          activeElementInOurTable:
+            !!finalActiveElement?.closest(".table") && finalActiveElement?.closest(".table") === table,
         });
 
-        if (!finalSelectedCell || finalSelectedGrid !== grid) {
+        if (!finalSelectedCell || finalSelectedTable !== table) {
           console.log("⚠️ Selection restoration may have failed!", {
-            expectedGrid: grid,
-            actualSelectedGrid: finalSelectedGrid,
+            expectedTable: table,
+            actualSelectedTable: finalSelectedTable,
             allSelectedCells: document.querySelectorAll(".cell.cell--selected").length,
-            allSelectedGrids: document.querySelectorAll(".grid.grid--selected").length,
+            allSelectedTables: document.querySelectorAll(".table.table--selected").length,
           });
         }
 
@@ -519,12 +521,12 @@ function handleCornerDragUp() {
 
   // Finalize to history as a single undoable action
   if (saved) {
-    const info = getGridInfo(grid);
+    const info = getTableInfo(table);
     const label = `Resize Table to ${info.rowCount}×${info.columnCount}`;
     console.log("📝 Adding history entry:", label);
     const noop = () => {};
-    const undoOp = (g: HTMLElement) => restoreGrid(g, saved);
-    gridHistoryManager.addHistoryEntry(grid, label, noop, undoOp);
+    const undoOp = (g: HTMLElement) => restoreTable(g, saved);
+    tableHistoryManager.addHistoryEntry(table, label, noop, undoOp);
   } else {
     console.log("🔴 No saved state for history");
   }
@@ -548,7 +550,7 @@ function ensureOverlayStyles() {
   style.textContent = `
 /* Enable referencing anchors anywhere in the document */
 html { anchor-scope: all; }
-@keyframes bgrid-pulse {
+@keyframes btable-pulse {
   0% { opacity: 0.25; }
   50% { opacity: 0.9; }
   100% { opacity: 0.25; }
@@ -562,7 +564,7 @@ type OverlaySide = "right" | "left" | "top" | "bottom";
 
 function makeOverlay(
   onClick: () => void,
-  icon: React.ReactElement,
+  iconSvg: string,
   kind: OverlayKind,
   side: OverlaySide,
 ): HTMLButtonElement {
@@ -605,15 +607,8 @@ function makeOverlay(
     btn.style.height = "24px";
     btn.style.borderRadius = "12px";
   }
-  // Inject MUI icon as inline SVG for crisp rendering
-  const svg = renderToStaticMarkup(
-    React.cloneElement(icon, {
-      // Use MUI color prop properly and ensure fill follows currentColor without relying on MUI CSS
-      color: "inherit",
-      style: { width: 18, height: 18, display: "block", fill: "currentColor" },
-    }),
-  );
-  btn.innerHTML = svg;
+  // Inject the icon as inline SVG for crisp rendering
+  btn.innerHTML = iconSvg;
   btn.addEventListener("mousedown", (e) => e.preventDefault());
   btn.addEventListener("click", () => onClick());
   return btn;
@@ -667,37 +662,19 @@ function ensureEdgeOverlays() {
   ensureOverlayStyles();
   // Use MUI Add/Delete icons. Placement conveys direction.
   if (!overlayRight)
-    overlayRight = makeOverlay(tryInsertColumnRight, React.createElement(AddIcon), "add", "right");
-  if (!overlayLeft)
-    overlayLeft = makeOverlay(tryInsertColumnLeft, React.createElement(AddIcon), "add", "left");
-  if (!overlayTop)
-    overlayTop = makeOverlay(tryInsertRowAbove, React.createElement(AddIcon), "add", "top");
+    overlayRight = makeOverlay(tryInsertColumnRight, kAddIconSvg, "add", "right");
+  if (!overlayLeft) overlayLeft = makeOverlay(tryInsertColumnLeft, kAddIconSvg, "add", "left");
+  if (!overlayTop) overlayTop = makeOverlay(tryInsertRowAbove, kAddIconSvg, "add", "top");
   if (!overlayBottom)
-    overlayBottom = makeOverlay(tryInsertRowBelow, React.createElement(AddIcon), "add", "bottom");
-  // Delete buttons with MUI Delete icon
+    overlayBottom = makeOverlay(tryInsertRowBelow, kAddIconSvg, "add", "bottom");
+  // Delete buttons
   if (!overlayRightDel)
-    overlayRightDel = makeOverlay(
-      tryRemoveColumn,
-      React.createElement(DeleteIcon),
-      "delete",
-      "right",
-    );
+    overlayRightDel = makeOverlay(tryRemoveColumn, kDeleteIconSvg, "delete", "right");
   if (!overlayLeftDel)
-    overlayLeftDel = makeOverlay(
-      tryRemoveColumn,
-      React.createElement(DeleteIcon),
-      "delete",
-      "left",
-    );
-  if (!overlayTopDel)
-    overlayTopDel = makeOverlay(tryRemoveRow, React.createElement(DeleteIcon), "delete", "top");
+    overlayLeftDel = makeOverlay(tryRemoveColumn, kDeleteIconSvg, "delete", "left");
+  if (!overlayTopDel) overlayTopDel = makeOverlay(tryRemoveRow, kDeleteIconSvg, "delete", "top");
   if (!overlayBottomDel)
-    overlayBottomDel = makeOverlay(
-      tryRemoveRow,
-      React.createElement(DeleteIcon),
-      "delete",
-      "bottom",
-    );
+    overlayBottomDel = makeOverlay(tryRemoveRow, kDeleteIconSvg, "delete", "bottom");
   // Create group containers and place buttons inside
   const rightGroup = ensureGroupContainer("right");
   const leftGroup = ensureGroupContainer("left");
@@ -749,8 +726,8 @@ function ensureEdgeOverlays() {
   ensureAddHover(overlayRight, "column", "right");
 }
 
-function showEdgeOverlays(grid: HTMLElement) {
-  overlayGrid = grid;
+function showEdgeOverlays(table: HTMLElement) {
+  overlayTable = table;
   ensureEdgeOverlays();
   if (groupRight) groupRight.style.display = "flex";
   if (groupLeft) groupLeft.style.display = "flex";
@@ -758,7 +735,7 @@ function showEdgeOverlays(grid: HTMLElement) {
   if (groupBottom) groupBottom.style.display = "flex";
   if (cornerHandle) cornerHandle.style.display = "block";
   // Apply anchor-based positioning
-  applyAnchorPositioning(grid);
+  applyAnchorPositioning(table);
 }
 
 function hideEdgeOverlays() {
@@ -767,7 +744,7 @@ function hideEdgeOverlays() {
   if (groupTop) groupTop.style.display = "none";
   if (groupBottom) groupBottom.style.display = "none";
   if (cornerHandle) cornerHandle.style.display = "none";
-  overlayGrid = null;
+  overlayTable = null;
   hideDeletePreview();
   hideAddPreview();
 }
@@ -786,35 +763,35 @@ function scheduleOverlayReposition() {
 }
 
 function repositionEdgeOverlays() {
-  // During corner drag, always use the stored cornerDragGrid to avoid selection issues
-  let targetGrid = overlayGrid;
+  // During corner drag, always use the stored cornerDragTable to avoid selection issues
+  let targetTable = overlayTable;
 
-  if (cornerDragging && cornerDragGrid) {
-    console.log("🎯 Using stored cornerDragGrid for overlay positioning during drag");
-    targetGrid = cornerDragGrid;
+  if (cornerDragging && cornerDragTable) {
+    console.log("🎯 Using stored cornerDragTable for overlay positioning during drag");
+    targetTable = cornerDragTable;
     // During active drag, skip complex repositioning to avoid DOM timing issues
     return;
-  } else if (!targetGrid) {
+  } else if (!targetTable) {
     // Only derive from selected cell when not dragging
-    const grid =
-      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".grid") ||
-      (document.querySelector(".grid") as HTMLElement | null);
-    if (grid) {
-      targetGrid = grid as HTMLElement;
-      overlayGrid = targetGrid; // Update the stored reference
+    const table =
+      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".table") ||
+      (document.querySelector(".table") as HTMLElement | null);
+    if (table) {
+      targetTable = table as HTMLElement;
+      overlayTable = targetTable; // Update the stored reference
     } else {
       return;
     }
   }
 
-  if (!targetGrid) return;
-  if (!document.body.contains(targetGrid)) {
+  if (!targetTable) return;
+  if (!document.body.contains(targetTable)) {
     hideEdgeOverlays();
     return;
   }
 
-  // Ensure wrappers remain configured for the current grid anchor
-  applyAnchorPositioning(targetGrid);
+  // Ensure wrappers remain configured for the current table anchor
+  applyAnchorPositioning(targetTable);
 
   // If a delete preview is visible, reposition/update it to track row/column bounds
   if (deletePreviewVisible) {
@@ -837,25 +814,25 @@ function getElementAnchorName(el: HTMLElement, key: string, prefix: string): str
   return name;
 }
 
-function getCellAt(grid: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
-  const children = Array.from(grid.children) as HTMLElement[];
+function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
+  const children = Array.from(table.children) as HTMLElement[];
   for (const el of children) {
     if (!el.classList || !el.classList.contains("cell")) continue;
     try {
-      const { row, column } = getRowAndColumn(grid, el);
+      const { row, column } = getRowAndColumn(table, el);
       if (row === targetRow && column === targetCol) return el;
     } catch {}
   }
   return null;
 }
 
-// Apply anchor-based placement to all overlay wrappers relative to the grid
-function applyAnchorPositioning(grid: HTMLElement) {
+// Apply anchor-based placement to all overlay wrappers relative to the table
+function applyAnchorPositioning(table: HTMLElement) {
   const gap = 8; // px
   let rows = 0,
     cols = 0;
   try {
-    const info = getGridInfo(grid);
+    const info = getTableInfo(table);
     rows = info.rowCount;
     cols = info.columnCount;
   } catch {}
@@ -864,11 +841,11 @@ function applyAnchorPositioning(grid: HTMLElement) {
   const midCol = Math.max(0, Math.floor((cols - 1) / 2));
 
   // Resolve anchor cells for each overlay
-  const rightCell = rows && cols ? getCellAt(grid, midRow, cols - 1) : null; // middle row, last col
-  const leftCell = rows && cols ? getCellAt(grid, midRow, 0) : null; // middle row, first col
-  const topCell = rows && cols ? getCellAt(grid, 0, midCol) : null; // first row, middle col
-  const bottomCell = rows && cols ? getCellAt(grid, rows - 1, midCol) : null; // last row, middle col
-  const cornerCell = rows && cols ? getCellAt(grid, rows - 1, cols - 1) : null; // last cell
+  const rightCell = rows && cols ? getCellAt(table, midRow, cols - 1) : null; // middle row, last col
+  const leftCell = rows && cols ? getCellAt(table, midRow, 0) : null; // middle row, first col
+  const topCell = rows && cols ? getCellAt(table, 0, midCol) : null; // first row, middle col
+  const bottomCell = rows && cols ? getCellAt(table, rows - 1, midCol) : null; // last row, middle col
+  const cornerCell = rows && cols ? getCellAt(table, rows - 1, cols - 1) : null; // last cell
 
   const setWrapperToCell = (
     prox: ProximityDiv | null,
@@ -878,7 +855,7 @@ function applyAnchorPositioning(grid: HTMLElement) {
     if (!prox || !cell) return;
     const el = prox.element;
     el.style.position = "fixed";
-    const cellAnchor = getElementAnchorName(cell, "bgridAnchorName", "bgrid-cell");
+    const cellAnchor = getElementAnchorName(cell, "btableAnchorName", "btable-cell");
     (el.style as any).positionAnchor = cellAnchor;
     el.style.setProperty("position-anchor", cellAnchor);
     // Clear inline offsets first
@@ -916,7 +893,7 @@ function applyAnchorPositioning(grid: HTMLElement) {
   if (proxCornerHandle && cornerCell) {
     const el = proxCornerHandle.element;
     el.style.position = "fixed";
-    const cellAnchor = getElementAnchorName(cornerCell, "bgridAnchorName", "bgrid-cell");
+    const cellAnchor = getElementAnchorName(cornerCell, "btableAnchorName", "btable-cell");
     (el.style as any).positionAnchor = cellAnchor;
     el.style.setProperty("position-anchor", cellAnchor);
     el.style.left = `calc(anchor(right) - 8px)`;
@@ -927,15 +904,15 @@ function applyAnchorPositioning(grid: HTMLElement) {
 
 function tryInsertColumnRight() {
   const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const grid = (cell?.closest(".grid") as HTMLElement | null) ?? overlayGrid;
-  if (!grid) return;
+  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  if (!table) return;
   try {
-    const controller = new BloomGrid(grid);
+    const controller = new BloomTable(table);
     if (cell) {
-      const { column } = getRowAndColumn(grid, cell);
+      const { column } = getRowAndColumn(table, cell);
       controller.addColumnAt(column + 1);
     } else {
-      const widths = (grid.getAttribute("data-column-widths") || "")
+      const widths = (table.getAttribute("data-column-widths") || "")
         .split(",")
         .filter((x) => x.length > 0);
       controller.addColumnAt(widths.length);
@@ -946,12 +923,12 @@ function tryInsertColumnRight() {
 
 function tryInsertColumnLeft() {
   const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const grid = (cell?.closest(".grid") as HTMLElement | null) ?? overlayGrid;
-  if (!grid) return;
+  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  if (!table) return;
   try {
-    const controller = new BloomGrid(grid);
+    const controller = new BloomTable(table);
     if (cell) {
-      const { column } = getRowAndColumn(grid, cell);
+      const { column } = getRowAndColumn(table, cell);
       controller.addColumnAt(column);
     } else {
       controller.addColumnAt(0);
@@ -962,12 +939,12 @@ function tryInsertColumnLeft() {
 
 function tryInsertRowAbove() {
   const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const grid = (cell?.closest(".grid") as HTMLElement | null) ?? overlayGrid;
-  if (!grid) return;
+  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  if (!table) return;
   try {
-    const controller = new BloomGrid(grid);
+    const controller = new BloomTable(table);
     if (cell) {
-      const { row } = getRowAndColumn(grid, cell);
+      const { row } = getRowAndColumn(table, cell);
       controller.addRowAt(row);
     } else {
       controller.addRowAt(0);
@@ -978,15 +955,15 @@ function tryInsertRowAbove() {
 
 function tryInsertRowBelow() {
   const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const grid = (cell?.closest(".grid") as HTMLElement | null) ?? overlayGrid;
-  if (!grid) return;
+  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  if (!table) return;
   try {
-    const controller = new BloomGrid(grid);
+    const controller = new BloomTable(table);
     if (cell) {
-      const { row } = getRowAndColumn(grid, cell);
+      const { row } = getRowAndColumn(table, cell);
       controller.addRowAt(row + 1);
     } else {
-      const heights = (grid.getAttribute("data-row-heights") || "")
+      const heights = (table.getAttribute("data-row-heights") || "")
         .split(",")
         .filter((x) => x.length > 0);
       controller.addRowAt(heights.length);
@@ -997,12 +974,12 @@ function tryInsertRowBelow() {
 
 function tryRemoveColumn() {
   const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const grid = (cell?.closest(".grid") as HTMLElement | null) ?? overlayGrid;
-  if (!grid) return;
+  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  if (!table) return;
   try {
-    const controller = new BloomGrid(grid);
+    const controller = new BloomTable(table);
     if (cell) {
-      const { column } = getRowAndColumn(grid, cell);
+      const { column } = getRowAndColumn(table, cell);
       controller.removeColumnAt(column);
     }
     scheduleOverlayReposition();
@@ -1011,12 +988,12 @@ function tryRemoveColumn() {
 
 function tryRemoveRow() {
   const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const grid = (cell?.closest(".grid") as HTMLElement | null) ?? overlayGrid;
-  if (!grid) return;
+  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  if (!table) return;
   try {
-    const controller = new BloomGrid(grid);
+    const controller = new BloomTable(table);
     if (cell) {
-      const { row } = getRowAndColumn(grid, cell);
+      const { row } = getRowAndColumn(table, cell);
       controller.removeRowAt(row);
     }
     scheduleOverlayReposition();
@@ -1043,13 +1020,14 @@ function ensureDeletePreviewDiv(): HTMLDivElement {
       <line x1="0" y1="0" x2="100%" y2="100%" stroke="#e53935" stroke-width="2" stroke-linecap="round" />
       <line x1="100%" y1="0" x2="0" y2="100%" stroke="#e53935" stroke-width="2" stroke-linecap="round" />
     </svg>`;
+  div.setAttribute("data-table-overlay", "delete-preview");
   document.body.appendChild(div);
   deletePreviewDiv = div;
   return div;
 }
 
 function showDeletePreview(kind: PreviewKind) {
-  if (!overlayGrid) return;
+  if (!overlayTable) return;
   const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
   if (!selected) return;
   currentPreviewKind = kind;
@@ -1066,15 +1044,15 @@ function hideDeletePreview() {
 }
 
 function updateDeletePreviewGeometry() {
-  if (!deletePreviewVisible || !overlayGrid || !deletePreviewDiv) return;
+  if (!deletePreviewVisible || !overlayTable || !deletePreviewDiv) return;
   const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
   if (!selected) {
     hideDeletePreview();
     return;
   }
-  const { row, column } = getRowAndColumn(overlayGrid, selected);
+  const { row, column } = getRowAndColumn(overlayTable, selected);
   // Find all visible cells and compute bounds for the target row/column
-  const cells: HTMLElement[] = Array.from(overlayGrid.children).filter(
+  const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
     (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("cell"),
   );
   let minLeft = Infinity,
@@ -1082,7 +1060,7 @@ function updateDeletePreviewGeometry() {
     minTop = Infinity,
     maxBottom = -Infinity;
   for (const cell of cells) {
-    const { row: r, column: c } = getRowAndColumn(overlayGrid, cell);
+    const { row: r, column: c } = getRowAndColumn(overlayTable, cell);
     const match = currentPreviewKind === "row" ? r === row : c === column;
     if (!match) continue;
     const rect = cell.getBoundingClientRect();
@@ -1129,16 +1107,17 @@ function ensureAddPreviewDiv(): HTMLDivElement {
     display: "none",
     backgroundColor: kBloomBlue,
     opacity: "0.6",
-    animation: "bgrid-pulse 2.8s ease-in-out infinite",
+    animation: "btable-pulse 2.8s ease-in-out infinite",
     borderRadius: "3px",
   } as CSSStyleDeclaration);
+  div.setAttribute("data-table-overlay", "add-preview");
   document.body.appendChild(div);
   addPreviewDiv = div;
   return div;
 }
 
 function showAddPreview(kind: PreviewKind, position: "above" | "below" | "left" | "right") {
-  if (!overlayGrid) return;
+  if (!overlayTable) return;
   const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
   if (!selected) return;
   currentAddKind = kind;
@@ -1157,15 +1136,15 @@ function hideAddPreview() {
 }
 
 function updateAddPreviewGeometry() {
-  if (!addPreviewVisible || !overlayGrid || !addPreviewDiv) return;
+  if (!addPreviewVisible || !overlayTable || !addPreviewDiv) return;
   if (!currentAddKind || !currentAddPosition) return;
   const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
   if (!selected) {
     hideAddPreview();
     return;
   }
-  const { row, column } = getRowAndColumn(overlayGrid, selected);
-  const cells: HTMLElement[] = Array.from(overlayGrid.children).filter(
+  const { row, column } = getRowAndColumn(overlayTable, selected);
+  const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
     (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("cell"),
   );
   let minLeft = Infinity,
@@ -1173,7 +1152,7 @@ function updateAddPreviewGeometry() {
     minTop = Infinity,
     maxBottom = -Infinity;
   for (const cell of cells) {
-    const { row: r, column: c } = getRowAndColumn(overlayGrid, cell);
+    const { row: r, column: c } = getRowAndColumn(overlayTable, cell);
     const match = currentAddKind === "row" ? r === row : c === column;
     if (!match) continue;
     const rect = cell.getBoundingClientRect();

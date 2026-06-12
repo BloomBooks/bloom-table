@@ -1,0 +1,62 @@
+/* bloom-table: structural / read-time styles.
+   These rules are required wherever a table is rendered, including static
+   reader/publish views that do not run the table's JavaScript. The edit-only
+   styles (selection highlighting, boundary hints, contenteditable
+   affordances) live in bloom-table-edit.css and should be included only in an
+   editing context. */
+
+:root {
+  --cell-bg: #fff;
+  --cell-padding: 8px 10px;
+  /* Default edge border (used by renderer when no data-border-default is provided) */
+  --edge-default-weight: 1;
+  --edge-default-style: solid;
+  --edge-default-color: #000;
+}
+
+.table {
+  display: grid;
+  width: 100%;
+  height: 100%;
+
+  gap: var(--gap, 0);
+  background: var(--bg, transparent);
+}
+
+.cell {
+  background: var(--cell-bg);
+  padding: var(--cell-padding);
+
+  background: var(--this-bg, var(--cell-bg));
+  padding: var(--this-padding, var(--cell-padding));
+
+  grid-column: span var(--span-x, 1);
+  grid-row: span var(--span-y, 1);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* A skipped cell is one that is logically "covered" by
+   a previous cell's row or column span. We hide it
+   completely so the CSS grid layout ignores it. */
+.cell.skip {
+  display: none;
+}
+
+.cell:nth-of-type(odd) {
+  border-radius: var(--cell-border-radius-odd);
+}
+/* removed outline-based even-cell override */
+
+/* Ensure nested tables fill their parent cell */
+.cell[data-content-type="table"] > .table {
+  width: 100%;
+  height: 100%;
+}
+
+/* Remove padding when the cell contains a table */
+.cell[data-content-type="table"] {
+  --this-padding: 0;
+}

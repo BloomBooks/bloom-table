@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vite-plus/test";
 import { EDGE_DEFAULT } from "./defaults";
 
-// Simple parser to extract CSS custom properties from src/bloom-grid.css
+// Simple parser to extract CSS custom properties from src/bloom-table.css
 function readCssFile(): string {
   // Vitest runs in Node; use fs to read repo file
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const fs = require("fs");
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const path = require("path");
-  const file = path.resolve(__dirname, "./bloom-grid.css");
+  const file = path.resolve(__dirname, "./bloom-table.css");
   return fs.readFileSync(file, "utf8");
 }
 

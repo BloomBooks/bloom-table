@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { attachGridsAfterContentLoad } from "../utils/gridAttachment";
+import { attachTablesAfterContentLoad } from "../utils/tableAttachment";
 
 interface MainContentProps {
   content: string;
@@ -20,7 +20,7 @@ const MainContent: React.FC<MainContentProps> = ({ content, onChange, id, classN
     if (containerRef.current && content) {
       isSettingRef.current = true;
       containerRef.current.innerHTML = content;
-      attachGridsAfterContentLoad(containerRef.current);
+      attachTablesAfterContentLoad(containerRef.current);
       // allow mutations from initial set to flush before enabling notifications
       setTimeout(() => {
         isSettingRef.current = false;

@@ -1,51 +1,29 @@
-:root {
-  --cell-bg: #fff;
-  --cell-padding: 8px 10px;
-  /* Default edge border (used by renderer when no data-border-default is provided) */
-  --edge-default-weight: 1;
-  --edge-default-style: solid;
-  --edge-default-color: #000;
+/* bloom-table: edit-time-only styles.
+   Selection highlighting, boundary hints, and contenteditable affordances.
+   These are NOT needed when rendering a saved table statically (e.g. in a
+   reader/publish view); include them only in an editor. A host app that strips
+   edit-mode stylesheets before saving (as Bloom does) should load this file
+   there so it never reaches published output. Requires bloom-table.css. */
 
+:root {
   /* Selection highlight */
   --selected-cell-bg: #3d82950e;
 
-  --selected-grid-outline-color: #3d8295;
-  --selected-grid-outline-width: 1px;
-  --selected-grid-outline-offset: 1px;
-  --selected-grid-outline-style: dotted;
+  --selected-table-outline-color: #3d8295;
+  --selected-table-outline-width: 1px;
+  --selected-table-outline-offset: 1px;
+  --selected-table-outline-style: dotted;
   /* Subtle boundary hint color (very faint) */
-  --grid-hint-color: rgba(0, 0, 0, 0.08);
+  --table-hint-color: rgba(0, 0, 0, 0.08);
 }
 
 #page {
-  /* horizontally center children */
+  /* horizontally center children (demo/editor host) */
   display: flex;
   justify-content: center;
   padding: 40px;
 }
-.grid {
-  display: grid;
-  width: 100%;
-  height: 100%;
 
-  gap: var(--gap, 0);
-  background: var(--bg, transparent);
-}
-
-.cell {
-  background: var(--cell-bg);
-  padding: var(--cell-padding);
-
-  background: var(--this-bg, var(--cell-bg));
-  padding: var(--this-padding, var(--cell-padding));
-
-  grid-column: span var(--span-x, 1);
-  grid-row: span var(--span-y, 1);
-
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
 /* Selected outlines (non-intrusive, no layout shift) */
 .cell.cell--selected {
   position: relative; /* establish containing block for overlay */
@@ -61,14 +39,14 @@
   z-index: 1;
 }
 
-.grid.grid--selected {
-  outline: var(--selected-grid-outline-width) var(--selected-grid-outline-style, solid)
-    var(--selected-grid-outline-color);
-  outline-offset: var(--selected-grid-outline-offset);
+.table.table--selected {
+  outline: var(--selected-table-outline-width) var(--selected-table-outline-style, solid)
+    var(--selected-table-outline-color);
+  outline-offset: var(--selected-table-outline-offset);
 }
 
-/* Boundary hints: shown only when grid is selected, and only where borders are none */
-.grid.grid--selected .cell {
+/* Boundary hints: shown only when table is selected, and only where borders are none */
+.table.table--selected .cell {
   /* Layered background gradients for 1px separators; each is transparent unless the corresponding --hint-*-color is set */
   background-image:
     /* top */
@@ -120,29 +98,6 @@
   /*background-color: aqua;*/
 }
 
-/* A skipped cell is one that is logically "covered" by
-   a previous cell's row or column span. We hide it
-   completely so the grid layout ignores it. */
-.cell.skip {
-  display: none;
-}
-
 [contenteditable]:focus {
   outline: none;
-}
-
-.cell:nth-of-type(odd) {
-  border-radius: var(--cell-border-radius-odd);
-}
-/* removed outline-based even-cell override */
-
-/* Ensure nested grids fill their parent cell */
-.cell[data-content-type="grid"] > .grid {
-  width: 100%;
-  height: 100%;
-}
-
-/* Remove padding when the cell contains a grid */
-.cell[data-content-type="grid"] {
-  --this-padding: 0;
 }

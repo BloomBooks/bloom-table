@@ -1,52 +1,52 @@
 import { dragToResize } from "./drag-to-resize";
-import { gridHistoryManager } from "./history";
+import { tableHistoryManager } from "./history";
 import { addColumn, addRow } from "./structure";
-import { migrateGrid } from "./migrate";
+import { migrateTable } from "./migrate";
 import { attachTextEditing } from "./text-editing";
-import { render } from "./grid-renderer";
+import { render } from "./table-renderer";
 import { ensureSelectionHighlighting } from "./selection-highlight";
 import { ensureTableSizeButtons } from "./table-size-buttons";
 
-export function attachGrid(gridDiv: HTMLElement): void {
-  if (!gridDiv) throw new Error("Grid element is required");
+export function attachTable(tableDiv: HTMLElement): void {
+  if (!tableDiv) throw new Error("Table element is required");
 
-  // Ensure the grid has the correct class and attributes
-  gridDiv.classList.add("grid");
+  // Ensure the table has the correct class and attributes
+  tableDiv.classList.add("table");
   // Install global selection highlighter once
   ensureSelectionHighlighting();
   // Install global table size buttons once
   ensureTableSizeButtons();
-  if (!gridDiv.hasAttribute("data-column-widths")) {
-    gridDiv.setAttribute("data-column-widths", "");
+  if (!tableDiv.hasAttribute("data-column-widths")) {
+    tableDiv.setAttribute("data-column-widths", "");
     // add two columns by default
-    addColumn(gridDiv, true);
-    addColumn(gridDiv, true);
+    addColumn(tableDiv, true);
+    addColumn(tableDiv, true);
   }
-  if (!gridDiv.hasAttribute("data-row-heights")) {
-    gridDiv.setAttribute("data-row-heights", "");
+  if (!tableDiv.hasAttribute("data-row-heights")) {
+    tableDiv.setAttribute("data-row-heights", "");
     // add two rows by default
-    addRow(gridDiv, true);
-    addRow(gridDiv, true);
+    addRow(tableDiv, true);
+    addRow(tableDiv, true);
   }
-  // todo do a sanity check on the gridDiv to ensure it has the right structure
-  migrateGrid(gridDiv);
+  // todo do a sanity check on the tableDiv to ensure it has the right structure
+  migrateTable(tableDiv);
 
-  // Attach the grid to the history manager
-  gridHistoryManager.attachGrid(gridDiv);
+  // Attach the table to the history manager
+  tableHistoryManager.attachTable(tableDiv);
   // Attach resize handlers
-  dragToResize.attach(gridDiv);
+  dragToResize.attach(tableDiv);
 
-  attachTextEditing(gridDiv);
+  attachTextEditing(tableDiv);
 
   // Apply initial render so styles (borders, corners, spans) are applied immediately
-  render(gridDiv);
+  render(tableDiv);
 }
 
-export function detachGrid(gridDiv: HTMLElement): void {
-  if (!gridDiv) throw new Error("Grid element is required");
+export function detachTable(tableDiv: HTMLElement): void {
+  if (!tableDiv) throw new Error("Table element is required");
 
   // Detach from history manager
-  gridHistoryManager.detachGrid(gridDiv);
+  tableHistoryManager.detachTable(tableDiv);
   // Detach resize handlers
-  dragToResize.detach(gridDiv);
+  dragToResize.detach(tableDiv);
 }

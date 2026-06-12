@@ -1,5 +1,5 @@
 {
-  "name": "bloom-grid",
+  "name": "bloom-table",
   "version": "1.0.0",
   "description": "A TypeScript library for editing tables/grids in pure html",
   "keywords": [
@@ -10,12 +10,21 @@
   "license": "MIT",
   "author": "",
   "files": [
-    "dist",
-    "bloom-grid.css"
+    "dist"
   ],
-  "main": "dist/bloom-grid.umd.js",
-  "module": "dist/bloom-grid.mjs",
-  "types": "dist/bloom-grid.d.mts",
+  "main": "dist/bloom-table.umd.js",
+  "module": "dist/bloom-table.mjs",
+  "types": "dist/bloom-table.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/bloom-table.d.mts",
+      "import": "./dist/bloom-table.mjs",
+      "require": "./dist/bloom-table.umd.js"
+    },
+    "./bloom-table.css": "./dist/bloom-table.css",
+    "./bloom-table-edit.css": "./dist/bloom-table-edit.css",
+    "./dist/*": "./dist/*"
+  },
   "scripts": {
     "build": "vp pack",
     "dev": "vp dev",
@@ -28,20 +37,18 @@
     "e2e:ui": "npx playwright test --ui",
     "preview": "vp preview"
   },
-  "dependencies": {
+  "devDependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "5",
     "@mui/material": "5",
-    "jsdom": "^26.1.0"
-  },
-  "devDependencies": {
     "@playwright/test": "^1.55.0",
     "@types/node": "^24.0.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.2",
     "happy-dom": "^15.0.0",
+    "jsdom": "^26.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.8.3",
@@ -49,12 +56,23 @@
     "vite-plus": "^0.1.24"
   },
   "peerDependencies": {
+    "@emotion/react": "^11.0.0",
+    "@emotion/styled": "^11.0.0",
+    "@mui/icons-material": "^5.0.0",
+    "@mui/material": "^5.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
-  "volta": {
-    "node": "22.11.0",
-    "yarn": "1.22.22"
+  "peerDependenciesMeta": {
+    "@emotion/react": { "optional": true },
+    "@emotion/styled": { "optional": true },
+    "@mui/icons-material": { "optional": true },
+    "@mui/material": { "optional": true },
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
   },
-  "packageManager": "yarn@1.22.22"
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.0.3"
 }

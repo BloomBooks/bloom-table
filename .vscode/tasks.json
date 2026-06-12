@@ -4,8 +4,8 @@
     {
       "label": "run-vitest-once",
       "type": "shell",
-      "command": "yarn",
-      "args": ["vitest", "run", "--reporter=dot"],
+      "command": "pnpm",
+      "args": ["exec", "vitest", "run", "--reporter=dot"],
       "isBackground": false,
       "problemMatcher": ["$vitest-stylish"],
       "group": "build"
@@ -13,8 +13,8 @@
     {
       "label": "run-vitest-once",
       "type": "shell",
-      "command": "yarn",
-      "args": ["vitest", "run", "--reporter=dot"],
+      "command": "pnpm",
+      "args": ["exec", "vitest", "run", "--reporter=dot"],
       "isBackground": false,
       "problemMatcher": ["$vitest-stylish"],
       "group": "build"
@@ -22,8 +22,8 @@
     {
       "label": "typecheck-and-tests",
       "type": "shell",
-      "command": "yarn",
-      "args": ["vitest", "run", "--reporter=dot"],
+      "command": "pnpm",
+      "args": ["exec", "vitest", "run", "--reporter=dot"],
       "isBackground": false,
       "problemMatcher": ["$vitest-stylish"],
       "group": "build"
@@ -31,8 +31,8 @@
     {
       "label": "run-vitest-once",
       "type": "shell",
-      "command": "yarn",
-      "args": ["vitest", "run", "--reporter=dot"],
+      "command": "pnpm",
+      "args": ["exec", "vitest", "run", "--reporter=dot"],
       "isBackground": false,
       "problemMatcher": ["$vitest-stylish"],
       "group": "build"

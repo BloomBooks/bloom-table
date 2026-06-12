@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { gridHistoryManager } from "../../src";
+import { tableHistoryManager } from "../../src";
 
 interface SaveButtonProps {
   // e.g. "tests/table-border.html" or "exercises/alphabet.html"
@@ -14,7 +14,7 @@ const SaveButton: React.FC<SaveButtonProps> = ({
   variant = "default",
   className,
 }) => {
-  const [canUndo, setCanUndo] = useState(gridHistoryManager.canUndo());
+  const [canUndo, setCanUndo] = useState(tableHistoryManager.canUndo());
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -44,7 +44,7 @@ const SaveButton: React.FC<SaveButtonProps> = ({
 
       if (response.ok) {
         alert("Saved successfully!");
-        gridHistoryManager.clearHistory();
+        tableHistoryManager.clearHistory();
         setCanUndo(false);
       } else {
         const errorText = await response.text();
@@ -68,11 +68,11 @@ const SaveButton: React.FC<SaveButtonProps> = ({
 
   useEffect(() => {
     const handleHistoryUpdate = () => {
-      setCanUndo(gridHistoryManager.canUndo());
+      setCanUndo(tableHistoryManager.canUndo());
     };
-    document.addEventListener("gridHistoryUpdated", handleHistoryUpdate);
+    document.addEventListener("tableHistoryUpdated", handleHistoryUpdate);
     return () => {
-      document.removeEventListener("gridHistoryUpdated", handleHistoryUpdate);
+      document.removeEventListener("tableHistoryUpdated", handleHistoryUpdate);
     };
   }, []);
 

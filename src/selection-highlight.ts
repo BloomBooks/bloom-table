@@ -1,6 +1,6 @@
-// Global selection highlighter: adds classes to the active cell and its grid.
+// Global selection highlighter: adds classes to the active cell and its table.
 // - cell--selected (blue outline via CSS)
-// - grid--selected (purple outline via CSS)
+// - table--selected (purple outline via CSS)
 // Selection persists when focus moves outside cells (e.g., into menus).
 
 let installed = false;
@@ -26,13 +26,13 @@ export function ensureSelectionHighlighting(): void {
         .forEach((el) => el.classList.remove("cell--selected"));
       cell.classList.add("cell--selected");
 
-      // Mark the nearest grid as selected, clear others
-      const grid = cell.closest(".grid") as HTMLElement | null;
-      if (!grid) return;
+      // Mark the nearest table as selected, clear others
+      const table = cell.closest(".table") as HTMLElement | null;
+      if (!table) return;
       document
-        .querySelectorAll<HTMLElement>(".grid.grid--selected")
-        .forEach((g) => g.classList.remove("grid--selected"));
-      grid.classList.add("grid--selected");
+        .querySelectorAll<HTMLElement>(".table.table--selected")
+        .forEach((g) => g.classList.remove("table--selected"));
+      table.classList.add("table--selected");
     },
     true,
   );

@@ -3,25 +3,25 @@ import { BorderControl } from "./BorderControl/BorderControl";
 import Section from "./Section";
 import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
-// no grid-model reads here; we derive current state via border-state/renderer
+// no table-model reads here; we derive current state via border-state/renderer
 import { applyUniformInner, setDefaultBorder, applyOuterBorders } from "../edge-utils";
-import { render } from "../grid-renderer";
-import { getGridOuterBorderValueMap } from "../border-state";
-import { BloomGrid } from "../";
+import { render } from "../table-renderer";
+import { getTableOuterBorderValueMap } from "../border-state";
+import { BloomTable } from "../";
 
 type Props = {
-  grid?: HTMLElement;
+  table?: HTMLElement;
 };
 
-// --- BorderControl wiring helpers (moved from GridMenu) ---
+// --- BorderControl wiring helpers (moved from TableMenu) ---
 const parsePx = (s: string | null | undefined): number => {
   if (!s) return 0;
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 };
-const buildBorderMapFromGrid = (g: HTMLElement): BorderValueMap => {
+const buildBorderMapFromTable = (g: HTMLElement): BorderValueMap => {
   const cs = getComputedStyle(g);
-  const base = getGridOuterBorderValueMap(g);
+  const base = getTableOuterBorderValueMap(g);
 
   // Preserve corner radius reading from computed style (render owns setting)
   const radiusPx = parsePx(cs.borderTopLeftRadius);
@@ -39,7 +39,7 @@ const buildBorderMapFromGrid = (g: HTMLElement): BorderValueMap => {
   };
 };
 
-const applyBorderMapToGrid = (g: HTMLElement, map: BorderValueMap) => {
+const applyBorderMapToTable = (g: HTMLElement, map: BorderValueMap) => {
   const cs = getComputedStyle(g);
   const outerColor = (cs.color || "black").trim();
   const innerColor = (cs.color || "#444").trim();
@@ -106,8 +106,8 @@ const applyBorderMapToGrid = (g: HTMLElement, map: BorderValueMap) => {
 
 const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
 
-export const TableSection: React.FC<Props> = ({ grid }) => {
-  // Corner menu value state, derived from the grid and updated on change
+export const TableSection: React.FC<Props> = ({ table }) => {
+  // Corner menu value state, derived from the table and updated on change
   const getCornerValue = (g: HTMLElement | undefined | null): CornerRadius | "mixed" => {
     if (!g) return 0;
     const cs = getComputedStyle(g);
@@ -123,17 +123,17 @@ export const TableSection: React.FC<Props> = ({ grid }) => {
     return ([0, 2, 4, 8] as number[]).includes(r) ? (r as CornerRadius) : ("mixed" as const);
   };
 
-  const [cornerValue, setCornerValue] = useState<CornerRadius | "mixed">(getCornerValue(grid));
+  const [cornerValue, setCornerValue] = useState<CornerRadius | "mixed">(getCornerValue(table));
   useEffect(() => {
-    setCornerValue(getCornerValue(grid));
-  }, [grid]);
+    setCornerValue(getCornerValue(table));
+  }, [table]);
 
   return (
     <Section label="Table">
-      {grid && (
+      {table && (
         <>
           {(() => {
-            const valueMap = buildBorderMapFromGrid(grid);
+            const valueMap = buildBorderMapFromTable(table);
             const cornerDisabled = valueMap.top.weight === 0 || valueMap.top.style === "none";
             return (
               <>
@@ -141,16 +141,16 @@ export const TableSection: React.FC<Props> = ({ grid }) => {
                   <BorderControl
                     valueMap={valueMap}
                     showInner
-                    onChange={(next) => applyBorderMapToGrid(grid, next)}
+                    onChange={(next) => applyBorderMapToTable(table, next)}
                   />
                 </div>
                 <div className={menuItemStyle} style={{ cursor: "default" }}>
                   <CornerMenu
                     value={cornerValue}
                     onChange={(v) => {
-                      if (!grid) return;
-                      const ctrl = new BloomGrid(grid);
-                      ctrl.setGridCorners(v as number);
+                      if (!table) return;
+                      const ctrl = new BloomTable(table);
+                      ctrl.setTableCorners(v as number);
                       setCornerValue(v);
                     }}
                     disabled={cornerDisabled}
@@ -168,4 +168,4 @@ export const TableSection: React.FC<Props> = ({ grid }) => {
 export default TableSection;
 
 // Export for testing
-export { buildBorderMapFromGrid, applyBorderMapToGrid };
+export { buildBorderMapFromTable, applyBorderMapToTable };

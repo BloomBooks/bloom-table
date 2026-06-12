@@ -1,9 +1,9 @@
-export function attachTextEditing(gridDiv: HTMLElement): void {
-  if (!gridDiv) throw new Error("Grid element is required");
+export function attachTextEditing(tableDiv: HTMLElement): void {
+  if (!tableDiv) throw new Error("Table element is required");
 
   // when the usr presses "Enter" and we're inside of a contenteditable div, we don't want to just
   // add divs like the browser does, we want to add paragraph
-  gridDiv.addEventListener("keydown", (event) => {
+  tableDiv.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && event.target instanceof HTMLDivElement) {
       event.preventDefault();
       //   const target = event.target as HTMLDivElement;

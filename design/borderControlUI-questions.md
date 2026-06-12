@@ -93,7 +93,7 @@ nothing added to the material ui, just whatever it has
 > MUI version to target (v5 or v6)?
 > v5
 
-> May I add @mui/material and @mui/icons-material via yarn?
+> May I add @mui/material and @mui/icons-material via pnpm?
 > This is just a markdown document you're building, don't go into that much implementation detail
 
 > Keep components in components and use TypeScript with your existing vite/vitest setup?

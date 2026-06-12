@@ -17,7 +17,7 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
   const [exercises, setexercises] = useState<Example[]>([]);
   const [tests, setTests] = useState<Example[]>([]);
   const [activeId, setActiveId] = useState<string>("");
-  const LOCAL_STORAGE_KEY = "bloom-grid.activeExamplePath"; // e.g. tests/table-border.html
+  const LOCAL_STORAGE_KEY = "bloom-table.activeExamplePath"; // e.g. tests/table-border.html
 
   // Function to fetch available example files from the API
   const fetchExampleFiles = async (): Promise<void> => {

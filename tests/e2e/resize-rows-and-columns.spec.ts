@@ -1,19 +1,19 @@
 import { test, expect } from "@playwright/test";
-import { attachGridsToPage } from "./utils/grid-attachment";
+import { attachTablesToPage } from "./utils/table-attachment";
 
 test.describe("Resize Rows and Columns", () => {
   test("row and column drag resize updates both data and UI", async ({ page }) => {
-    // Navigate to new-grid demo
-    await page.goto("/demo/exercises/new-grid.html");
-    await page.waitForSelector(".grid");
-    await attachGridsToPage(page);
+    // Navigate to new-table demo
+    await page.goto("/demo/exercises/new-table.html");
+    await page.waitForSelector(".table");
+    await attachTablesToPage(page);
 
-    const grid = page.locator("#main-grid");
-    await expect(grid).toBeVisible();
+    const table = page.locator("#main-table");
+    await expect(table).toBeVisible();
 
-    // Test that the grid is properly set up
-    const gridInfo = await grid.evaluate((el) => ({
-      hasGridClass: el.classList.contains("grid"),
+    // Test that the table is properly set up
+    const gridInfo = await table.evaluate((el) => ({
+      hasGridClass: el.classList.contains("table"),
       dataColumnWidths: el.getAttribute("data-column-widths"),
       dataRowHeights: el.getAttribute("data-row-heights"),
       cellCount: el.querySelectorAll(".cell").length,
@@ -24,40 +24,40 @@ test.describe("Resize Rows and Columns", () => {
       },
     }));
 
-    // Verify grid is properly configured
+    // Verify table is properly configured
     expect(gridInfo.hasGridClass).toBe(true);
     expect(gridInfo.gridStyle.display).toBe("grid");
     expect(gridInfo.dataRowHeights).toBeTruthy();
     expect(gridInfo.dataColumnWidths).toBeTruthy();
 
-    console.log("✅ Grid is properly configured for drag resize operations");
-    console.log("Grid info:", gridInfo);
+    console.log("✅ Table is properly configured for drag resize operations");
+    console.log("Table info:", gridInfo);
   });
 
   test("updates row height and UI during drag operations", async ({ page }) => {
-    // Navigate to new-grid demo
-    await page.goto("/demo/exercises/new-grid.html");
+    // Navigate to new-table demo
+    await page.goto("/demo/exercises/new-table.html");
 
     // Wait for the page to load
-    await page.waitForSelector(".grid");
+    await page.waitForSelector(".table");
 
     // Manually attach grids since we removed script tags from HTML files
-    await attachGridsToPage(page);
+    await attachTablesToPage(page);
 
-    const grid = page.locator("#main-grid");
-    await expect(grid).toBeVisible();
+    const table = page.locator("#main-table");
+    await expect(table).toBeVisible();
 
-    // Debug: Check grid structure after attachment
+    // Debug: Check table structure after attachment
     const gridStructure = await page.evaluate(() => {
-      const grid = document.querySelector("#main-grid");
-      if (!grid) return null;
+      const table = document.querySelector("#main-table");
+      if (!table) return null;
 
-      const cells = Array.from(grid.querySelectorAll(".cell"));
+      const cells = Array.from(table.querySelectorAll(".cell"));
 
       return {
-        hasGridClass: grid.classList.contains("grid"),
-        dataColumnWidths: grid.getAttribute("data-column-widths"),
-        dataRowHeights: grid.getAttribute("data-row-heights"),
+        hasGridClass: table.classList.contains("table"),
+        dataColumnWidths: table.getAttribute("data-column-widths"),
+        dataRowHeights: table.getAttribute("data-row-heights"),
         cellCount: cells.length,
         cellDetails: cells.map((cell, index) => ({
           index,
@@ -68,28 +68,28 @@ test.describe("Resize Rows and Columns", () => {
           bounds: cell.getBoundingClientRect(),
         })),
         gridStyle: {
-          display: window.getComputedStyle(grid).display,
-          gridTemplateColumns: window.getComputedStyle(grid).gridTemplateColumns,
-          gridTemplateRows: window.getComputedStyle(grid).gridTemplateRows,
+          display: window.getComputedStyle(table).display,
+          gridTemplateColumns: window.getComputedStyle(table).gridTemplateColumns,
+          gridTemplateRows: window.getComputedStyle(table).gridTemplateRows,
         },
       };
     });
 
-    console.log("Grid structure after attachment:", JSON.stringify(gridStructure, null, 2));
+    console.log("Table structure after attachment:", JSON.stringify(gridStructure, null, 2));
 
     // Add some content to the first row to make it easier to see height changes
-    const firstCell = grid.locator(".cell").first();
+    const firstCell = table.locator(".cell").first();
     await firstCell.click();
     await page.keyboard.type("Some content in first row to test resizing");
 
-    // Get initial row heights attribute and computed grid template
-    const initialDataRowHeights = await grid.getAttribute("data-row-heights");
-    const initialGridTemplateRows = await grid.evaluate(
+    // Get initial row heights attribute and computed table template
+    const initialDataRowHeights = await table.getAttribute("data-row-heights");
+    const initialGridTemplateRows = await table.evaluate(
       (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     console.log("Initial data-row-heights:", initialDataRowHeights);
-    console.log("Initial grid-template-rows:", initialGridTemplateRows);
+    console.log("Initial table-template-rows:", initialGridTemplateRows);
 
     // Get the first cell's bottom edge for drag starting point
     const firstCellBounds = await firstCell.boundingBox();
@@ -104,10 +104,10 @@ test.describe("Resize Rows and Columns", () => {
 
     // Try to trigger drag directly through JavaScript to bypass mouse event issues
     const dragResult = await page.evaluate(() => {
-      const grid = document.querySelector("#main-grid") as HTMLElement;
-      if (!grid) return { error: "No grid found" };
+      const table = document.querySelector("#main-table") as HTMLElement;
+      if (!table) return { error: "No table found" };
 
-      const cell = grid.querySelector(".cell") as HTMLElement;
+      const cell = table.querySelector(".cell") as HTMLElement;
       if (!cell) return { error: "No cell found" };
 
       // Get the bounds
@@ -144,7 +144,7 @@ test.describe("Resize Rows and Columns", () => {
       document.dispatchEvent(dragEvent);
 
       // Check if data-row-heights changed
-      const rowHeightsAfterDrag = grid.getAttribute("data-row-heights");
+      const rowHeightsAfterDrag = table.getAttribute("data-row-heights");
 
       // Complete drag
       const mouseUpEvent = new MouseEvent("mouseup", {
@@ -180,17 +180,17 @@ test.describe("Resize Rows and Columns", () => {
     await page.waitForTimeout(100);
 
     // Check that data-row-heights was updated during drag
-    const duringDragDataRowHeights = await grid.getAttribute("data-row-heights");
+    const duringDragDataRowHeights = await table.getAttribute("data-row-heights");
     console.log("During drag data-row-heights:", duringDragDataRowHeights);
 
     // This should be different from initial value
     expect(duringDragDataRowHeights).not.toBe(initialDataRowHeights);
 
-    // **THIS IS THE KEY TEST** - Check that grid-template-rows also got updated during drag
-    const duringDragGridTemplateRows = await grid.evaluate(
+    // **THIS IS THE KEY TEST** - Check that table-template-rows also got updated during drag
+    const duringDragGridTemplateRows = await table.evaluate(
       (el) => window.getComputedStyle(el).gridTemplateRows,
     );
-    console.log("During drag grid-template-rows:", duringDragGridTemplateRows);
+    console.log("During drag table-template-rows:", duringDragGridTemplateRows);
 
     // This should also be different from initial value (this is what's currently broken)
     expect(duringDragGridTemplateRows).not.toBe(initialGridTemplateRows);
@@ -199,13 +199,13 @@ test.describe("Resize Rows and Columns", () => {
     await page.mouse.up();
 
     // Final state check - both data attribute and computed style should be updated
-    const finalDataRowHeights = await grid.getAttribute("data-row-heights");
-    const finalGridTemplateRows = await grid.evaluate(
+    const finalDataRowHeights = await table.getAttribute("data-row-heights");
+    const finalGridTemplateRows = await table.evaluate(
       (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     console.log("Final data-row-heights:", finalDataRowHeights);
-    console.log("Final grid-template-rows:", finalGridTemplateRows);
+    console.log("Final table-template-rows:", finalGridTemplateRows);
 
     // Final values should match during-drag values
     expect(finalDataRowHeights).toBe(duringDragDataRowHeights);
@@ -230,22 +230,22 @@ test.describe("Resize Rows and Columns", () => {
     // Wait for the demo to load
     await page.waitForTimeout(1000);
 
-    // Look for a grid in the demo
-    const grid = page.locator(".grid").first();
-    await expect(grid).toBeVisible();
+    // Look for a table in the demo
+    const table = page.locator(".table").first();
+    await expect(table).toBeVisible();
 
-    // Get initial computed grid template for any grid
-    const initialGridInfo = await grid.evaluate((el) => ({
+    // Get initial computed table template for any table
+    const initialGridInfo = await table.evaluate((el) => ({
       templateRows: window.getComputedStyle(el).gridTemplateRows,
       templateColumns: window.getComputedStyle(el).gridTemplateColumns,
       dataRowHeights: el.getAttribute("data-row-heights"),
       dataColumnWidths: el.getAttribute("data-column-widths"),
     }));
 
-    console.log("Initial grid info:", initialGridInfo);
+    console.log("Initial table info:", initialGridInfo);
 
     // Try to find a cell and perform a manual drag test
-    const cell = grid.locator(".cell").first();
+    const cell = table.locator(".cell").first();
     if (await cell.isVisible()) {
       console.log("Found cell, attempting manual drag test");
 
@@ -264,8 +264,8 @@ test.describe("Resize Rows and Columns", () => {
         await page.mouse.move(x, y + 50);
         await page.waitForTimeout(200);
 
-        // Check if grid template changed during drag (our fix)
-        const duringDragGridInfo = await grid.evaluate((el) => ({
+        // Check if table template changed during drag (our fix)
+        const duringDragGridInfo = await table.evaluate((el) => ({
           templateRows: window.getComputedStyle(el).gridTemplateRows,
           dataRowHeights: el.getAttribute("data-row-heights"),
         }));
@@ -275,16 +275,16 @@ test.describe("Resize Rows and Columns", () => {
         await page.mouse.up();
 
         // Check final state
-        const finalGridInfo = await grid.evaluate((el) => ({
+        const finalGridInfo = await table.evaluate((el) => ({
           templateRows: window.getComputedStyle(el).gridTemplateRows,
           dataRowHeights: el.getAttribute("data-row-heights"),
         }));
 
-        console.log("Final grid info:", finalGridInfo);
+        console.log("Final table info:", finalGridInfo);
 
         // The test passes if either:
         // 1. The data changed (proving drag works), OR
-        // 2. The grid template updated during drag (proving our fix works)
+        // 2. The table template updated during drag (proving our fix works)
         const dataChanged = finalGridInfo.dataRowHeights !== initialGridInfo.dataRowHeights;
         const templateChangedDuringDrag =
           duringDragGridInfo.templateRows !== initialGridInfo.templateRows;
@@ -305,32 +305,32 @@ test.describe("Resize Rows and Columns", () => {
         }
 
         // The test should succeed if we can confirm the fix works
-        // For now, let's just verify the grid exists and has the expected structure
+        // For now, let's just verify the table exists and has the expected structure
         expect(initialGridInfo.templateRows).not.toBe("none");
       }
     }
 
-    // Minimal success criteria: the demo loaded and we found a grid
-    expect(await grid.count()).toBeGreaterThan(0);
+    // Minimal success criteria: the demo loaded and we found a table
+    expect(await table.count()).toBeGreaterThan(0);
   });
 
   // for now we don't support undoing resize operations
   test.skip("reverts row height on undo", async ({ page }) => {
-    // Navigate to new-grid demo
-    await page.goto("/demo/exercises/new-grid.html");
-    await page.waitForSelector(".grid");
-    await attachGridsToPage(page);
+    // Navigate to new-table demo
+    await page.goto("/demo/exercises/new-table.html");
+    await page.waitForSelector(".table");
+    await attachTablesToPage(page);
 
-    const grid = page.locator("#main-grid");
+    const table = page.locator("#main-table");
 
     // Get initial state
-    const initialDataRowHeights = await grid.getAttribute("data-row-heights");
-    const initialGridTemplateRows = await grid.evaluate(
+    const initialDataRowHeights = await table.getAttribute("data-row-heights");
+    const initialGridTemplateRows = await table.evaluate(
       (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     // Perform a drag operation
-    const firstCell = grid.locator(".cell").first();
+    const firstCell = table.locator(".cell").first();
     const firstCellBounds = await firstCell.boundingBox();
     expect(firstCellBounds).not.toBeNull();
 
@@ -344,7 +344,7 @@ test.describe("Resize Rows and Columns", () => {
     await page.mouse.up();
 
     // Verify change occurred
-    const afterDragDataRowHeights = await grid.getAttribute("data-row-heights");
+    const afterDragDataRowHeights = await table.getAttribute("data-row-heights");
     expect(afterDragDataRowHeights).not.toBe(initialDataRowHeights);
 
     // Perform undo (Ctrl+Z)
@@ -352,8 +352,8 @@ test.describe("Resize Rows and Columns", () => {
     await page.waitForTimeout(100);
 
     // Verify state was reverted
-    const afterUndoDataRowHeights = await grid.getAttribute("data-row-heights");
-    const afterUndoGridTemplateRows = await grid.evaluate(
+    const afterUndoDataRowHeights = await table.getAttribute("data-row-heights");
+    const afterUndoGridTemplateRows = await table.evaluate(
       (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
@@ -362,7 +362,7 @@ test.describe("Resize Rows and Columns", () => {
   });
 
   test("documents the drag resize fix implementation", async ({ page }) => {
-    await page.goto("/demo/exercises/new-grid.html");
+    await page.goto("/demo/exercises/new-table.html");
 
     const documentation = await page.evaluate(() => {
       return {
@@ -376,16 +376,16 @@ test.describe("Resize Rows and Columns", () => {
         solution: {
           files_modified: ["src/drag-to-resize.ts"],
           changes: [
-            "Added import for render function from grid-renderer",
-            "Added render(grid) call in updateRowHeightPreview after data update",
-            "Added render(grid) call in updateColumnWidthPreview after data update",
+            "Added import for render function from table-renderer",
+            "Added render(table) call in updateRowHeightPreview after data update",
+            "Added render(table) call in updateColumnWidthPreview after data update",
           ],
           impact: "Real-time visual feedback during drag operations",
         },
         verification: {
           unit_tests_pass: true,
           changes_implemented: true,
-          expected_behavior: "Both data attributes AND CSS grid templates update during drag",
+          expected_behavior: "Both data attributes AND CSS table templates update during drag",
         },
       };
     });
@@ -396,13 +396,13 @@ test.describe("Resize Rows and Columns", () => {
 
 PROBLEM:
 - When dragging to resize rows/columns, data attributes were updated correctly
-- BUT the UI (grid-template-rows/columns) was NOT updated during the drag
+- BUT the UI (table-template-rows/columns) was NOT updated during the drag
 - This made drag operations appear broken
 
 SOLUTION:
-1. Added 'import { render } from "./grid-renderer"' to src/drag-to-resize.ts
-2. Added 'render(grid)' call in updateRowHeightPreview() method
-3. Added 'render(grid)' call in updateColumnWidthPreview() method
+1. Added 'import { render } from "./table-renderer"' to src/drag-to-resize.ts
+2. Added 'render(table)' call in updateRowHeightPreview() method
+3. Added 'render(table)' call in updateColumnWidthPreview() method
 
 RESULT:
 ✅ Both data AND UI are updated during drag operations

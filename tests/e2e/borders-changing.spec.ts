@@ -12,19 +12,19 @@ test.describe("Borders changing - visual expectation", () => {
     await page.waitForSelector("#root");
     await page.waitForSelector("#example-list");
 
-    // Select New-grid
-    const newGridItem = page.locator("#example-list").getByText("New-grid", { exact: false });
+    // Select New-table
+    const newGridItem = page.locator("#example-list").getByText("New-table", { exact: false });
     await newGridItem.click();
 
-    const grid = page.locator("#example-container #main-grid.grid");
-    await expect(grid).toBeVisible({ timeout: 10000 });
+    const table = page.locator("#example-container #main-table.table");
+    await expect(table).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
     const firstCellEditor = page.locator("#example-container .cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     const tableSection = page
-      .locator(".grid-menu div")
+      .locator(".table-menu div")
       .filter({ has: page.locator("h2", { hasText: "Table" }) })
       .first();
 
@@ -49,12 +49,12 @@ test.describe("Borders changing - visual expectation", () => {
     await page.waitForSelector("#root");
     await page.waitForSelector("#example-list");
 
-    // Select New-grid
-    const newGridItem = page.locator("#example-list").getByText("New-grid", { exact: false });
+    // Select New-table
+    const newGridItem = page.locator("#example-list").getByText("New-table", { exact: false });
     await newGridItem.click();
 
-    const grid = page.locator("#example-container #main-grid.grid");
-    await expect(grid).toBeVisible({ timeout: 10000 });
+    const table = page.locator("#example-container #main-table.table");
+    await expect(table).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
     const firstCellEditor = page.locator("#example-container .cell div[contenteditable]").first();
@@ -62,7 +62,7 @@ test.describe("Borders changing - visual expectation", () => {
 
     // In the Table section, set Style=Dashed and Weight=2
     const tableSection = page
-      .locator(".grid-menu div")
+      .locator(".table-menu div")
       .filter({ has: page.locator("h2", { hasText: "Table" }) })
       .first();
     await tableSection.locator('button[aria-label="Style"]').click();
@@ -73,7 +73,7 @@ test.describe("Borders changing - visual expectation", () => {
     await page.waitForTimeout(150);
 
     // Sanity-check model reflects dashed somewhere
-    const modelHasDashed = await grid.evaluate((el) => {
+    const modelHasDashed = await table.evaluate((el) => {
       const h = el.getAttribute("data-edges-h") || "";
       const v = el.getAttribute("data-edges-v") || "";
       const d = el.getAttribute("data-border-default") || "";

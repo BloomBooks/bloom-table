@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { attachGridsToPage } from "./utils/grid-attachment";
+import { attachTablesToPage } from "./utils/table-attachment";
 
 test.describe("Table Border Visual Validation", () => {
   test("validates border rendering in real browser", async ({ page }) => {
@@ -7,26 +7,26 @@ test.describe("Table Border Visual Validation", () => {
     await page.goto("/demo/tests/table-border.html");
 
     // Wait for the page to load
-    await page.waitForSelector(".grid");
+    await page.waitForSelector(".table");
 
     // Manually attach grids since we removed script tags from HTML files
-    await attachGridsToPage(page);
+    await attachTablesToPage(page);
 
-    // Debug: Log the edge data for the first grid
+    // Debug: Log the edge data for the first table
     const gridEdgeData = await page.evaluate(() => {
-      const grid = document.querySelector("#grid-with-red-cross");
+      const table = document.querySelector("#table-with-red-cross");
       return {
-        edgesH: grid?.getAttribute("data-edges-h"),
-        edgesV: grid?.getAttribute("data-edges-v"),
-        columnWidths: grid?.getAttribute("data-column-widths"),
-        rowHeights: grid?.getAttribute("data-row-heights"),
+        edgesH: table?.getAttribute("data-edges-h"),
+        edgesV: table?.getAttribute("data-edges-v"),
+        columnWidths: table?.getAttribute("data-column-widths"),
+        rowHeights: table?.getAttribute("data-row-heights"),
       };
     });
-    console.log("Grid edge data:", gridEdgeData);
+    console.log("Table edge data:", gridEdgeData);
 
     // Debug: Log what borders are actually applied to each cell
     const cellBorderDebug = await page.evaluate(() => {
-      const cells = Array.from(document.querySelectorAll("#grid-with-red-cross .cell"));
+      const cells = Array.from(document.querySelectorAll("#table-with-red-cross .cell"));
       return cells.map((cell, index) => {
         const computed = getComputedStyle(cell);
         return {
@@ -40,8 +40,8 @@ test.describe("Table Border Visual Validation", () => {
     });
     console.log("Actual cell borders:", cellBorderDebug);
 
-    // === Grid 1: Red Cross Pattern (should apply per-side borders) ===
-    const grid1 = page.locator("#grid-with-red-cross");
+    // === Table 1: Red Cross Pattern (should apply per-side borders) ===
+    const grid1 = page.locator("#table-with-red-cross");
     await expect(grid1).toBeVisible();
 
     const r1c1 = grid1.locator(".cell").nth(0);
@@ -108,8 +108,8 @@ test.describe("Table Border Visual Validation", () => {
     // Check r1c2 and r2c1 (should have no outlines)
     // No specific assertion for r1c2 now; depends on model of cross pattern
 
-    // === Grid 2: External Border Pattern (should use individual borders) ===
-    const grid2 = page.locator("#grid-with-external-border");
+    // === Table 2: External Border Pattern (should use individual borders) ===
+    const grid2 = page.locator("#table-with-external-border");
     await expect(grid2).toBeVisible();
 
     const grid2r1c1 = grid2.locator(".cell").nth(0);
@@ -137,8 +137,8 @@ test.describe("Table Border Visual Validation", () => {
     expect(grid2Styles.borderTopColor).toMatch(/(rgb\(0,\s*0,\s*0\)|#000)/);
     expect(grid2Styles.borderLeftColor).toMatch(/(rgb\(0,\s*0,\s*0\)|#000)/);
 
-    // === Grid 3: Red Divider Pattern (should use individual borders) ===
-    const grid3 = page.locator("#grid-with-red-border");
+    // === Table 3: Red Divider Pattern (should use individual borders) ===
+    const grid3 = page.locator("#table-with-red-border");
     await expect(grid3).toBeVisible();
 
     const grid3r1c1 = grid3.locator(".cell").nth(0);
@@ -171,12 +171,12 @@ test.describe("Table Border Visual Validation", () => {
     expect(grid3Styles.borderLeftColor).toMatch(blackPattern);
   });
 
-  test("visual regression - grid rendering", async ({ page }) => {
+  test("visual regression - table rendering", async ({ page }) => {
     await page.goto("/demo/tests/table-border.html");
-    await page.waitForSelector(".grid");
+    await page.waitForSelector(".table");
 
     // Manually attach grids since we removed script tags from HTML files
-    await attachGridsToPage(page);
+    await attachTablesToPage(page);
 
     // Take a screenshot for visual regression testing
     await expect(page).toHaveScreenshot("table-border-grids.png", {

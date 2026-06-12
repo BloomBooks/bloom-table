@@ -4,7 +4,7 @@ import type {
   HVVerticalEdgeCellSides,
   HEdgeEntry,
   VEdgeEntry,
-} from "./grid-model";
+} from "./table-model";
 import {
   getColumnWidths,
   getRowHeights,
@@ -14,8 +14,8 @@ import {
   setEdgesH,
   setEdgeDefault,
   getSpan,
-} from "./grid-model";
-import { getGridCells } from "./structure";
+} from "./table-model";
+import { getTableCells } from "./structure";
 
 // Simple converters between UI-friendly types and model BorderSpec
 export type UIStyle = "none" | "solid" | "dashed" | "dotted" | "double";
@@ -33,64 +33,64 @@ const toSpec = (u?: UIBorder | null, fallbackColor = "#444"): BorderSpec | null 
 };
 
 // Read current sizes
-export function getGridSize(grid: HTMLElement): { rows: number; cols: number } {
-  const rows = getRowHeights(grid).length;
-  const cols = getColumnWidths(grid).length;
+export function getTableSize(table: HTMLElement): { rows: number; cols: number } {
+  const rows = getRowHeights(table).length;
+  const cols = getColumnWidths(table).length;
   return { rows, cols };
 }
 
-// Ensure edges arrays are sized to grid
-export function ensureEdgesArrays(grid: HTMLElement) {
-  const { rows, cols } = getGridSize(grid);
+// Ensure edges arrays are sized to table
+export function ensureEdgesArrays(table: HTMLElement) {
+  const { rows, cols } = getTableSize(table);
   // V edges: R x (C+1) including perimeters
-  let v = (getEdgesV(grid) ?? []) as VEdgeEntry[][];
+  let v = (getEdgesV(table) ?? []) as VEdgeEntry[][];
   while (v.length < rows) v.push([]);
   for (let r = 0; r < rows; r++) {
     while ((v[r] ?? (v[r] = [])).length < cols + 1) v[r].push({});
     v[r] = v[r].slice(0, cols + 1);
   }
   v = v.slice(0, rows);
-  setEdgesV(grid, v as VEdgeEntry[][]);
+  setEdgesV(table, v as VEdgeEntry[][]);
 
   // H edges: (R+1) x C including perimeters
-  let h = (getEdgesH(grid) ?? []) as HEdgeEntry[][];
+  let h = (getEdgesH(table) ?? []) as HEdgeEntry[][];
   while (h.length < rows + 1) h.push([]);
   for (let r = 0; r < rows + 1; r++) {
     while ((h[r] ?? (h[r] = [])).length < cols) h[r].push({});
     h[r] = h[r].slice(0, cols);
   }
   h = h.slice(0, rows + 1);
-  setEdgesH(grid, h as HEdgeEntry[][]);
+  setEdgesH(table, h as HEdgeEntry[][]);
 }
 
 // Apply a uniform outer border to all four sides
 export function applyUniformOuter(
-  grid: HTMLElement,
+  table: HTMLElement,
   border: UIBorder | null,
   colorFallback = "#000",
 ) {
-  ensureEdgesArrays(grid);
-  const { rows, cols } = getGridSize(grid);
+  ensureEdgesArrays(table);
+  const { rows, cols } = getTableSize(table);
   const spec = toSpec(border, colorFallback);
   // Top and Bottom perimeters via H at r=0 and r=rows
-  const h = (getEdgesH(grid) ?? []) as HEdgeEntry[][];
+  const h = (getEdgesH(table) ?? []) as HEdgeEntry[][];
   for (let c = 0; c < cols; c++) {
     h[0][c] = spec;
     h[rows][c] = spec;
   }
-  setEdgesH(grid, h);
+  setEdgesH(table, h);
   // Left and Right perimeters via V at c=0 and c=cols
-  const v = (getEdgesV(grid) ?? []) as VEdgeEntry[][];
+  const v = (getEdgesV(table) ?? []) as VEdgeEntry[][];
   for (let r = 0; r < rows; r++) {
     v[r][0] = spec;
     v[r][cols] = spec;
   }
-  setEdgesV(grid, v);
+  setEdgesV(table, v);
 }
 
 // Apply individual borders to each side of the outer perimeter
 export function applyOuterBorders(
-  grid: HTMLElement,
+  table: HTMLElement,
   borders: {
     top?: UIBorder | null;
     right?: UIBorder | null;
@@ -99,11 +99,11 @@ export function applyOuterBorders(
   },
   colorFallback = "#000",
 ) {
-  ensureEdgesArrays(grid);
-  const { rows, cols } = getGridSize(grid);
+  ensureEdgesArrays(table);
+  const { rows, cols } = getTableSize(table);
 
-  const h = (getEdgesH(grid) ?? []) as HEdgeEntry[][];
-  const v = (getEdgesV(grid) ?? []) as VEdgeEntry[][];
+  const h = (getEdgesH(table) ?? []) as HEdgeEntry[][];
+  const v = (getEdgesV(table) ?? []) as VEdgeEntry[][];
 
   // Top perimeter (H at r=0)
   if (borders.top !== undefined) {
@@ -137,31 +137,31 @@ export function applyOuterBorders(
     }
   }
 
-  setEdgesH(grid, h);
-  setEdgesV(grid, v);
+  setEdgesH(table, h);
+  setEdgesV(table, v);
 }
 
 // Apply uniform inner vertical/horizontal borders (between cells)
 export function applyUniformInner(
-  grid: HTMLElement,
+  table: HTMLElement,
   kind: "innerV" | "innerH",
   border: UIBorder | null,
   colorFallback = "#444",
 ) {
-  ensureEdgesArrays(grid);
-  const { rows, cols } = getGridSize(grid);
+  ensureEdgesArrays(table);
+  const { rows, cols } = getTableSize(table);
   const spec = toSpec(border, colorFallback);
   if (kind === "innerV") {
-    const v = (getEdgesV(grid) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
+    const v = (getEdgesV(table) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
     for (let r = 0; r < rows; r++) {
       for (let c = 1; c <= Math.max(0, cols - 1); c++) {
         // Write a single-spec for conciseness
         v[r][c] = spec;
       }
     }
-    setEdgesV(grid, v);
+    setEdgesV(table, v);
   } else {
-    const h = (getEdgesH(grid) ?? []) as Array<
+    const h = (getEdgesH(table) ?? []) as Array<
       Array<HVHorizontalEdgeCellSides | BorderSpec | null>
     >;
     for (let r = 1; r <= Math.max(0, rows - 1); r++) {
@@ -169,23 +169,23 @@ export function applyUniformInner(
         h[r][c] = spec;
       }
     }
-    setEdgesH(grid, h);
+    setEdgesH(table, h);
   }
 }
 
 // Apply a default border spec for unspecified edges
 export function setDefaultBorder(
-  grid: HTMLElement,
+  table: HTMLElement,
   border: UIBorder | null,
   colorFallback = "#444",
 ) {
-  setEdgeDefault(grid, toSpec(border, colorFallback));
+  setEdgeDefault(table, toSpec(border, colorFallback));
 }
 
 // Apply borders around a single cell's perimeter.
 // Uses unified edges: interior sides to inner boundaries; outer to perimeters in H/V arrays.
 export function applyCellPerimeter(
-  grid: HTMLElement,
+  table: HTMLElement,
   cell: HTMLElement,
   map: {
     top?: UIBorder | null;
@@ -196,9 +196,9 @@ export function applyCellPerimeter(
   outerColorFallback = "#000",
   innerColorFallback = "#444",
 ) {
-  ensureEdgesArrays(grid);
-  const { rows, cols } = getGridSize(grid);
-  const cells = getGridCells(grid);
+  ensureEdgesArrays(table);
+  const { rows, cols } = getTableSize(table);
+  const cells = getTableCells(table);
   const idx = cells.indexOf(cell);
   if (idx < 0) return;
   const r = Math.floor(idx / Math.max(1, cols));
@@ -208,8 +208,8 @@ export function applyCellPerimeter(
   const sy = Math.max(1, span.y);
 
   // Fetch arrays
-  const v = (getEdgesV(grid) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
-  const h = (getEdgesH(grid) ?? []) as Array<Array<HVHorizontalEdgeCellSides | BorderSpec | null>>;
+  const v = (getEdgesV(table) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
+  const h = (getEdgesH(table) ?? []) as Array<Array<HVHorizontalEdgeCellSides | BorderSpec | null>>;
 
   // Left
   if (map.left !== undefined) {
@@ -255,6 +255,6 @@ export function applyCellPerimeter(
     }
   }
 
-  setEdgesV(grid, v);
-  setEdgesH(grid, h);
+  setEdgesV(table, v);
+  setEdgesH(table, h);
 }

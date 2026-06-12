@@ -11,13 +11,14 @@
         margin: 24px;
       }
     </style>
-    <link rel="stylesheet" href="../../src/bloom-grid.css" />
+    <link rel="stylesheet" href="../../src/bloom-table.css" />
+    <link rel="stylesheet" href="../../src/bloom-table-edit.css" />
   </head>
   <body>
     <div id="page" style="background: white; height: 600px; width: 500px">
       <div
-        id="main-grid"
-        class="grid"
+        id="main-table"
+        class="table"
         data-column-widths="hug"
         data-row-heights="192px,hug"
         style="
@@ -34,7 +35,7 @@
       >
         <div
           class="cell"
-          data-content-type="grid"
+          data-content-type="table"
           style="
             cursor: ew-resize;
             --span-x: 1;
@@ -43,15 +44,15 @@
             border-style: none;
             border-color: rgb(0, 0, 0);
             border-radius: 0px;
-            --hint-bottom-color: var(--grid-hint-color);
-            --hint-top-color: var(--grid-hint-color);
-            --hint-left-color: var(--grid-hint-color);
-            --hint-right-color: var(--grid-hint-color);
+            --hint-bottom-color: var(--table-hint-color);
+            --hint-top-color: var(--table-hint-color);
+            --hint-left-color: var(--table-hint-color);
+            --hint-right-color: var(--table-hint-color);
           "
           tabindex="-1"
         >
           <div
-            class="grid"
+            class="table"
             data-column-widths="126px,fill"
             data-row-heights="fill"
             data-edges-v="[[{},{},{}]]"
@@ -76,9 +77,9 @@
                 border-style: none solid none none;
                 border-right-color: rgb(0, 0, 0);
                 border-radius: 0px;
-                --hint-top-color: var(--grid-hint-color);
-                --hint-bottom-color: var(--grid-hint-color);
-                --hint-left-color: var(--grid-hint-color);
+                --hint-top-color: var(--table-hint-color);
+                --hint-bottom-color: var(--table-hint-color);
+                --hint-left-color: var(--table-hint-color);
               "
             >
               <img
@@ -89,7 +90,7 @@
             </div>
             <div
               class="cell"
-              data-content-type="grid"
+              data-content-type="table"
               style="
                 cursor: ns-resize;
                 --span-x: 1;
@@ -97,14 +98,14 @@
                 border-width: 0px;
                 border-style: none;
                 border-radius: 0px;
-                --hint-top-color: var(--grid-hint-color);
-                --hint-bottom-color: var(--grid-hint-color);
-                --hint-right-color: var(--grid-hint-color);
+                --hint-top-color: var(--table-hint-color);
+                --hint-bottom-color: var(--table-hint-color);
+                --hint-right-color: var(--table-hint-color);
               "
               tabindex="-1"
             >
               <div
-                class="grid"
+                class="table"
                 data-column-widths="fill,fill"
                 data-row-heights="50px,fill"
                 data-edges-h='[[{"weight":0,"style":"none","color":"rgb(0, 0, 0)"},{"weight":1,"style":"double","color":"rgb(0, 0, 0)"}],[{"weight":1,"style":"solid","color":"rgb(0, 0, 0)"},{"weight":1,"style":"double","color":"rgb(0, 0, 0)"}],[{"weight":0,"style":"none","color":"rgb(0, 0, 0)"},{"weight":0,"style":"none","color":"rgb(0, 0, 0)"}]]'
@@ -131,8 +132,8 @@
                     border-right-color: rgb(0, 0, 0);
                     border-bottom-color: rgb(0, 0, 0);
                     border-radius: 0px;
-                    --hint-top-color: var(--grid-hint-color);
-                    --hint-left-color: var(--grid-hint-color);
+                    --hint-top-color: var(--table-hint-color);
+                    --hint-left-color: var(--table-hint-color);
                   "
                 >
                   <div contenteditable="true" style="cursor: default">yada</div>
@@ -149,15 +150,15 @@
                     border-top-color: rgb(0, 0, 0);
                     border-right-color: rgb(0, 0, 0);
                     border-radius: 0px;
-                    --hint-top-color: var(--grid-hint-color);
-                    --hint-right-color: var(--grid-hint-color);
+                    --hint-top-color: var(--table-hint-color);
+                    --hint-right-color: var(--table-hint-color);
                   "
                 >
                   <div contenteditable="true" style="cursor: default">Y y</div>
                 </div>
                 <div
                   class="cell"
-                  data-content-type="grid"
+                  data-content-type="table"
                   style="
                     cursor: ew-resize;
                     --span-x: 1;
@@ -166,13 +167,13 @@
                     border-style: none solid none none;
                     border-right-color: rgb(0, 0, 0);
                     border-radius: 0px;
-                    --hint-bottom-color: var(--grid-hint-color);
-                    --hint-left-color: var(--grid-hint-color);
+                    --hint-bottom-color: var(--table-hint-color);
+                    --hint-left-color: var(--table-hint-color);
                   "
                   tabindex="-1"
                 >
                   <div
-                    class="grid"
+                    class="table"
                     data-column-widths="fill,fill"
                     data-row-heights="fill"
                     style="
@@ -197,9 +198,9 @@
                         border-style: none solid none none;
                         border-right-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
-                        --hint-bottom-color: var(--grid-hint-color);
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -221,9 +222,9 @@
                         border-width: 0px;
                         border-style: none;
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
-                        --hint-bottom-color: var(--grid-hint-color);
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -247,8 +248,8 @@
                     border-width: 0px;
                     border-style: none;
                     border-radius: 0px;
-                    --hint-bottom-color: var(--grid-hint-color);
-                    --hint-right-color: var(--grid-hint-color);
+                    --hint-bottom-color: var(--table-hint-color);
+                    --hint-right-color: var(--table-hint-color);
                   "
                 >
                   <div contenteditable="true" style="cursor: default"></div>
@@ -259,7 +260,7 @@
         </div>
         <div
           class="cell"
-          data-content-type="grid"
+          data-content-type="table"
           style="
             cursor: default;
             --span-x: 1;
@@ -270,14 +271,14 @@
             border-bottom-color: rgb(0, 0, 0);
             border-left-color: rgb(0, 0, 0);
             border-radius: 0px;
-            --hint-bottom-color: var(--grid-hint-color);
-            --hint-left-color: var(--grid-hint-color);
-            --hint-right-color: var(--grid-hint-color);
+            --hint-bottom-color: var(--table-hint-color);
+            --hint-left-color: var(--table-hint-color);
+            --hint-right-color: var(--table-hint-color);
           "
           tabindex="-1"
         >
           <div
-            class="grid"
+            class="table"
             data-column-widths="fill"
             data-row-heights="196px,83px"
             style="
@@ -291,7 +292,7 @@
           >
             <div
               class="cell"
-              data-content-type="grid"
+              data-content-type="table"
               style="
                 cursor: default;
                 --span-x: 1;
@@ -300,14 +301,14 @@
                 border-style: none none solid;
                 border-bottom-color: rgb(0, 0, 0);
                 border-radius: 0px;
-                --hint-top-color: var(--grid-hint-color);
-                --hint-left-color: var(--grid-hint-color);
-                --hint-right-color: var(--grid-hint-color);
+                --hint-top-color: var(--table-hint-color);
+                --hint-left-color: var(--table-hint-color);
+                --hint-right-color: var(--table-hint-color);
               "
               tabindex="-1"
             >
               <div
-                class="grid"
+                class="table"
                 data-column-widths="248px,fill"
                 data-row-heights="fill"
                 style="
@@ -323,7 +324,7 @@
               >
                 <div
                   class="cell"
-                  data-content-type="grid"
+                  data-content-type="table"
                   style="
                     cursor: ew-resize;
                     --span-x: 1;
@@ -332,14 +333,14 @@
                     border-style: none solid none none;
                     border-right-color: rgb(0, 0, 0);
                     border-radius: 0px;
-                    --hint-top-color: var(--grid-hint-color);
-                    --hint-bottom-color: var(--grid-hint-color);
-                    --hint-left-color: var(--grid-hint-color);
+                    --hint-top-color: var(--table-hint-color);
+                    --hint-bottom-color: var(--table-hint-color);
+                    --hint-left-color: var(--table-hint-color);
                   "
                   tabindex="-1"
                 >
                   <div
-                    class="grid"
+                    class="table"
                     data-column-widths="fill,fill,hug,hug"
                     data-row-heights="fill,fill,hug"
                     data-border='{"weight":0}'
@@ -372,8 +373,8 @@
                         border-right-color: rgb(0, 0, 0);
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -392,7 +393,7 @@
                         border-right-color: rgb(0, 0, 0);
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -411,7 +412,7 @@
                         border-right-color: rgb(0, 0, 0);
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -429,8 +430,8 @@
                         border-style: none none solid;
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -449,7 +450,7 @@
                         border-right-color: rgb(0, 0, 0);
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -501,7 +502,7 @@
                         border-style: none none solid;
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -519,8 +520,8 @@
                         border-style: none solid none none;
                         border-right-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-bottom-color: var(--grid-hint-color);
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -538,7 +539,7 @@
                         border-style: none solid none none;
                         border-right-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-bottom-color: var(--grid-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -556,7 +557,7 @@
                         border-style: none solid none none;
                         border-right-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-bottom-color: var(--grid-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -573,8 +574,8 @@
                         border-width: 0px;
                         border-style: none;
                         border-radius: 0px;
-                        --hint-bottom-color: var(--grid-hint-color);
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -585,7 +586,7 @@
                 </div>
                 <div
                   class="cell"
-                  data-content-type="grid"
+                  data-content-type="table"
                   style="
                     cursor: ns-resize;
                     --span-x: 1;
@@ -593,14 +594,14 @@
                     border-width: 0px;
                     border-style: none;
                     border-radius: 0px;
-                    --hint-top-color: var(--grid-hint-color);
-                    --hint-bottom-color: var(--grid-hint-color);
-                    --hint-right-color: var(--grid-hint-color);
+                    --hint-top-color: var(--table-hint-color);
+                    --hint-bottom-color: var(--table-hint-color);
+                    --hint-right-color: var(--table-hint-color);
                   "
                   tabindex="-1"
                 >
                   <div
-                    class="grid grid--selected"
+                    class="table grid--selected"
                     data-column-widths="fill,fill"
                     data-row-heights="fill,fill,hug"
                     style="
@@ -629,8 +630,8 @@
                         border-right-color: rgb(0, 0, 0);
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -648,8 +649,8 @@
                         border-style: none none solid;
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-top-color: var(--grid-hint-color);
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-top-color: var(--table-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -669,7 +670,7 @@
                         border-right-color: rgb(0, 0, 0);
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -687,7 +688,7 @@
                         border-style: none none solid;
                         border-bottom-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -706,8 +707,8 @@
                         border-style: none solid none none;
                         border-right-color: rgb(0, 0, 0);
                         border-radius: 0px;
-                        --hint-bottom-color: var(--grid-hint-color);
-                        --hint-left-color: var(--grid-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
+                        --hint-left-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -724,8 +725,8 @@
                         border-width: 0px;
                         border-style: none;
                         border-radius: 0px;
-                        --hint-bottom-color: var(--grid-hint-color);
-                        --hint-right-color: var(--grid-hint-color);
+                        --hint-bottom-color: var(--table-hint-color);
+                        --hint-right-color: var(--table-hint-color);
                       "
                     >
                       <div contenteditable="true" style="cursor: default">
@@ -739,7 +740,7 @@
 
             <div
               class="cell"
-              data-content-type="grid"
+              data-content-type="table"
               style="
                 cursor: default;
                 --span-x: 1;
@@ -747,14 +748,14 @@
                 border-width: 0px;
                 border-style: none;
                 border-radius: 0px;
-                --hint-bottom-color: var(--grid-hint-color);
-                --hint-left-color: var(--grid-hint-color);
-                --hint-right-color: var(--grid-hint-color);
+                --hint-bottom-color: var(--table-hint-color);
+                --hint-left-color: var(--table-hint-color);
+                --hint-right-color: var(--table-hint-color);
               "
               tabindex="-1"
             >
               <div
-                class="grid"
+                class="table"
                 data-column-widths="fill,fill"
                 data-row-heights="fill"
                 style="
@@ -779,10 +780,10 @@
                     border-style: none;
                     border-right-color: rgb(0, 0, 0);
                     border-radius: 0px;
-                    --hint-right-color: var(--grid-hint-color);
-                    --hint-top-color: var(--grid-hint-color);
-                    --hint-bottom-color: var(--grid-hint-color);
-                    --hint-left-color: var(--grid-hint-color);
+                    --hint-right-color: var(--table-hint-color);
+                    --hint-top-color: var(--table-hint-color);
+                    --hint-bottom-color: var(--table-hint-color);
+                    --hint-left-color: var(--table-hint-color);
                   "
                 >
                   <div contenteditable="true" style="cursor: default">
@@ -802,9 +803,9 @@
                     border-width: 0px;
                     border-style: none;
                     border-radius: 0px;
-                    --hint-top-color: var(--grid-hint-color);
-                    --hint-bottom-color: var(--grid-hint-color);
-                    --hint-right-color: var(--grid-hint-color);
+                    --hint-top-color: var(--table-hint-color);
+                    --hint-bottom-color: var(--table-hint-color);
+                    --hint-right-color: var(--table-hint-color);
                   "
                 >
                   <div contenteditable="true" style="cursor: default">
