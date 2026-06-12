@@ -7,11 +7,7 @@ export async function getExamples(req, res, next) {
   if (req.method !== "GET") return next();
 
   try {
-    const toExample = async (
-      dir: string,
-      group: "exercises" | "tests",
-      file: string
-    ) => {
+    const toExample = async (dir: string, group: "exercises" | "tests", file: string) => {
       const pngFile = file.replace(".html", ".png");
       // Preferred location: under the same group dir
       const preferredPngPath = path.join(__dirname, group, pngFile);
@@ -22,9 +18,7 @@ export async function getExamples(req, res, next) {
         .then(() => true)
         .catch(() => false);
       let pngExists = preferredExists;
-      let pngPathRel: string | undefined = preferredExists
-        ? `./${group}/${pngFile}`
-        : undefined;
+      let pngPathRel: string | undefined = preferredExists ? `./${group}/${pngFile}` : undefined;
       if (!preferredExists) {
         // If only legacy exists, try to move it into the preferred location to keep things tidy
         const legacyExists = await fs
@@ -40,7 +34,7 @@ export async function getExamples(req, res, next) {
           } catch (moveErr) {
             console.warn(
               `[API] Could not move PNG from legacy location: ${legacyPngPath} -> ${preferredPngPath}:`,
-              moveErr
+              moveErr,
             );
             // Fall back to referencing legacy path so UI still shows image
             pngExists = true;
@@ -67,16 +61,11 @@ export async function getExamples(req, res, next) {
         .readdir(dir)
         .then((arr) => arr)
         .catch(() => [] as string[]);
-      const htmls = files.filter(
-        (f) => f.endsWith(".html") && f !== "index.html"
-      );
+      const htmls = files.filter((f) => f.endsWith(".html") && f !== "index.html");
       return Promise.all(htmls.map((f) => toExample(dir, group, f)));
     };
 
-    const [exercises, tests] = await Promise.all([
-      loadDir("exercises"),
-      loadDir("tests"),
-    ]);
+    const [exercises, tests] = await Promise.all([loadDir("exercises"), loadDir("tests")]);
 
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -93,10 +82,7 @@ export async function handleSaveExampleRequest(req, res) {
 
   // Enable CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,HEAD,PUT,PATCH,POST,DELETE"
-  );
+  res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   // Handle preflight request
@@ -127,9 +113,7 @@ export async function handleSaveExampleRequest(req, res) {
       }
 
       // Prevent directory traversal
-      const safeExampleName = path
-        .normalize(exampleName)
-        .replace(/^(\.\.[\\/])+/g, "");
+      const safeExampleName = path.normalize(exampleName).replace(/^(\.\.[\\/])+/g, "");
       if (safeExampleName.includes("..")) {
         res.statusCode = 400;
         res.end(JSON.stringify({ error: "Invalid example name." }));
@@ -182,14 +166,13 @@ export async function handleSaveExampleRequest(req, res) {
         const { document } = dom.window;
 
         // Look for either id="page" or class="page"
-        const pageElement =
-          document.querySelector("#page") || document.querySelector(".page");
+        const pageElement = document.querySelector("#page") || document.querySelector(".page");
         if (!pageElement) {
           res.statusCode = 404;
           res.end(
             JSON.stringify({
               error: `Could not find a page element (with id='page' or class='page') in ${safeExampleName}.html`,
-            })
+            }),
           );
           return;
         }
@@ -208,7 +191,7 @@ export async function handleSaveExampleRequest(req, res) {
           res.end(
             JSON.stringify({
               error: `Example file not found: ${safeExampleName}.html`,
-            })
+            }),
           );
           return;
         }
@@ -217,7 +200,7 @@ export async function handleSaveExampleRequest(req, res) {
         res.end(
           JSON.stringify({
             error: "Internal server error while saving file.",
-          })
+          }),
         );
       }
     } catch (error) {

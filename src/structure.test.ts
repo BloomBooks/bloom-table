@@ -40,9 +40,7 @@ it("addColumn adds widths", () => {
 
   addColumn(grid);
 
-  expect(grid.getAttribute("data-column-widths")).toBe(
-    `100px,200px,${defaultColumnWidth}`
-  );
+  expect(grid.getAttribute("data-column-widths")).toBe(`100px,200px,${defaultColumnWidth}`);
 });
 
 function newGrid(): HTMLDivElement {
@@ -82,9 +80,7 @@ it("addRow adds heights", () => {
 
   addRow(grid);
 
-  expect(grid.getAttribute("data-row-heights")).toBe(
-    `50px,100px,${defaultRowHeight}`
-  );
+  expect(grid.getAttribute("data-row-heights")).toBe(`50px,100px,${defaultRowHeight}`);
 });
 it("removeLastRow removes the last row of cells", () => {
   const grid = newGrid();
@@ -149,11 +145,7 @@ function expectCellToBeSkipped(grid: HTMLElement, row: number, column: number) {
   expect(cell.classList.contains("skip")).toBeTruthy();
 }
 
-function expectCellToNotBeSkipped(
-  grid: HTMLElement,
-  row: number,
-  column: number
-) {
+function expectCellToNotBeSkipped(grid: HTMLElement, row: number, column: number) {
   const cell = getCell(grid, row, column);
   expect(cell.classList.contains("skip")).toBeFalsy();
 }
@@ -385,7 +377,7 @@ it("addColumnAt(0) inserts cells at correct positions", () => {
   const grid = newGrid();
   // Label cells before operation
   const cells = Array.from(grid.children).filter((child) =>
-    child.classList.contains("cell")
+    child.classList.contains("cell"),
   ) as HTMLElement[];
   cells.forEach((cell, index) => {
     cell.id = `original-${index}`;
@@ -396,13 +388,10 @@ it("addColumnAt(0) inserts cells at correct positions", () => {
   const newInfo = getGridInfo(grid);
 
   expect(newInfo.columnCount).toBe(originalInfo.columnCount + 1);
-  expect(newInfo.cellCount).toBe(
-    originalInfo.cellCount + originalInfo.rowCount
-  );
+  expect(newInfo.cellCount).toBe(originalInfo.cellCount + originalInfo.rowCount);
   // Check that original cells can still be found (they moved positions)
   const originalCells = Array.from(grid.children).filter(
-    (child) =>
-      child.classList.contains("cell") && child.id.startsWith("original-")
+    (child) => child.classList.contains("cell") && child.id.startsWith("original-"),
   ) as HTMLElement[];
   expect(originalCells.length).toBe(originalInfo.cellCount);
 });
@@ -416,9 +405,7 @@ it("removeColumnAt(1) removes correct cells", () => {
   const newInfo = getGridInfo(grid);
 
   expect(newInfo.columnCount).toBe(originalInfo.columnCount - 1);
-  expect(newInfo.cellCount).toBe(
-    originalInfo.cellCount - originalInfo.rowCount
-  );
+  expect(newInfo.cellCount).toBe(originalInfo.cellCount - originalInfo.rowCount);
 });
 
 // Test span handling during removal
@@ -533,12 +520,9 @@ describe("Cell positioning and content preservation", () => {
 
     // Check structure
     expect(newInfo.columnCount).toBe(originalInfo.columnCount + 1);
-    expect(newInfo.cellCount).toBe(
-      originalInfo.cellCount + originalInfo.rowCount
-    ); // Check that original cells still exist with their content
+    expect(newInfo.cellCount).toBe(originalInfo.cellCount + originalInfo.rowCount); // Check that original cells still exist with their content
     const originalCells = Array.from(grid.children).filter(
-      (child) =>
-        child.classList.contains("cell") && child.id.startsWith("orig-")
+      (child) => child.classList.contains("cell") && child.id.startsWith("orig-"),
     ) as HTMLElement[];
     expect(originalCells.length).toBe(originalInfo.cellCount);
 
@@ -564,12 +548,9 @@ describe("Cell positioning and content preservation", () => {
 
     // Check structure
     expect(newInfo.rowCount).toBe(originalInfo.rowCount + 1);
-    expect(newInfo.cellCount).toBe(
-      originalInfo.cellCount + originalInfo.columnCount
-    ); // Check that original cells still exist with their content
+    expect(newInfo.cellCount).toBe(originalInfo.cellCount + originalInfo.columnCount); // Check that original cells still exist with their content
     const originalCells = Array.from(grid.children).filter(
-      (child) =>
-        child.classList.contains("cell") && child.id.startsWith("orig-")
+      (child) => child.classList.contains("cell") && child.id.startsWith("orig-"),
     ) as HTMLElement[];
     expect(originalCells.length).toBe(originalInfo.cellCount);
 
@@ -607,18 +588,10 @@ describe("Cell positioning and content preservation", () => {
     expect(document.getElementById("cell-5")).toBeTruthy(); // (1,2)
 
     // Verify remaining cells have their content
-    expect(
-      document.getElementById("cell-0")?.querySelector("div")?.textContent
-    ).toBe("Cell-0");
-    expect(
-      document.getElementById("cell-2")?.querySelector("div")?.textContent
-    ).toBe("Cell-2");
-    expect(
-      document.getElementById("cell-3")?.querySelector("div")?.textContent
-    ).toBe("Cell-3");
-    expect(
-      document.getElementById("cell-5")?.querySelector("div")?.textContent
-    ).toBe("Cell-5");
+    expect(document.getElementById("cell-0")?.querySelector("div")?.textContent).toBe("Cell-0");
+    expect(document.getElementById("cell-2")?.querySelector("div")?.textContent).toBe("Cell-2");
+    expect(document.getElementById("cell-3")?.querySelector("div")?.textContent).toBe("Cell-3");
+    expect(document.getElementById("cell-5")?.querySelector("div")?.textContent).toBe("Cell-5");
   });
 
   it("removeRowAt preserves unaffected cell content", () => {
@@ -648,18 +621,10 @@ describe("Cell positioning and content preservation", () => {
     expect(document.getElementById("cell-5")).toBeTruthy(); // (2,1)
 
     // Verify remaining cells have their content
-    expect(
-      document.getElementById("cell-0")?.querySelector("div")?.textContent
-    ).toBe("Cell-0");
-    expect(
-      document.getElementById("cell-1")?.querySelector("div")?.textContent
-    ).toBe("Cell-1");
-    expect(
-      document.getElementById("cell-4")?.querySelector("div")?.textContent
-    ).toBe("Cell-4");
-    expect(
-      document.getElementById("cell-5")?.querySelector("div")?.textContent
-    ).toBe("Cell-5");
+    expect(document.getElementById("cell-0")?.querySelector("div")?.textContent).toBe("Cell-0");
+    expect(document.getElementById("cell-1")?.querySelector("div")?.textContent).toBe("Cell-1");
+    expect(document.getElementById("cell-4")?.querySelector("div")?.textContent).toBe("Cell-4");
+    expect(document.getElementById("cell-5")?.querySelector("div")?.textContent).toBe("Cell-5");
   });
 });
 

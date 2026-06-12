@@ -1,10 +1,5 @@
 import { gridHistoryManager } from "./history";
-import {
-  setColumnWidth,
-  getGridCells,
-  getGridInfo,
-  getRowAndColumn,
-} from "./structure";
+import { setColumnWidth, getGridCells, getGridInfo, getRowAndColumn } from "./structure";
 import { render } from "./grid-renderer";
 
 interface DragState {
@@ -108,8 +103,7 @@ export class DragToResize {
     const resizeInfo = this.getResizeInfo(target, event);
 
     if (resizeInfo) {
-      target.style.cursor =
-        resizeInfo.type === "row" ? "ns-resize" : "ew-resize";
+      target.style.cursor = resizeInfo.type === "row" ? "ns-resize" : "ew-resize";
       event.stopPropagation();
     } else {
       target.style.cursor = "default";
@@ -125,10 +119,7 @@ export class DragToResize {
       let columnLeftEdge: number | undefined;
       let rowTopEdge: number | undefined;
       if (resizeInfo.type === "column") {
-        columnLeftEdge = this.getColumnLeftEdge(
-          resizeInfo.element,
-          resizeInfo.index
-        );
+        columnLeftEdge = this.getColumnLeftEdge(resizeInfo.element, resizeInfo.index);
         document.body.style.cursor = "ew-resize"; // Latch cursor
       } else if (resizeInfo.type === "row") {
         rowTopEdge = this.getRowTopEdge(resizeInfo.element, resizeInfo.index);
@@ -136,10 +127,7 @@ export class DragToResize {
         document.body.style.cursor = "ns-resize"; // Latch cursor
         // Mark active row being resized so UI can reflect this row
         try {
-          resizeInfo.element.setAttribute(
-            "data-ui-active-row-index",
-            String(resizeInfo.index)
-          );
+          resizeInfo.element.setAttribute("data-ui-active-row-index", String(resizeInfo.index));
         } catch {}
       }
       this.dragState = {
@@ -198,17 +186,11 @@ export class DragToResize {
         // To compensate for this, we check if the parent is a flex container that centers the grid.
         // If so, we double the horizontal delta of the mouse movement. This is a heuristic that works
         // for the common case of `display: flex; justify-content: center;`.
-        if (
-          parentStyle.display === "flex" &&
-          parentStyle.justifyContent === "center"
-        ) {
+        if (parentStyle.display === "flex" && parentStyle.justifyContent === "center") {
           effectiveDeltaX *= 2;
         }
       }
-      this.updateColumnWidthPreview(
-        this.dragState.targetElement,
-        effectiveDeltaX
-      );
+      this.updateColumnWidthPreview(this.dragState.targetElement, effectiveDeltaX);
     } else if (this.dragState.dragType === "row") {
       this.updateRowHeightPreview(this.dragState.targetElement, deltaY);
     }
@@ -222,9 +204,7 @@ export class DragToResize {
     // Clear active row marker if any
     try {
       if (this.dragState.dragType === "row" && this.dragState.targetElement) {
-        this.dragState.targetElement.removeAttribute(
-          "data-ui-active-row-index"
-        );
+        this.dragState.targetElement.removeAttribute("data-ui-active-row-index");
       }
     } catch {}
     this.resetDragState();
@@ -255,50 +235,32 @@ export class DragToResize {
 
     let description: string;
     let performOperation: () => void;
-    let undoOperation: (
-      gridElement: HTMLElement,
-      prevState: import("./history").GridState
-    ) => void;
+    let undoOperation: (gridElement: HTMLElement, prevState: import("./history").GridState) => void;
 
     if (operationType === "column") {
       const newWidth = this.calculateFinalColumnWidth(targetElement); // targetElement is grid here
       description = `Resize Column ${capturedTargetIndex + 1} to ${newWidth}`;
 
       performOperation = () => {
-        const currentWidths =
-          targetElement.getAttribute("data-column-widths") || "";
+        const currentWidths = targetElement.getAttribute("data-column-widths") || "";
         const widthArray = currentWidths.split(",");
-        if (
-          capturedTargetIndex >= 0 &&
-          capturedTargetIndex < widthArray.length
-        ) {
+        if (capturedTargetIndex >= 0 && capturedTargetIndex < widthArray.length) {
           widthArray[capturedTargetIndex] = newWidth;
-          targetElement.setAttribute(
-            "data-column-widths",
-            widthArray.join(",")
-          );
+          targetElement.setAttribute("data-column-widths", widthArray.join(","));
         }
       };
       undoOperation = (gridElement) => {
         // We need to revert the specific column to its capturedOriginalValue.
-        const currentWidths =
-          gridElement.getAttribute("data-column-widths") || "";
+        const currentWidths = gridElement.getAttribute("data-column-widths") || "";
         const columnWidthsArray = currentWidths.split(",");
-        if (
-          capturedTargetIndex >= 0 &&
-          capturedTargetIndex < columnWidthsArray.length
-        ) {
+        if (capturedTargetIndex >= 0 && capturedTargetIndex < columnWidthsArray.length) {
           columnWidthsArray[capturedTargetIndex] = capturedOriginalValue; // Use the value from before drag
         }
-        gridElement.setAttribute(
-          "data-column-widths",
-          columnWidthsArray.join(",")
-        );
+        gridElement.setAttribute("data-column-widths", columnWidthsArray.join(","));
       };
     } else if (operationType === "row") {
       const gridElement = targetElement; // targetElement is the grid for row resizing
-      const currentRowHeights =
-        gridElement.getAttribute("data-row-heights") || "";
+      const currentRowHeights = gridElement.getAttribute("data-row-heights") || "";
       const rowHeights = currentRowHeights.split(",");
       const newHeight = rowHeights[capturedTargetIndex] || "hug";
 
@@ -310,29 +272,20 @@ export class DragToResize {
 
       undoOperation = (gridElement: HTMLElement) => {
         // Restore the specific row height to its original value
-        const currentRowHeights =
-          gridElement.getAttribute("data-row-heights") || "";
+        const currentRowHeights = gridElement.getAttribute("data-row-heights") || "";
         const rowHeights = currentRowHeights.split(",");
-        if (
-          capturedTargetIndex >= 0 &&
-          capturedTargetIndex < rowHeights.length
-        ) {
+        if (capturedTargetIndex >= 0 && capturedTargetIndex < rowHeights.length) {
           rowHeights[capturedTargetIndex] = capturedOriginalValue;
           gridElement.setAttribute("data-row-heights", rowHeights.join(","));
         }
       };
     } else {
       throw new Error(
-        `Unsupported drag type: ${this.dragState.dragType}. Expected 'row' or 'column'.`
+        `Unsupported drag type: ${this.dragState.dragType}. Expected 'row' or 'column'.`,
       );
     }
 
-    gridHistoryManager.addHistoryEntry(
-      grid,
-      description,
-      performOperation,
-      undoOperation
-    );
+    gridHistoryManager.addHistoryEntry(grid, description, performOperation, undoOperation);
   }
 
   private calculateFinalColumnWidth(grid: HTMLElement): string {
@@ -379,8 +332,7 @@ export class DragToResize {
     if (this.dragState.originalValue === "hug") {
       // Use the stored base dimension calculated at drag start
       baseHeight =
-        this.dragState.baseDimension ||
-        this.getCurrentRowHeight(grid, this.dragState.targetIndex);
+        this.dragState.baseDimension || this.getCurrentRowHeight(grid, this.dragState.targetIndex);
     } else {
       // For fixed-height rows, parse the original value (supports px or mm)
       const parsed = parseSizeToPx(this.dragState.originalValue);
@@ -399,16 +351,11 @@ export class DragToResize {
       const info = getGridInfo(grid);
       const needed = info.rowCount;
       if (rowHeights.length < needed) {
-        rowHeights = rowHeights.concat(
-          Array(needed - rowHeights.length).fill("hug")
-        );
+        rowHeights = rowHeights.concat(Array(needed - rowHeights.length).fill("hug"));
       }
     } catch {}
 
-    if (
-      this.dragState.targetIndex >= 0 &&
-      this.dragState.targetIndex < rowHeights.length
-    ) {
+    if (this.dragState.targetIndex >= 0 && this.dragState.targetIndex < rowHeights.length) {
       // Store in mm for rows
       rowHeights[this.dragState.targetIndex] = formatMm(newHeightPx);
       grid.setAttribute("data-row-heights", rowHeights.join(","));
@@ -422,7 +369,7 @@ export class DragToResize {
         "[drag-to-resize] preview row",
         this.dragState.targetIndex,
         "->",
-        rowHeights[this.dragState.targetIndex]
+        rowHeights[this.dragState.targetIndex],
       );
     }
   }
@@ -443,7 +390,7 @@ export class DragToResize {
   }
   private getResizeInfo(
     target: HTMLElement,
-    event: MouseEvent
+    event: MouseEvent,
   ): {
     type: "row" | "column";
     element: HTMLElement;
@@ -475,8 +422,7 @@ export class DragToResize {
         // but track which row we're resizing
         const currentRowHeights = grid.getAttribute("data-row-heights") || "";
         const rowHeights = currentRowHeights.split(",");
-        const currentHeight =
-          rowIndex < rowHeights.length ? rowHeights[rowIndex] : "hug";
+        const currentHeight = rowIndex < rowHeights.length ? rowHeights[rowIndex] : "hug";
 
         return {
           type: "row",
@@ -506,10 +452,7 @@ export class DragToResize {
     return null;
   }
 
-  private findParentGrid(
-    row: HTMLElement,
-    _verbose: boolean
-  ): HTMLElement | null {
+  private findParentGrid(row: HTMLElement, _verbose: boolean): HTMLElement | null {
     return row.closest<HTMLElement>(".grid") || null;
   }
 
@@ -523,17 +466,14 @@ export class DragToResize {
 
       const gridElement = resizeInfo.element; // This is the grid element
       const rowIndex = resizeInfo.index;
-      const currentRowHeights =
-        gridElement.getAttribute("data-row-heights") || "";
+      const currentRowHeights = gridElement.getAttribute("data-row-heights") || "";
       const rowHeights = currentRowHeights.split(",");
-      const currentHeight =
-        rowIndex < rowHeights.length ? rowHeights[rowIndex] : "hug";
+      const currentHeight = rowIndex < rowHeights.length ? rowHeights[rowIndex] : "hug";
 
       const description = `Auto-size Row ${rowIndex + 1}`;
 
       const performOperation = () => {
-        const currentRowHeights =
-          gridElement.getAttribute("data-row-heights") || "";
+        const currentRowHeights = gridElement.getAttribute("data-row-heights") || "";
         const rowHeights = currentRowHeights.split(",");
         if (rowIndex >= 0 && rowIndex < rowHeights.length) {
           rowHeights[rowIndex] = "hug";
@@ -542,8 +482,7 @@ export class DragToResize {
       };
 
       const undoOperation = (gridElement: HTMLElement) => {
-        const currentRowHeights =
-          gridElement.getAttribute("data-row-heights") || "";
+        const currentRowHeights = gridElement.getAttribute("data-row-heights") || "";
         const rowHeights = currentRowHeights.split(",");
         if (rowIndex >= 0 && rowIndex < rowHeights.length) {
           rowHeights[rowIndex] = currentHeight;
@@ -551,12 +490,7 @@ export class DragToResize {
         }
       };
 
-      gridHistoryManager.addHistoryEntry(
-        gridElement,
-        description,
-        performOperation,
-        undoOperation
-      );
+      gridHistoryManager.addHistoryEntry(gridElement, description, performOperation, undoOperation);
     } else if (resizeInfo && resizeInfo.type === "column") {
       event.preventDefault();
       event.stopPropagation();
@@ -570,8 +504,7 @@ export class DragToResize {
       const columnIndex = resizeInfo.index;
       const currentWidths = grid.getAttribute("data-column-widths") || "";
       const widthArray = currentWidths.split(",");
-      const currentWidth =
-        columnIndex < widthArray.length ? widthArray[columnIndex] : "hug";
+      const currentWidth = columnIndex < widthArray.length ? widthArray[columnIndex] : "hug";
 
       const description = `Auto-size Column ${columnIndex + 1}`;
 
@@ -580,8 +513,7 @@ export class DragToResize {
       };
 
       const undoOperation = (gridElement: HTMLElement) => {
-        const currentWidths =
-          gridElement.getAttribute("data-column-widths") || "";
+        const currentWidths = gridElement.getAttribute("data-column-widths") || "";
         const widthArray = currentWidths.split(",");
         if (columnIndex >= 0 && columnIndex < widthArray.length) {
           widthArray[columnIndex] = currentWidth;
@@ -589,12 +521,7 @@ export class DragToResize {
         }
       };
 
-      gridHistoryManager.addHistoryEntry(
-        grid,
-        description,
-        performOperation,
-        undoOperation
-      );
+      gridHistoryManager.addHistoryEntry(grid, description, performOperation, undoOperation);
     }
   };
   private getColumnLeftEdge(grid: HTMLElement, columnIndex: number): number {
@@ -617,9 +544,7 @@ export class DragToResize {
           return rect.left - gridRect.left;
         }
       } catch (error) {
-        console.warn(
-          "Could not get cell position, falling back to computed style"
-        );
+        console.warn("Could not get cell position, falling back to computed style");
       }
     }
 
@@ -671,10 +596,7 @@ export class DragToResize {
           height = parseFloat(match[1]);
         }
 
-        console.info(
-          `getRowTopEdge: Row ${i} height from grid template:`,
-          height
-        );
+        console.info(`getRowTopEdge: Row ${i} height from grid template:`, height);
         topPosition += height;
       }
 
@@ -682,16 +604,11 @@ export class DragToResize {
       return topPosition;
     }
 
-    console.warn(
-      `getRowTopEdge: Could not parse grid template rows, returning 0`
-    );
+    console.warn(`getRowTopEdge: Could not parse grid template rows, returning 0`);
     return 0;
   }
 
-  private getCurrentColumnWidth(
-    grid: HTMLElement,
-    columnIndex: number
-  ): number {
+  private getCurrentColumnWidth(grid: HTMLElement, columnIndex: number): number {
     // Force layout to ensure we get current measurements
     grid.offsetHeight;
 
@@ -709,9 +626,7 @@ export class DragToResize {
           return rect.width;
         }
       } catch (error) {
-        console.warn(
-          "Could not get cell width, falling back to computed style"
-        );
+        console.warn("Could not get cell width, falling back to computed style");
       }
     }
 
@@ -754,9 +669,7 @@ export class DragToResize {
           return rect.height;
         }
       } catch (error) {
-        console.warn(
-          "Could not get cell height, falling back to computed style"
-        );
+        console.warn("Could not get cell height, falling back to computed style");
       }
     }
 

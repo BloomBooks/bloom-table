@@ -81,8 +81,7 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
   }
   const model = buildRenderModel(grid);
   const cells = Array.from(grid.children).filter(
-    (c): c is HTMLElement =>
-      c instanceof HTMLElement && c.classList.contains("cell")
+    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("cell"),
   );
   const index = cells.indexOf(cell);
   const rows = model.rowHeights.length;
@@ -92,8 +91,7 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
     c: i % Math.max(1, cols),
   });
   const { r, c } = toRC(index);
-  const inBounds = (rr: number, cc: number) =>
-    rr >= 0 && cc >= 0 && rr < rows && cc < cols;
+  const inBounds = (rr: number, cc: number) => rr >= 0 && cc >= 0 && rr < rows && cc < cols;
   const idx = (rr: number, cc: number) => rr * Math.max(1, cols) + cc;
   const toOuter = (spec: any): { weight: BorderWeight; style: BorderStyle } => {
     const w = snapWeight(Number.isFinite(spec?.weight) ? spec.weight : 0);
@@ -106,23 +104,13 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
   const sides = model.cellBorders[index] || {};
   // Union with neighbor-owned inner edges when this cell's side is unset
   const topSpec =
-    sides.top ??
-    (inBounds(r - 1, c)
-      ? model.cellBorders[idx(r - 1, c)]?.bottom ?? null
-      : null);
+    sides.top ?? (inBounds(r - 1, c) ? (model.cellBorders[idx(r - 1, c)]?.bottom ?? null) : null);
   const rightSpec =
-    sides.right ??
-    (inBounds(r, c + 1)
-      ? model.cellBorders[idx(r, c + 1)]?.left ?? null
-      : null);
+    sides.right ?? (inBounds(r, c + 1) ? (model.cellBorders[idx(r, c + 1)]?.left ?? null) : null);
   const bottomSpec =
-    sides.bottom ??
-    (inBounds(r + 1, c) ? model.cellBorders[idx(r + 1, c)]?.top ?? null : null);
+    sides.bottom ?? (inBounds(r + 1, c) ? (model.cellBorders[idx(r + 1, c)]?.top ?? null) : null);
   const leftSpec =
-    sides.left ??
-    (inBounds(r, c - 1)
-      ? model.cellBorders[idx(r, c - 1)]?.right ?? null
-      : null);
+    sides.left ?? (inBounds(r, c - 1) ? (model.cellBorders[idx(r, c - 1)]?.right ?? null) : null);
   return {
     top: { ...toOuter(topSpec), radius: 0 },
     right: { ...toOuter(rightSpec), radius: 0 },

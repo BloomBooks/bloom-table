@@ -58,6 +58,13 @@ export default defineConfig({
     },
   },
 
+  // `vp fmt` / `vp check`. The demo exercise & test HTML files are data
+  // fixtures (rewritten by the save-example API via JSDOM), not source to
+  // auto-format — and some contain deliberately loose markup oxfmt rejects.
+  fmt: {
+    ignorePatterns: ["demo/exercises/**", "demo/tests/**"],
+  },
+
   // `vp test` config (merged from the old vitest.config.ts).
   test: {
     globals: true,

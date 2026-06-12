@@ -15,15 +15,7 @@ export const BorderMenu = <T,>(props: {
   renderButtonImage?: (current: T | "mixed") => JSX.Element;
   hideLabels?: boolean;
 }) => {
-  const {
-    label,
-    value,
-    options,
-    onChange,
-    disabled,
-    renderButtonImage,
-    hideLabels,
-  } = props;
+  const { label, value, options, onChange, disabled, renderButtonImage, hideLabels } = props;
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -73,8 +65,8 @@ export const BorderMenu = <T,>(props: {
           {renderButtonImage
             ? renderButtonImage(value as any)
             : value === "mixed"
-            ? "Mixed"
-            : String(value)}
+              ? "Mixed"
+              : String(value)}
         </span>
       </button>
       {open && (
@@ -115,16 +107,11 @@ export const BorderMenu = <T,>(props: {
                 boxSizing: "border-box",
                 cursor: "pointer",
                 borderRadius: 4,
-                background:
-                  value !== "mixed" && value === opt.value
-                    ? "#d6edf0"
-                    : "transparent",
+                background: value !== "mixed" && value === opt.value ? "#d6edf0" : "transparent",
               }}
             >
               {opt.icon ? opt.icon() : null}
-              {!hideLabels && (
-                <span style={{ color: "#1f3a40" }}>{opt.label}</span>
-              )}
+              {!hideLabels && <span style={{ color: "#1f3a40" }}>{opt.label}</span>}
             </div>
           ))}
         </div>

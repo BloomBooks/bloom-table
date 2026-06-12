@@ -1,65 +1,41 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "run-vitest-once",
-			"type": "shell",
-			"command": "yarn",
-			"args": [
-				"vitest",
-				"run",
-				"--reporter=dot"
-			],
-			"isBackground": false,
-			"problemMatcher": [
-				"$vitest-stylish"
-			],
-			"group": "build"
-		},
-		{
-			"label": "run-vitest-once",
-			"type": "shell",
-			"command": "yarn",
-			"args": [
-				"vitest",
-				"run",
-				"--reporter=dot"
-			],
-			"isBackground": false,
-			"problemMatcher": [
-				"$vitest-stylish"
-			],
-			"group": "build"
-		},
-		{
-			"label": "typecheck-and-tests",
-			"type": "shell",
-			"command": "yarn",
-			"args": [
-				"vitest",
-				"run",
-				"--reporter=dot"
-			],
-			"isBackground": false,
-			"problemMatcher": [
-				"$vitest-stylish"
-			],
-			"group": "build"
-		},
-		{
-			"label": "run-vitest-once",
-			"type": "shell",
-			"command": "yarn",
-			"args": [
-				"vitest",
-				"run",
-				"--reporter=dot"
-			],
-			"isBackground": false,
-			"problemMatcher": [
-				"$vitest-stylish"
-			],
-			"group": "build"
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "run-vitest-once",
+      "type": "shell",
+      "command": "yarn",
+      "args": ["vitest", "run", "--reporter=dot"],
+      "isBackground": false,
+      "problemMatcher": ["$vitest-stylish"],
+      "group": "build"
+    },
+    {
+      "label": "run-vitest-once",
+      "type": "shell",
+      "command": "yarn",
+      "args": ["vitest", "run", "--reporter=dot"],
+      "isBackground": false,
+      "problemMatcher": ["$vitest-stylish"],
+      "group": "build"
+    },
+    {
+      "label": "typecheck-and-tests",
+      "type": "shell",
+      "command": "yarn",
+      "args": ["vitest", "run", "--reporter=dot"],
+      "isBackground": false,
+      "problemMatcher": ["$vitest-stylish"],
+      "group": "build"
+    },
+    {
+      "label": "run-vitest-once",
+      "type": "shell",
+      "command": "yarn",
+      "args": ["vitest", "run", "--reporter=dot"],
+      "isBackground": false,
+      "problemMatcher": ["$vitest-stylish"],
+      "group": "build"
+    }
+  ]
 }

@@ -11,12 +11,7 @@ interface MainContentProps {
   className?: string;
 }
 
-const MainContent: React.FC<MainContentProps> = ({
-  content,
-  onChange,
-  id,
-  className,
-}) => {
+const MainContent: React.FC<MainContentProps> = ({ content, onChange, id, className }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingRef = useRef(false);
   const debounceTimerRef = useRef<number | null>(null);

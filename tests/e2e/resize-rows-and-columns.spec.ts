@@ -2,9 +2,7 @@ import { test, expect } from "@playwright/test";
 import { attachGridsToPage } from "./utils/grid-attachment";
 
 test.describe("Resize Rows and Columns", () => {
-  test("row and column drag resize updates both data and UI", async ({
-    page,
-  }) => {
+  test("row and column drag resize updates both data and UI", async ({ page }) => {
     // Navigate to new-grid demo
     await page.goto("/demo/exercises/new-grid.html");
     await page.waitForSelector(".grid");
@@ -65,27 +63,19 @@ test.describe("Resize Rows and Columns", () => {
           index,
           dataSpanX: cell.getAttribute("data-span-x"),
           dataSpanY: cell.getAttribute("data-span-y"),
-          computedSpanX: window
-            .getComputedStyle(cell)
-            .getPropertyValue("--span-x"),
-          computedSpanY: window
-            .getComputedStyle(cell)
-            .getPropertyValue("--span-y"),
+          computedSpanX: window.getComputedStyle(cell).getPropertyValue("--span-x"),
+          computedSpanY: window.getComputedStyle(cell).getPropertyValue("--span-y"),
           bounds: cell.getBoundingClientRect(),
         })),
         gridStyle: {
           display: window.getComputedStyle(grid).display,
-          gridTemplateColumns:
-            window.getComputedStyle(grid).gridTemplateColumns,
+          gridTemplateColumns: window.getComputedStyle(grid).gridTemplateColumns,
           gridTemplateRows: window.getComputedStyle(grid).gridTemplateRows,
         },
       };
     });
 
-    console.log(
-      "Grid structure after attachment:",
-      JSON.stringify(gridStructure, null, 2)
-    );
+    console.log("Grid structure after attachment:", JSON.stringify(gridStructure, null, 2));
 
     // Add some content to the first row to make it easier to see height changes
     const firstCell = grid.locator(".cell").first();
@@ -95,7 +85,7 @@ test.describe("Resize Rows and Columns", () => {
     // Get initial row heights attribute and computed grid template
     const initialDataRowHeights = await grid.getAttribute("data-row-heights");
     const initialGridTemplateRows = await grid.evaluate(
-      (el) => window.getComputedStyle(el).gridTemplateRows
+      (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     console.log("Initial data-row-heights:", initialDataRowHeights);
@@ -135,8 +125,7 @@ test.describe("Resize Rows and Columns", () => {
       });
       cell.dispatchEvent(mouseMoveEvent);
 
-      const cursorAfterMove =
-        cell.style.cursor || window.getComputedStyle(cell).cursor;
+      const cursorAfterMove = cell.style.cursor || window.getComputedStyle(cell).cursor;
 
       // Try mousedown event
       const mouseDownEvent = new MouseEvent("mousedown", {
@@ -191,9 +180,7 @@ test.describe("Resize Rows and Columns", () => {
     await page.waitForTimeout(100);
 
     // Check that data-row-heights was updated during drag
-    const duringDragDataRowHeights = await grid.getAttribute(
-      "data-row-heights"
-    );
+    const duringDragDataRowHeights = await grid.getAttribute("data-row-heights");
     console.log("During drag data-row-heights:", duringDragDataRowHeights);
 
     // This should be different from initial value
@@ -201,7 +188,7 @@ test.describe("Resize Rows and Columns", () => {
 
     // **THIS IS THE KEY TEST** - Check that grid-template-rows also got updated during drag
     const duringDragGridTemplateRows = await grid.evaluate(
-      (el) => window.getComputedStyle(el).gridTemplateRows
+      (el) => window.getComputedStyle(el).gridTemplateRows,
     );
     console.log("During drag grid-template-rows:", duringDragGridTemplateRows);
 
@@ -214,7 +201,7 @@ test.describe("Resize Rows and Columns", () => {
     // Final state check - both data attribute and computed style should be updated
     const finalDataRowHeights = await grid.getAttribute("data-row-heights");
     const finalGridTemplateRows = await grid.evaluate(
-      (el) => window.getComputedStyle(el).gridTemplateRows
+      (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     console.log("Final data-row-heights:", finalDataRowHeights);
@@ -298,31 +285,23 @@ test.describe("Resize Rows and Columns", () => {
         // The test passes if either:
         // 1. The data changed (proving drag works), OR
         // 2. The grid template updated during drag (proving our fix works)
-        const dataChanged =
-          finalGridInfo.dataRowHeights !== initialGridInfo.dataRowHeights;
+        const dataChanged = finalGridInfo.dataRowHeights !== initialGridInfo.dataRowHeights;
         const templateChangedDuringDrag =
           duringDragGridInfo.templateRows !== initialGridInfo.templateRows;
 
         console.log("Test results:");
         console.log("- Data changed:", dataChanged);
-        console.log(
-          "- Template changed during drag:",
-          templateChangedDuringDrag
-        );
+        console.log("- Template changed during drag:", templateChangedDuringDrag);
 
         if (dataChanged) {
           console.log("✅ Drag operation worked - data updated");
           if (templateChangedDuringDrag) {
             console.log("✅ Our fix worked - UI updated during drag");
           } else {
-            console.log(
-              "❌ Our fix didn't work - UI didn't update during drag"
-            );
+            console.log("❌ Our fix didn't work - UI didn't update during drag");
           }
         } else {
-          console.log(
-            "ℹ️ Drag operation didn't trigger or this cell doesn't support row resize"
-          );
+          console.log("ℹ️ Drag operation didn't trigger or this cell doesn't support row resize");
         }
 
         // The test should succeed if we can confirm the fix works
@@ -347,7 +326,7 @@ test.describe("Resize Rows and Columns", () => {
     // Get initial state
     const initialDataRowHeights = await grid.getAttribute("data-row-heights");
     const initialGridTemplateRows = await grid.evaluate(
-      (el) => window.getComputedStyle(el).gridTemplateRows
+      (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     // Perform a drag operation
@@ -375,7 +354,7 @@ test.describe("Resize Rows and Columns", () => {
     // Verify state was reverted
     const afterUndoDataRowHeights = await grid.getAttribute("data-row-heights");
     const afterUndoGridTemplateRows = await grid.evaluate(
-      (el) => window.getComputedStyle(el).gridTemplateRows
+      (el) => window.getComputedStyle(el).gridTemplateRows,
     );
 
     expect(afterUndoDataRowHeights).toBe(initialDataRowHeights);
@@ -392,8 +371,7 @@ test.describe("Resize Rows and Columns", () => {
             "When dragging to resize rows/columns, data attributes were updated but UI didn't change during drag",
           rootCause:
             "updateRowHeightPreview() and updateColumnWidthPreview() methods didn't call render()",
-          symptom:
-            "Dragging appeared broken - no visual feedback until drag completed",
+          symptom: "Dragging appeared broken - no visual feedback until drag completed",
         },
         solution: {
           files_modified: ["src/drag-to-resize.ts"],
@@ -407,8 +385,7 @@ test.describe("Resize Rows and Columns", () => {
         verification: {
           unit_tests_pass: true,
           changes_implemented: true,
-          expected_behavior:
-            "Both data attributes AND CSS grid templates update during drag",
+          expected_behavior: "Both data attributes AND CSS grid templates update during drag",
         },
       };
     });
@@ -434,9 +411,7 @@ RESULT:
     `);
 
     // Test passes if we can document the fix
-    expect(documentation.solution.files_modified).toContain(
-      "src/drag-to-resize.ts"
-    );
+    expect(documentation.solution.files_modified).toContain("src/drag-to-resize.ts");
     expect(documentation.solution.changes.length).toBe(3);
     expect(documentation.verification.unit_tests_pass).toBe(true);
   });

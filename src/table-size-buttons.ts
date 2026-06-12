@@ -77,7 +77,7 @@ export function ensureTableSizeButtons(): void {
       if (!grid) return;
       showEdgeOverlays(grid);
     },
-    true
+    true,
   );
 
   window.addEventListener("resize", scheduleOverlayReposition, {
@@ -86,10 +86,7 @@ export function ensureTableSizeButtons(): void {
   window.addEventListener("scroll", scheduleOverlayReposition, {
     passive: true,
   });
-  document.addEventListener(
-    "gridHistoryUpdated",
-    scheduleOverlayReposition as EventListener
-  );
+  document.addEventListener("gridHistoryUpdated", scheduleOverlayReposition as EventListener);
 }
 
 // --- Small "+" overlays on four sides ---
@@ -144,10 +141,7 @@ const kCornerUnitRowPx = 20; // pixels per row step - reduced for better respons
 function ensureCornerHandle() {
   // If an existing handle is present but detached (e.g., test reset document.body), recreate it
   if (cornerHandle && document.body.contains(cornerHandle)) return cornerHandle;
-  if (
-    proxCornerHandle &&
-    (!cornerHandle || !document.body.contains(proxCornerHandle.element))
-  ) {
+  if (proxCornerHandle && (!cornerHandle || !document.body.contains(proxCornerHandle.element))) {
     try {
       proxCornerHandle.destroy();
     } catch {}
@@ -178,9 +172,7 @@ function ensureCornerHandle() {
     });
 
     const grid =
-      (
-        document.querySelector(".cell.cell--selected") as HTMLElement | null
-      )?.closest(".grid") ||
+      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".grid") ||
       overlayGrid ||
       (document.querySelector(".grid") as HTMLElement | null);
     if (!grid) {
@@ -195,8 +187,7 @@ function ensureCornerHandle() {
 
     // Store initial selection state to restore after drag
     const initialActiveCell =
-      document.querySelector(".cell.cell--selected") ||
-      document.activeElement?.closest(".cell");
+      document.querySelector(".cell.cell--selected") || document.activeElement?.closest(".cell");
     const initialSelectedGrid = initialActiveCell?.closest(".grid");
     cornerInitialSelection = {
       activeCell: initialActiveCell as HTMLElement | null,
@@ -264,7 +255,7 @@ function snapshotGrid(grid: HTMLElement): {
 
 function restoreGrid(
   grid: HTMLElement,
-  state: { innerHTML: string; attributes: Record<string, string> }
+  state: { innerHTML: string; attributes: Record<string, string> },
 ) {
   // Remove all current attributes
   const toRemove: string[] = [];
@@ -293,14 +284,8 @@ function handleCornerDragMove(e: MouseEvent) {
 
   const dx = e.clientX - cornerStartX;
   const dy = e.clientY - cornerStartY;
-  const targetCols = Math.max(
-    1,
-    cornerStartCols + Math.floor(dx / kCornerUnitColPx)
-  );
-  const targetRows = Math.max(
-    1,
-    cornerStartRows + Math.floor(dy / kCornerUnitRowPx)
-  );
+  const targetCols = Math.max(1, cornerStartCols + Math.floor(dx / kCornerUnitColPx));
+  const targetRows = Math.max(1, cornerStartRows + Math.floor(dy / kCornerUnitRowPx));
 
   console.log("📐 Drag calculations", {
     dx,
@@ -324,9 +309,7 @@ function handleCornerDragMove(e: MouseEvent) {
   });
 
   // During drag, we always use the stored grid reference - no need to check DOM selection
-  console.log(
-    "🎯 Using stored cornerDragGrid for all operations (no DOM selection dependency)"
-  );
+  console.log("🎯 Using stored cornerDragGrid for all operations (no DOM selection dependency)");
 
   let colChanges = 0;
   let rowChanges = 0;
@@ -478,34 +461,23 @@ function handleCornerDragUp() {
         grid.classList.add("grid--selected");
 
         // Also focus to ensure proper interaction state
-        const editable =
-          firstCell.querySelector<HTMLElement>("[contenteditable]");
+        const editable = firstCell.querySelector<HTMLElement>("[contenteditable]");
         if (editable) {
           editable.focus();
-          console.log(
-            "✅ Selection restored to grid via editable focus + direct class setting",
-            {
-              cellClasses: firstCell.className,
-              gridClasses: grid.className,
-              activeElement:
-                document.activeElement?.tagName +
-                "." +
-                document.activeElement?.className,
-            }
-          );
+          console.log("✅ Selection restored to grid via editable focus + direct class setting", {
+            cellClasses: firstCell.className,
+            gridClasses: grid.className,
+            activeElement:
+              document.activeElement?.tagName + "." + document.activeElement?.className,
+          });
         } else {
           firstCell.focus();
-          console.log(
-            "✅ Selection restored to grid via cell focus + direct class setting",
-            {
-              cellClasses: firstCell.className,
-              gridClasses: grid.className,
-              activeElement:
-                document.activeElement?.tagName +
-                "." +
-                document.activeElement?.className,
-            }
-          );
+          console.log("✅ Selection restored to grid via cell focus + direct class setting", {
+            cellClasses: firstCell.className,
+            gridClasses: grid.className,
+            activeElement:
+              document.activeElement?.tagName + "." + document.activeElement?.className,
+          });
         }
       } else {
         console.log("🔴 No cells found in grid for selection restoration");
@@ -513,12 +485,8 @@ function handleCornerDragUp() {
 
       // Add a slight delay then verify the final state
       setTimeout(() => {
-        const finalSelectedCell = document.querySelector(
-          ".cell.cell--selected"
-        );
-        const finalSelectedGrid = document.querySelector(
-          ".grid.grid--selected"
-        );
+        const finalSelectedCell = document.querySelector(".cell.cell--selected");
+        const finalSelectedGrid = document.querySelector(".grid.grid--selected");
         const finalActiveElement = document.activeElement;
 
         console.log("🔍 Final selection state after restoration", {
@@ -528,18 +496,15 @@ function handleCornerDragUp() {
           activeElementTag: finalActiveElement?.tagName,
           activeElementClass: (finalActiveElement as HTMLElement)?.className,
           activeElementInOurGrid:
-            !!finalActiveElement?.closest(".grid") &&
-            finalActiveElement?.closest(".grid") === grid,
+            !!finalActiveElement?.closest(".grid") && finalActiveElement?.closest(".grid") === grid,
         });
 
         if (!finalSelectedCell || finalSelectedGrid !== grid) {
           console.log("⚠️ Selection restoration may have failed!", {
             expectedGrid: grid,
             actualSelectedGrid: finalSelectedGrid,
-            allSelectedCells: document.querySelectorAll(".cell.cell--selected")
-              .length,
-            allSelectedGrids: document.querySelectorAll(".grid.grid--selected")
-              .length,
+            allSelectedCells: document.querySelectorAll(".cell.cell--selected").length,
+            allSelectedGrids: document.querySelectorAll(".grid.grid--selected").length,
           });
         }
 
@@ -599,7 +564,7 @@ function makeOverlay(
   onClick: () => void,
   icon: React.ReactElement,
   kind: OverlayKind,
-  side: OverlaySide
+  side: OverlaySide,
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
@@ -646,7 +611,7 @@ function makeOverlay(
       // Use MUI color prop properly and ensure fill follows currentColor without relying on MUI CSS
       color: "inherit",
       style: { width: 18, height: 18, display: "block", fill: "currentColor" },
-    })
+    }),
   );
   btn.innerHTML = svg;
   btn.addEventListener("mousedown", (e) => e.preventDefault());
@@ -659,10 +624,10 @@ function ensureGroupContainer(side: OverlaySide): HTMLDivElement {
     side === "right"
       ? groupRight
       : side === "left"
-      ? groupLeft
-      : side === "top"
-      ? groupTop
-      : groupBottom;
+        ? groupLeft
+        : side === "top"
+          ? groupTop
+          : groupBottom;
   if (existing) return existing;
 
   const div = document.createElement("div");
@@ -679,8 +644,7 @@ function ensureGroupContainer(side: OverlaySide): HTMLDivElement {
     // No transform here; centering handled on wrapper element
   } as any);
   // flex direction depends on side and we'll toggle display when showing
-  div.style.flexDirection =
-    side === "right" || side === "left" ? "column" : "row";
+  div.style.flexDirection = side === "right" || side === "left" ? "column" : "row";
   (div.style as any).display = "none";
   document.body.appendChild(div);
 
@@ -703,61 +667,36 @@ function ensureEdgeOverlays() {
   ensureOverlayStyles();
   // Use MUI Add/Delete icons. Placement conveys direction.
   if (!overlayRight)
-    overlayRight = makeOverlay(
-      tryInsertColumnRight,
-      React.createElement(AddIcon),
-      "add",
-      "right"
-    );
+    overlayRight = makeOverlay(tryInsertColumnRight, React.createElement(AddIcon), "add", "right");
   if (!overlayLeft)
-    overlayLeft = makeOverlay(
-      tryInsertColumnLeft,
-      React.createElement(AddIcon),
-      "add",
-      "left"
-    );
+    overlayLeft = makeOverlay(tryInsertColumnLeft, React.createElement(AddIcon), "add", "left");
   if (!overlayTop)
-    overlayTop = makeOverlay(
-      tryInsertRowAbove,
-      React.createElement(AddIcon),
-      "add",
-      "top"
-    );
+    overlayTop = makeOverlay(tryInsertRowAbove, React.createElement(AddIcon), "add", "top");
   if (!overlayBottom)
-    overlayBottom = makeOverlay(
-      tryInsertRowBelow,
-      React.createElement(AddIcon),
-      "add",
-      "bottom"
-    );
+    overlayBottom = makeOverlay(tryInsertRowBelow, React.createElement(AddIcon), "add", "bottom");
   // Delete buttons with MUI Delete icon
   if (!overlayRightDel)
     overlayRightDel = makeOverlay(
       tryRemoveColumn,
       React.createElement(DeleteIcon),
       "delete",
-      "right"
+      "right",
     );
   if (!overlayLeftDel)
     overlayLeftDel = makeOverlay(
       tryRemoveColumn,
       React.createElement(DeleteIcon),
       "delete",
-      "left"
+      "left",
     );
   if (!overlayTopDel)
-    overlayTopDel = makeOverlay(
-      tryRemoveRow,
-      React.createElement(DeleteIcon),
-      "delete",
-      "top"
-    );
+    overlayTopDel = makeOverlay(tryRemoveRow, React.createElement(DeleteIcon), "delete", "top");
   if (!overlayBottomDel)
     overlayBottomDel = makeOverlay(
       tryRemoveRow,
       React.createElement(DeleteIcon),
       "delete",
-      "bottom"
+      "bottom",
     );
   // Create group containers and place buttons inside
   const rightGroup = ensureGroupContainer("right");
@@ -765,10 +704,7 @@ function ensureEdgeOverlays() {
   const topGroup = ensureGroupContainer("top");
   const bottomGroup = ensureGroupContainer("bottom");
 
-  const addToGroup = (
-    group: HTMLDivElement,
-    ...buttons: (HTMLButtonElement | null)[]
-  ) => {
+  const addToGroup = (group: HTMLDivElement, ...buttons: (HTMLButtonElement | null)[]) => {
     for (const btn of buttons) {
       if (!btn) continue;
       // Make button participate in flex layout vs absolute
@@ -799,7 +735,7 @@ function ensureEdgeOverlays() {
   const ensureAddHover = (
     btn: HTMLButtonElement | null,
     kind: PreviewKind,
-    position: "above" | "below" | "left" | "right"
+    position: "above" | "below" | "left" | "right",
   ) => {
     if (!btn) return;
     if ((btn as any)._hasAddPreviewHandlers) return;
@@ -854,18 +790,14 @@ function repositionEdgeOverlays() {
   let targetGrid = overlayGrid;
 
   if (cornerDragging && cornerDragGrid) {
-    console.log(
-      "🎯 Using stored cornerDragGrid for overlay positioning during drag"
-    );
+    console.log("🎯 Using stored cornerDragGrid for overlay positioning during drag");
     targetGrid = cornerDragGrid;
     // During active drag, skip complex repositioning to avoid DOM timing issues
     return;
   } else if (!targetGrid) {
     // Only derive from selected cell when not dragging
     const grid =
-      (
-        document.querySelector(".cell.cell--selected") as HTMLElement | null
-      )?.closest(".grid") ||
+      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".grid") ||
       (document.querySelector(".grid") as HTMLElement | null);
     if (grid) {
       targetGrid = grid as HTMLElement;
@@ -895,11 +827,7 @@ function repositionEdgeOverlays() {
 }
 
 // Create or retrieve a unique anchor-name for an element
-function getElementAnchorName(
-  el: HTMLElement,
-  key: string,
-  prefix: string
-): string {
+function getElementAnchorName(el: HTMLElement, key: string, prefix: string): string {
   const existing = (el.dataset as any)[key] as string | undefined;
   if (existing) return existing;
   const name = `--${prefix}-${++anchorCounter}`;
@@ -909,11 +837,7 @@ function getElementAnchorName(
   return name;
 }
 
-function getCellAt(
-  grid: HTMLElement,
-  targetRow: number,
-  targetCol: number
-): HTMLElement | null {
+function getCellAt(grid: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
   const children = Array.from(grid.children) as HTMLElement[];
   for (const el of children) {
     if (!el.classList || !el.classList.contains("cell")) continue;
@@ -949,16 +873,12 @@ function applyAnchorPositioning(grid: HTMLElement) {
   const setWrapperToCell = (
     prox: ProximityDiv | null,
     cell: HTMLElement | null,
-    side: OverlaySide
+    side: OverlaySide,
   ) => {
     if (!prox || !cell) return;
     const el = prox.element;
     el.style.position = "fixed";
-    const cellAnchor = getElementAnchorName(
-      cell,
-      "bgridAnchorName",
-      "bgrid-cell"
-    );
+    const cellAnchor = getElementAnchorName(cell, "bgridAnchorName", "bgrid-cell");
     (el.style as any).positionAnchor = cellAnchor;
     el.style.setProperty("position-anchor", cellAnchor);
     // Clear inline offsets first
@@ -996,11 +916,7 @@ function applyAnchorPositioning(grid: HTMLElement) {
   if (proxCornerHandle && cornerCell) {
     const el = proxCornerHandle.element;
     el.style.position = "fixed";
-    const cellAnchor = getElementAnchorName(
-      cornerCell,
-      "bgridAnchorName",
-      "bgrid-cell"
-    );
+    const cellAnchor = getElementAnchorName(cornerCell, "bgridAnchorName", "bgrid-cell");
     (el.style as any).positionAnchor = cellAnchor;
     el.style.setProperty("position-anchor", cellAnchor);
     el.style.left = `calc(anchor(right) - 8px)`;
@@ -1159,8 +1075,7 @@ function updateDeletePreviewGeometry() {
   const { row, column } = getRowAndColumn(overlayGrid, selected);
   // Find all visible cells and compute bounds for the target row/column
   const cells: HTMLElement[] = Array.from(overlayGrid.children).filter(
-    (el): el is HTMLElement =>
-      el instanceof HTMLElement && el.classList.contains("cell")
+    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("cell"),
   );
   let minLeft = Infinity,
     maxRight = -Infinity,
@@ -1177,12 +1092,7 @@ function updateDeletePreviewGeometry() {
     if (rect.top < minTop) minTop = rect.top;
     if (rect.bottom > maxBottom) maxBottom = rect.bottom;
   }
-  if (
-    !isFinite(minLeft) ||
-    !isFinite(maxRight) ||
-    !isFinite(minTop) ||
-    !isFinite(maxBottom)
-  ) {
+  if (!isFinite(minLeft) || !isFinite(maxRight) || !isFinite(minTop) || !isFinite(maxBottom)) {
     hideDeletePreview();
     return;
   }
@@ -1227,10 +1137,7 @@ function ensureAddPreviewDiv(): HTMLDivElement {
   return div;
 }
 
-function showAddPreview(
-  kind: PreviewKind,
-  position: "above" | "below" | "left" | "right"
-) {
+function showAddPreview(kind: PreviewKind, position: "above" | "below" | "left" | "right") {
   if (!overlayGrid) return;
   const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
   if (!selected) return;
@@ -1259,8 +1166,7 @@ function updateAddPreviewGeometry() {
   }
   const { row, column } = getRowAndColumn(overlayGrid, selected);
   const cells: HTMLElement[] = Array.from(overlayGrid.children).filter(
-    (el): el is HTMLElement =>
-      el instanceof HTMLElement && el.classList.contains("cell")
+    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("cell"),
   );
   let minLeft = Infinity,
     maxRight = -Infinity,
@@ -1277,12 +1183,7 @@ function updateAddPreviewGeometry() {
     if (rect.top < minTop) minTop = rect.top;
     if (rect.bottom > maxBottom) maxBottom = rect.bottom;
   }
-  if (
-    !isFinite(minLeft) ||
-    !isFinite(maxRight) ||
-    !isFinite(minTop) ||
-    !isFinite(maxBottom)
-  ) {
+  if (!isFinite(minLeft) || !isFinite(maxRight) || !isFinite(minTop) || !isFinite(maxBottom)) {
     hideAddPreview();
     return;
   }
@@ -1291,9 +1192,7 @@ function updateAddPreviewGeometry() {
     const boundary = currentAddPosition === "above" ? minTop : maxBottom;
     const left = Math.round(window.scrollX + minLeft);
     const width = Math.round(maxRight - minLeft);
-    const top = Math.round(
-      window.scrollY + boundary - kAddPreviewThickness / 2
-    );
+    const top = Math.round(window.scrollY + boundary - kAddPreviewThickness / 2);
     const height = kAddPreviewThickness;
     Object.assign(addPreviewDiv.style, {
       left: `${left}px`,
@@ -1306,9 +1205,7 @@ function updateAddPreviewGeometry() {
     const boundary = currentAddPosition === "left" ? minLeft : maxRight;
     const top = Math.round(window.scrollY + minTop);
     const height = Math.round(maxBottom - minTop);
-    const left = Math.round(
-      window.scrollX + boundary - kAddPreviewThickness / 2
-    );
+    const left = Math.round(window.scrollX + boundary - kAddPreviewThickness / 2);
     const width = kAddPreviewThickness;
     Object.assign(addPreviewDiv.style, {
       left: `${left}px`,

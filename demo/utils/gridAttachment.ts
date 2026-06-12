@@ -7,9 +7,7 @@ import { attachGrid } from "../../src/attach";
  *
  * @param container - The container to search for grids. If not provided, searches the entire document.
  */
-export function attachAllGrids(
-  container: Document | HTMLElement = document
-): void {
+export function attachAllGrids(container: Document | HTMLElement = document): void {
   const gridElements = container.querySelectorAll<HTMLElement>(".grid");
   gridElements.forEach((grid) => {
     attachGrid(grid);

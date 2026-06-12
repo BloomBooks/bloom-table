@@ -5,9 +5,7 @@ import { gridHistoryManager } from "../src";
 const Toolbar: React.FC<{}> = () => {
   const [currentCell, setCurrentCell] = useState<HTMLDivElement | null>(null);
   const [canUndo, setCanUndo] = useState(gridHistoryManager.canUndo());
-  const [lastOperation, setLastOperation] = useState(
-    gridHistoryManager.getLastOperationLabel()
-  );
+  const [lastOperation, setLastOperation] = useState(gridHistoryManager.getLastOperationLabel());
 
   useEffect(() => {
     const handleHistoryUpdate = () => {
@@ -35,8 +33,7 @@ const Toolbar: React.FC<{}> = () => {
   }, []);
 
   const isUndoable = canUndo && currentCell;
-  const undoLabel =
-    canUndo && lastOperation ? `Undo: ${lastOperation}` : "Undo";
+  const undoLabel = canUndo && lastOperation ? `Undo: ${lastOperation}` : "Undo";
 
   return (
     <>
@@ -47,9 +44,7 @@ const Toolbar: React.FC<{}> = () => {
           onMouseDown={(e) => e.preventDefault()} // Prevent default to avoid losing focus
           onClick={() => {
             if (currentCell) {
-              gridHistoryManager.undo(
-                currentCell!.closest(".grid") as HTMLElement
-              );
+              gridHistoryManager.undo(currentCell!.closest(".grid") as HTMLElement);
             }
           }}
           style={{

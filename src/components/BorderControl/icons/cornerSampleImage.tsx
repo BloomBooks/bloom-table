@@ -14,10 +14,7 @@ export function CornerSampleImage({
   const r = Math.max(0, Math.min(value, size)); // clamp radius to box size
 
   return (
-    <div
-      aria-hidden
-      style={{ width: size, height: size, display: "block", margin: "auto" }}
-    >
+    <div aria-hidden style={{ width: size, height: size, display: "block", margin: "auto" }}>
       <div
         style={{
           width: size,

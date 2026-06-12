@@ -1,9 +1,4 @@
-import {
-  InnerEdges,
-  BorderValueMap,
-  EdgeKey,
-  SelectedEdges,
-} from "./logic/types";
+import { InnerEdges, BorderValueMap, EdgeKey, SelectedEdges } from "./logic/types";
 import type { SelectorLook } from "./logic/types";
 import { kBloomBlue } from "../../constants";
 
@@ -136,13 +131,7 @@ export function BorderSelector(props: {
         <filter id="insetShadow" x="-20%" y="-20%" width="140%" height="140%">
           <feOffset dx="0" dy="1" />
           <feGaussianBlur stdDeviation="1.5" result="blur" />
-          <feComposite
-            in="SourceGraphic"
-            in2="blur"
-            operator="arithmetic"
-            k2="-1"
-            k3="1"
-          />
+          <feComposite in="SourceGraphic" in2="blur" operator="arithmetic" k2="-1" k3="1" />
           <feColorMatrix
             type="matrix"
             values="1 0 0 0 0
@@ -182,13 +171,7 @@ export function BorderSelector(props: {
       </rect>
       {useBevel && (
         <>
-          <rect
-            x={leftRect.x}
-            y={leftRect.y}
-            width={1}
-            height={leftRect.h}
-            fill="#ffffff66"
-          />
+          <rect x={leftRect.x} y={leftRect.y} width={1} height={leftRect.h} fill="#ffffff66" />
           <rect
             x={leftRect.x + leftRect.w - 1}
             y={leftRect.y}
@@ -215,13 +198,7 @@ export function BorderSelector(props: {
       </rect>
       {useBevel && (
         <>
-          <rect
-            x={topRect.x}
-            y={topRect.y}
-            width={topRect.w}
-            height={1}
-            fill="#ffffff66"
-          />
+          <rect x={topRect.x} y={topRect.y} width={topRect.w} height={1} fill="#ffffff66" />
           <rect
             x={topRect.x}
             y={topRect.y + topRect.h - 1}
@@ -248,13 +225,7 @@ export function BorderSelector(props: {
       </rect>
       {useBevel && (
         <>
-          <rect
-            x={rightRect.x}
-            y={rightRect.y}
-            width={1}
-            height={rightRect.h}
-            fill="#ffffff66"
-          />
+          <rect x={rightRect.x} y={rightRect.y} width={1} height={rightRect.h} fill="#ffffff66" />
           <rect
             x={rightRect.x + rightRect.w - 1}
             y={rightRect.y}

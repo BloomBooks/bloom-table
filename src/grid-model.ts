@@ -122,10 +122,7 @@ export function getEdgesH(grid: HTMLElement): HEdgeEntry[][] | null {
   assert(grid.classList.contains("grid"), "getEdgesH: not a grid");
   return parseJSONAttr<HEdgeEntry[][]>(grid, "data-edges-h");
 }
-export function setEdgesH(
-  grid: HTMLElement,
-  edges: HEdgeEntry[][] | null
-): void {
+export function setEdgesH(grid: HTMLElement, edges: HEdgeEntry[][] | null): void {
   assert(grid.classList.contains("grid"), "setEdgesH: not a grid");
   setJSONAttr(grid, "data-edges-h", edges);
 }
@@ -134,10 +131,7 @@ export function getEdgesV(grid: HTMLElement): VEdgeEntry[][] | null {
   assert(grid.classList.contains("grid"), "getEdgesV: not a grid");
   return parseJSONAttr<VEdgeEntry[][]>(grid, "data-edges-v");
 }
-export function setEdgesV(
-  grid: HTMLElement,
-  edges: VEdgeEntry[][] | null
-): void {
+export function setEdgesV(grid: HTMLElement, edges: VEdgeEntry[][] | null): void {
   assert(grid.classList.contains("grid"), "setEdgesV: not a grid");
   setJSONAttr(grid, "data-edges-v", edges);
 }
@@ -146,10 +140,7 @@ export function getEdgeDefault(grid: HTMLElement): EdgeDefaultSpec {
   assert(grid.classList.contains("grid"), "getEdgeDefault: not a grid");
   return parseJSONAttr<BorderSpec>(grid, "data-border-default");
 }
-export function setEdgeDefault(
-  grid: HTMLElement,
-  border: EdgeDefaultSpec
-): void {
+export function setEdgeDefault(grid: HTMLElement, border: EdgeDefaultSpec): void {
   assert(grid.classList.contains("grid"), "setEdgeDefault: not a grid");
   setJSONAttr(grid, "data-border-default", border);
 }
@@ -162,10 +153,7 @@ export function getGridCorners(grid: HTMLElement): CornersSpec | null {
   return parseJSONAttr<CornersSpec>(grid, "data-corners");
 }
 
-export function setGridCorners(
-  grid: HTMLElement,
-  corners: CornersSpec | null
-): void {
+export function setGridCorners(grid: HTMLElement, corners: CornersSpec | null): void {
   assert(grid.classList.contains("grid"), "setGridCorners: not a grid");
   setJSONAttr(grid, "data-corners", corners);
 }
@@ -175,10 +163,7 @@ export function getCellCorners(cell: HTMLElement): CornersSpec | null {
   return parseJSONAttr<CornersSpec>(cell, "data-corners");
 }
 
-export function setCellCorners(
-  cell: HTMLElement,
-  corners: CornersSpec | null
-): void {
+export function setCellCorners(cell: HTMLElement, corners: CornersSpec | null): void {
   assert(cell.classList.contains("cell"), "setCellCorners: not a cell");
   setJSONAttr(cell, "data-corners", corners);
 }

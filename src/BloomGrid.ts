@@ -64,10 +64,7 @@ export class BloomGrid {
     if (sel && widthsBefore.length > 0) {
       const cellIndex = Array.from(this.grid.children).indexOf(sel);
       const col = cellIndex % widthsBefore.length;
-      targetCol = Math.max(
-        0,
-        Math.min(col, Math.max(0, widthsBefore.length - 1))
-      );
+      targetCol = Math.max(0, Math.min(col, Math.max(0, widthsBefore.length - 1)));
     }
     const removedIndex = Math.max(0, heightsBefore.length - 1);
     structRemoveLastRow(this.grid);
@@ -105,10 +102,7 @@ export class BloomGrid {
     if (sel && widthsBefore.length > 0) {
       const cellIndex = Array.from(this.grid.children).indexOf(sel);
       const row = Math.floor(cellIndex / Math.max(1, widthsBefore.length));
-      targetRow = Math.max(
-        0,
-        Math.min(row, Math.max(0, heightsBefore.length - 1))
-      );
+      targetRow = Math.max(0, Math.min(row, Math.max(0, heightsBefore.length - 1)));
     }
     const removedIndex = Math.max(0, widthsBefore.length - 1);
     structRemoveLastColumn(this.grid);
@@ -160,10 +154,7 @@ export class BloomGrid {
     if (sel && widthsBefore.length > 0) {
       const cellIndex = Array.from(this.grid.children).indexOf(sel);
       const col = cellIndex % widthsBefore.length;
-      targetCol = Math.max(
-        0,
-        Math.min(col, Math.max(0, widthsBefore.length - 1))
-      );
+      targetCol = Math.max(0, Math.min(col, Math.max(0, widthsBefore.length - 1)));
     }
     structRemoveRowAt(this.grid, index);
     render(this.grid);
@@ -183,10 +174,7 @@ export class BloomGrid {
     if (sel && widthsBefore.length > 0) {
       const cellIndex = Array.from(this.grid.children).indexOf(sel);
       const row = Math.floor(cellIndex / Math.max(1, widthsBefore.length));
-      targetRow = Math.max(
-        0,
-        Math.min(row, Math.max(0, heightsBefore.length - 1))
-      );
+      targetRow = Math.max(0, Math.min(row, Math.max(0, heightsBefore.length - 1)));
     }
     structRemoveColumnAt(this.grid, index);
     render(this.grid);
@@ -205,11 +193,7 @@ export class BloomGrid {
       widths[index] = value;
       setColumnWidths(this.grid, widths);
     };
-    gridHistoryManager.addHistoryEntry(
-      this.grid,
-      `Set Column ${index} Width`,
-      perform
-    );
+    gridHistoryManager.addHistoryEntry(this.grid, `Set Column ${index} Width`, perform);
     render(this.grid);
   }
 
@@ -220,11 +204,7 @@ export class BloomGrid {
       heights[index] = value;
       setRowHeights(this.grid, heights);
     };
-    gridHistoryManager.addHistoryEntry(
-      this.grid,
-      `Set Row ${index} Height`,
-      perform
-    );
+    gridHistoryManager.addHistoryEntry(this.grid, `Set Row ${index} Height`, perform);
     render(this.grid);
   }
 
@@ -258,11 +238,7 @@ export class BloomGrid {
       // maintain skip coverage using existing structure helper (also sets CSS vars for now)
       structSetCellSpan(cell, x, y);
     };
-    gridHistoryManager.addHistoryEntry(
-      this.grid,
-      `Set Cell Span ${x}x${y}`,
-      perform
-    );
+    gridHistoryManager.addHistoryEntry(this.grid, `Set Cell Span ${x}x${y}`, perform);
     render(this.grid);
   }
 }

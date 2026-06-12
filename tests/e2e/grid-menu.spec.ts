@@ -17,9 +17,7 @@ test.describe("GridMenu Integration Tests", () => {
 
     if (exampleCount > 0) {
       // Try to find "new-grid" example, otherwise use first
-      const newGridExample = page
-        .locator("#example-list")
-        .getByText("new-grid", { exact: false });
+      const newGridExample = page.locator("#example-list").getByText("new-grid", { exact: false });
       const hasNewGrid = (await newGridExample.count()) > 0;
 
       if (hasNewGrid) {
@@ -54,9 +52,7 @@ test.describe("GridMenu Integration Tests", () => {
     const initialCellCount = await getCellCount(page);
 
     // Look for the column section and insert left button using aria-label
-    const insertLeftButton = page.locator(
-      'button[aria-label="Insert Column Left"]'
-    );
+    const insertLeftButton = page.locator('button[aria-label="Insert Column Left"]');
     await expect(insertLeftButton).toBeVisible();
     await insertLeftButton.click();
 
@@ -81,9 +77,7 @@ test.describe("GridMenu Integration Tests", () => {
     const initialRowCount = await getRowCount(page);
     const initialCellCount = await getCellCount(page);
 
-    const insertRightButton = page.locator(
-      'button[aria-label="Insert Column Right"]'
-    );
+    const insertRightButton = page.locator('button[aria-label="Insert Column Right"]');
     await expect(insertRightButton).toBeVisible();
     await insertRightButton.click();
     await page.waitForTimeout(200);
@@ -105,9 +99,7 @@ test.describe("GridMenu Integration Tests", () => {
     const initialColumnCount = await getColumnCount(page);
     const initialCellCount = await getCellCount(page);
 
-    const insertAboveButton = page.locator(
-      'button[aria-label="Insert Row Above"]'
-    );
+    const insertAboveButton = page.locator('button[aria-label="Insert Row Above"]');
     await expect(insertAboveButton).toBeVisible();
     await insertAboveButton.click();
     await page.waitForTimeout(200);
@@ -129,9 +121,7 @@ test.describe("GridMenu Integration Tests", () => {
     const initialColumnCount = await getColumnCount(page);
     const initialCellCount = await getCellCount(page);
 
-    const insertBelowButton = page.locator(
-      'button[aria-label="Insert Row Below"]'
-    );
+    const insertBelowButton = page.locator('button[aria-label="Insert Row Below"]');
     await expect(insertBelowButton).toBeVisible();
     await insertBelowButton.click();
     await page.waitForTimeout(200);
@@ -150,9 +140,7 @@ test.describe("GridMenu Integration Tests", () => {
     await firstCellEditor.click();
     await page.waitForTimeout(200);
 
-    const insertRightButton = page.locator(
-      'button[aria-label="Insert Column Right"]'
-    );
+    const insertRightButton = page.locator('button[aria-label="Insert Column Right"]');
     await insertRightButton.click();
     await page.waitForTimeout(200);
 
@@ -161,9 +149,7 @@ test.describe("GridMenu Integration Tests", () => {
     const beforeDeleteCellCount = await getCellCount(page);
 
     // Now delete a column
-    const deleteColumnButton = page.locator(
-      'button[aria-label="Delete Column"]'
-    );
+    const deleteColumnButton = page.locator('button[aria-label="Delete Column"]');
     await expect(deleteColumnButton).toBeVisible();
     await deleteColumnButton.click();
     await page.waitForTimeout(200);
@@ -172,9 +158,7 @@ test.describe("GridMenu Integration Tests", () => {
     const afterDeleteCellCount = await getCellCount(page);
 
     expect(afterDeleteColumnCount).toBe(beforeDeleteColumnCount - 1);
-    expect(afterDeleteCellCount).toBe(
-      beforeDeleteCellCount - beforeDeleteRowCount
-    ); // One cell removed per row
+    expect(afterDeleteCellCount).toBe(beforeDeleteCellCount - beforeDeleteRowCount); // One cell removed per row
   });
 
   test("can delete row", async ({ page }) => {
@@ -184,9 +168,7 @@ test.describe("GridMenu Integration Tests", () => {
     await firstCellEditor.click();
     await page.waitForTimeout(200);
 
-    const insertBelowButton = page.locator(
-      'button[aria-label="Insert Row Below"]'
-    );
+    const insertBelowButton = page.locator('button[aria-label="Insert Row Below"]');
     await insertBelowButton.click();
     await page.waitForTimeout(200);
 
@@ -204,9 +186,7 @@ test.describe("GridMenu Integration Tests", () => {
     const afterDeleteCellCount = await getCellCount(page);
 
     expect(afterDeleteRowCount).toBe(beforeDeleteRowCount - 1);
-    expect(afterDeleteCellCount).toBe(
-      beforeDeleteCellCount - beforeDeleteColumnCount
-    ); // One cell removed per column
+    expect(afterDeleteCellCount).toBe(beforeDeleteCellCount - beforeDeleteColumnCount); // One cell removed per column
   });
 
   test("complex operations: multiple adds and removes", async ({ page }) => {
@@ -237,9 +217,7 @@ test.describe("GridMenu Integration Tests", () => {
     await page.waitForTimeout(100);
 
     // Ensure a cell is still focused after column deletion
-    const cellAfterColumnDelete = page
-      .locator("#example-container .cell")
-      .first();
+    const cellAfterColumnDelete = page.locator("#example-container .cell").first();
     await cellAfterColumnDelete.click();
     await page.waitForTimeout(100);
 
@@ -281,10 +259,7 @@ test.describe("GridMenu Integration Tests", () => {
     expect(afterOperationState.columnCount).toBe(initialState.columnCount + 1);
 
     // Undo the operation
-    const undoButton = page
-      .locator("#controls-panel button")
-      .filter({ hasText: /^Undo/ })
-      .first();
+    const undoButton = page.locator("#controls-panel button").filter({ hasText: /^Undo/ }).first();
     await expect(undoButton).toBeVisible();
     await undoButton.click();
     await page.waitForTimeout(200);
@@ -301,9 +276,7 @@ test.describe("GridMenu Integration Tests", () => {
     expect(afterUndoState.cellCount).toBe(initialState.cellCount);
   });
 
-  test("GridMenu appears and disappears when cell focus changes", async ({
-    page,
-  }) => {
+  test("GridMenu appears and disappears when cell focus changes", async ({ page }) => {
     // Initially no cell is focused, so GridMenu should show instructional message
     const gridMenu = page.locator(".grid-menu");
     await expect(gridMenu).toBeVisible();
@@ -317,18 +290,10 @@ test.describe("GridMenu Integration Tests", () => {
 
     // GridMenu should now show the full menu
     await expect(gridMenu).not.toContainText("Click in any table cell");
-    await expect(
-      page.locator('button[aria-label="Insert Column Left"]')
-    ).toBeVisible();
-    await expect(
-      page.locator('button[aria-label="Insert Column Right"]')
-    ).toBeVisible();
-    await expect(
-      page.locator('button[aria-label="Insert Row Above"]')
-    ).toBeVisible();
-    await expect(
-      page.locator('button[aria-label="Insert Row Below"]')
-    ).toBeVisible();
+    await expect(page.locator('button[aria-label="Insert Column Left"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Insert Column Right"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Insert Row Above"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Insert Row Below"]')).toBeVisible();
 
     // Click outside the grid (on the body)
     await page.locator("body").click({ position: { x: 50, y: 50 } });
@@ -343,9 +308,7 @@ test.describe("GridMenu Integration Tests", () => {
 // Helper functions
 async function getColumnCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
-    const grid = document.querySelector(
-      "#example-container .grid"
-    ) as HTMLElement;
+    const grid = document.querySelector("#example-container .grid") as HTMLElement;
     const columnWidths = grid?.getAttribute("data-column-widths");
     return columnWidths ? columnWidths.split(",").length : 0;
   });
@@ -353,9 +316,7 @@ async function getColumnCount(page: Page): Promise<number> {
 
 async function getRowCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
-    const grid = document.querySelector(
-      "#example-container .grid"
-    ) as HTMLElement;
+    const grid = document.querySelector("#example-container .grid") as HTMLElement;
     const rowHeights = grid?.getAttribute("data-row-heights");
     return rowHeights ? rowHeights.split(",").length : 0;
   });

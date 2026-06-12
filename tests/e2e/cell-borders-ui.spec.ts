@@ -1,18 +1,13 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Cell BorderControl shows current perimeter state", () => {
-  test("first cell shows 1px solid; second none; last solid", async ({
-    page,
-  }) => {
+  test("first cell shows 1px solid; second none; last solid", async ({ page }) => {
     await page.goto("/demo/index.html");
     await page.waitForSelector("#root");
     await page.waitForSelector("#example-list");
 
     // Open Table-border example
-    await page
-      .locator("#example-list")
-      .getByText("table-border", { exact: false })
-      .click();
+    await page.locator("#example-list").getByText("table-border", { exact: false }).click();
     const grid = page.locator("#example-container #grid-with-red-cross.grid");
     await expect(grid).toBeVisible();
 

@@ -32,9 +32,7 @@ test.describe("Embedded Grids", () => {
     expect(mainGridStyles.gridTemplateRows).toBe("150px");
 
     // === Test the embedded grid structure ===
-    const embeddedGrid = mainGrid.locator(
-      ".cell[data-content-type='grid'] > .grid"
-    );
+    const embeddedGrid = mainGrid.locator(".cell[data-content-type='grid'] > .grid");
     await expect(embeddedGrid).toBeVisible();
 
     // Check that the embedded grid has proper 2x2 layout
@@ -106,15 +104,11 @@ test.describe("Embedded Grids", () => {
     }
   });
 
-  test("validates that embedded grids fill their parent cell", async ({
-    page,
-  }) => {
+  test("validates that embedded grids fill their parent cell", async ({ page }) => {
     await page.goto("/demo/tests/embedded-grids.html");
     await page.waitForSelector(".grid");
 
-    const parentCell = page.locator(
-      "#main-grid .cell[data-content-type='grid']"
-    );
+    const parentCell = page.locator("#main-grid .cell[data-content-type='grid']");
     const embeddedGrid = parentCell.locator("> .grid");
 
     // Get dimensions of parent cell and embedded grid

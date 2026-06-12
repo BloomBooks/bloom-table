@@ -21,8 +21,7 @@ type Props = {
   onContract: () => void;
 };
 
-const menuItemStyle =
-  "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
+const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
 
 // --- Border helpers for a single cell ---
 const buildBorderMapFromCell = (c: HTMLElement): BorderValueMap => {
@@ -51,15 +50,8 @@ const applyBorderMapToCell = (c: HTMLElement, map: BorderValueMap) => {
   render(grid);
 };
 
-const CellSection: React.FC<Props> = ({
-  currentCell,
-  onSetContentType,
-  onExtend,
-  onContract,
-}) => {
-  const currentType = currentCell
-    ? getCurrentContentTypeId(currentCell)
-    : undefined;
+const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend, onContract }) => {
+  const currentType = currentCell ? getCurrentContentTypeId(currentCell) : undefined;
 
   const borderValueMap: BorderValueMap | undefined = useMemo(() => {
     if (!currentCell) return undefined;
@@ -72,8 +64,7 @@ const CellSection: React.FC<Props> = ({
     const grid = currentCell.closest(".grid") as HTMLElement | null;
     if (!grid) return undefined;
     const cells = Array.from(grid.children).filter(
-      (c): c is HTMLElement =>
-        c instanceof HTMLElement && c.classList.contains("cell")
+      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("cell"),
     );
     const idx = cells.indexOf(currentCell);
     return idx >= 0 ? String(idx) : undefined;
@@ -82,10 +73,7 @@ const CellSection: React.FC<Props> = ({
   return (
     <Section label="Cell">
       {/* Content type selector */}
-      <div
-        className={menuItemStyle}
-        style={{ cursor: "default", display: "block" }}
-      >
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
         <div className="text-sm opacity-80 mb-2">Content</div>
         {currentCell && currentType && (
           <RadioGroup
@@ -102,10 +90,7 @@ const CellSection: React.FC<Props> = ({
       </div>
 
       {/* Borders */}
-      <div
-        className={menuItemStyle}
-        style={{ cursor: "default", display: "block" }}
-      >
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
         <div className="text-sm opacity-80 mb-2">Borders</div>
         {currentCell && borderValueMap && (
           <BorderControl
@@ -118,24 +103,11 @@ const CellSection: React.FC<Props> = ({
       </div>
 
       {/* Merge / Split */}
-      <div
-        className={menuItemStyle}
-        style={{ cursor: "default", display: "block" }}
-      >
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
         <div className="text-sm opacity-80 mb-2">Merge / Split</div>
         <div className="flex items-center gap-3 ml-2">
-          <IconButton
-            alt="Merge"
-            title="Merge"
-            icon={mergeIcon}
-            onClick={onExtend}
-          />
-          <IconButton
-            alt="Split"
-            title="Split"
-            icon={splitIcon}
-            onClick={onContract}
-          />
+          <IconButton alt="Merge" title="Merge" icon={mergeIcon} onClick={onExtend} />
+          <IconButton alt="Split" title="Split" icon={splitIcon} onClick={onContract} />
         </div>
       </div>
     </Section>

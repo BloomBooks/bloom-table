@@ -84,10 +84,7 @@ function assert(condition: boolean, message: string): asserts condition {
  * @returns Array of all cell elements in DOM order
  */
 export function getGridCells(grid: HTMLElement): HTMLElement[] {
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
 
   const cells: HTMLElement[] = [];
   Array.from(grid.children).forEach((element) => {
@@ -143,17 +140,12 @@ export const getTargetGrid = (): HTMLElement | null => {
 
 export const addRow = (grid: HTMLElement, skipHistory = false): void => {
   //assert(grid instanceof HTMLElement, "grid parameter must be an HTMLElement");
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
 
   const description = "Add Row";
   const performOperation = () => {
     const columnWidthsAttr = grid.getAttribute("data-column-widths");
-    const numColumns = columnWidthsAttr
-      ? columnWidthsAttr.split(",").length
-      : 1;
+    const numColumns = columnWidthsAttr ? columnWidthsAttr.split(",").length : 1;
 
     assert(numColumns > 0, "Grid must have at least one column");
 
@@ -207,9 +199,7 @@ export const addColumn = (grid: HTMLElement, skipHistory = false): void => {
   const description = "Add Column";
   const performOperation = () => {
     const currentColumnWidths = grid.getAttribute("data-column-widths") || "";
-    const numColumns = currentColumnWidths
-      ? currentColumnWidths.split(",").length
-      : 0;
+    const numColumns = currentColumnWidths ? currentColumnWidths.split(",").length : 0;
     const newColumnWidths = currentColumnWidths
       ? `${currentColumnWidths},${defaultColumnWidth}`
       : defaultColumnWidth;
@@ -324,11 +314,7 @@ export function getGridInfo(grid: HTMLElement): {
   };
 }
 
-export function changeCellSpan(
-  cell: HTMLElement,
-  xChange: number,
-  yChange: number
-): void {
+export function changeCellSpan(cell: HTMLElement, xChange: number, yChange: number): void {
   const grid = cell.closest<HTMLElement>(".grid");
   assert(!!grid, "Cell must be inside a grid element");
 
@@ -369,11 +355,7 @@ export function changeCellSpan(
  * @param newVerticalSpan Number of rows the cell should span (1 = no span)
  * @throws {Error} If the span would exceed grid boundaries
  */
-export function setCellSpan(
-  cell: HTMLElement,
-  newHorizontalSpan: number,
-  newVerticalSpan: number
-) {
+export function setCellSpan(cell: HTMLElement, newHorizontalSpan: number, newVerticalSpan: number) {
   const grid = cell.closest<HTMLElement>(".grid");
   assert(!!grid, "Cell must be inside a grid element");
 
@@ -390,11 +372,11 @@ export function setCellSpan(
   // Check bounds - ensure the span doesn't exceed grid boundaries
   assert(
     column + newHorizontalSpan <= gridInfo.columnCount,
-    `Horizontal span ${newHorizontalSpan} from column ${column} would exceed grid bounds (${gridInfo.columnCount} columns)`
+    `Horizontal span ${newHorizontalSpan} from column ${column} would exceed grid bounds (${gridInfo.columnCount} columns)`,
   );
   assert(
     row + newVerticalSpan <= gridInfo.rowCount,
-    `Vertical span ${newVerticalSpan} from row ${row} would exceed grid bounds (${gridInfo.rowCount} rows)`
+    `Vertical span ${newVerticalSpan} from row ${row} would exceed grid bounds (${gridInfo.rowCount} rows)`,
   );
 
   // First, unmark all cells that were previously covered by this cell's span
@@ -409,11 +391,9 @@ export function setCellSpan(
   // Set the new span values on the cell (data-* is source of truth; also mirror to CSS vars for compatibility)
   cell.setAttribute("data-span-x", String(newHorizontalSpan));
   cell.setAttribute("data-span-y", String(newVerticalSpan));
-  if (newHorizontalSpan > 1)
-    cell.style.setProperty("--span-x", String(newHorizontalSpan));
+  if (newHorizontalSpan > 1) cell.style.setProperty("--span-x", String(newHorizontalSpan));
   else cell.style.removeProperty("--span-x");
-  if (newVerticalSpan > 1)
-    cell.style.setProperty("--span-y", String(newVerticalSpan));
+  if (newVerticalSpan > 1) cell.style.setProperty("--span-y", String(newVerticalSpan));
   else cell.style.removeProperty("--span-y");
 
   // Now mark all cells that are covered by the new span
@@ -436,35 +416,20 @@ export function setCellSpan(
  */
 export function getRowAndColumn(
   grid: HTMLElement,
-  cell: HTMLElement
+  cell: HTMLElement,
 ): { row: number; column: number } {
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
-  assert(
-    cell.classList.contains("cell"),
-    "cell parameter must have 'cell' class"
-  );
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
+  assert(cell.classList.contains("cell"), "cell parameter must have 'cell' class");
 
   const gridInfo = getGridInfo(grid);
   const cells = getGridCells(grid);
   const cellIndex = cells.indexOf(cell);
-  assert(
-    cellIndex !== -1,
-    "Cell not found in the grid. Ensure it is a direct child of the grid."
-  );
+  assert(cellIndex !== -1, "Cell not found in the grid. Ensure it is a direct child of the grid.");
   const columnCount = gridInfo.columnCount;
   const row = Math.floor(cellIndex / columnCount);
   const column = cellIndex % columnCount;
-  assert(
-    row >= 0 && row < gridInfo.rowCount,
-    `Row index ${row} is out of bounds`
-  );
-  assert(
-    column >= 0 && column < gridInfo.columnCount,
-    `Column index ${column} is out of bounds`
-  );
+  assert(row >= 0 && row < gridInfo.rowCount, `Row index ${row} is out of bounds`);
+  assert(column >= 0 && column < gridInfo.columnCount, `Column index ${column} is out of bounds`);
   return { row, column };
 }
 
@@ -481,27 +446,17 @@ export function getRowAndColumn(
  * @returns The HTMLElement at the specified position
  * @throws {Error} If the position is out of bounds or no cell is found
  */
-export function getCell(
-  grid: HTMLElement,
-  row: number,
-  column: number
-): HTMLElement {
+export function getCell(grid: HTMLElement, row: number, column: number): HTMLElement {
   // Check that grid is an HTMLElement (or derivative)
   // No need to check instanceof HTMLElement since HTMLDivElement and other specific elements will pass this check
   // The presence of the 'grid' class is sufficient for our validation
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
 
   const gridInfo = getGridInfo(grid);
-  assert(
-    row >= 0 && row < gridInfo.rowCount,
-    `Row index ${row} would be out of bounds`
-  );
+  assert(row >= 0 && row < gridInfo.rowCount, `Row index ${row} would be out of bounds`);
   assert(
     column >= 0 && column < gridInfo.columnCount,
-    `Column index ${column} would be out of bounds`
+    `Column index ${column} would be out of bounds`,
   ); // Calculate the linear index in the DOM based on row and column
   const cellIndex = row * gridInfo.columnCount + column;
   const cells = getGridCells(grid);
@@ -510,7 +465,7 @@ export function getCell(
     cellIndex < cells.length,
     `Cell at row ${row}, column ${column} not found in DOM (cellIndex=${cellIndex}, cells.length=${
       cells.length
-    }, gridInfo=${JSON.stringify(gridInfo)})`
+    }, gridInfo=${JSON.stringify(gridInfo)})`,
   );
 
   return cells[cellIndex] as HTMLElement;
@@ -522,11 +477,7 @@ export function getCell(
  * @param index The position to insert the column (0-based). If not provided, adds at the end.
  * @param skipHistory Whether to skip adding this operation to history
  */
-export const addColumnAt = (
-  grid: HTMLElement,
-  index?: number,
-  skipHistory = false
-): void => {
+export const addColumnAt = (grid: HTMLElement, index?: number, skipHistory = false): void => {
   if (!grid) return;
 
   const gridInfo = getGridInfo(grid);
@@ -534,7 +485,7 @@ export const addColumnAt = (
 
   assert(
     actualIndex >= 0 && actualIndex <= gridInfo.columnCount,
-    `Column index ${actualIndex} is out of bounds`
+    `Column index ${actualIndex} is out of bounds`,
   );
   const description = `Add Column at ${actualIndex}`;
   const performOperation = () => {
@@ -547,17 +498,13 @@ export const addColumnAt = (
       // Find reference node for insertion. If adding at the end, it's null.
       // Otherwise, it's the cell at the insertion index for the current row.
       const referenceNode =
-        actualIndex < gridInfo.columnCount
-          ? getCell(grid, rowIndex, actualIndex)
-          : null;
+        actualIndex < gridInfo.columnCount ? getCell(grid, rowIndex, actualIndex) : null;
       referenceNodes.push(referenceNode);
     }
 
     // Now update the grid structure
     const currentColumnWidths = grid.getAttribute("data-column-widths") || "";
-    const columnWidths = currentColumnWidths
-      ? currentColumnWidths.split(",")
-      : [];
+    const columnWidths = currentColumnWidths ? currentColumnWidths.split(",") : [];
 
     // Insert new column width at the specified index
     columnWidths.splice(actualIndex, 0, defaultColumnWidth);
@@ -582,11 +529,7 @@ export const addColumnAt = (
  * @param index The position to insert the row (0-based). If not provided, adds at the end.
  * @param skipHistory Whether to skip adding this operation to history
  */
-export const addRowAt = (
-  grid: HTMLElement,
-  index?: number,
-  skipHistory = false
-): void => {
+export const addRowAt = (grid: HTMLElement, index?: number, skipHistory = false): void => {
   if (!grid) return;
 
   const gridInfo = getGridInfo(grid);
@@ -594,7 +537,7 @@ export const addRowAt = (
 
   assert(
     actualIndex >= 0 && actualIndex <= gridInfo.rowCount,
-    `Row index ${actualIndex} is out of bounds`
+    `Row index ${actualIndex} is out of bounds`,
   );
   const description = `Add Row at ${actualIndex}`;
   const performOperation = () => {
@@ -604,8 +547,7 @@ export const addRowAt = (
     // Find the reference node for insertion BEFORE changing the grid structure
     // If adding at the end, referenceNode is null.
     // Otherwise, it's the first cell of the row at the insertion index.
-    const referenceNode =
-      actualIndex < gridInfo.rowCount ? getCell(grid, actualIndex, 0) : null;
+    const referenceNode = actualIndex < gridInfo.rowCount ? getCell(grid, actualIndex, 0) : null;
 
     // Now update the grid structure
     const currentRowHeights = grid.getAttribute("data-row-heights") || "";
@@ -632,20 +574,13 @@ export const addRowAt = (
  * @param grid The grid container element
  * @param index The column index to remove (0-based)
  */
-export const removeColumnAt = (
-  grid: HTMLElement,
-  index: number,
-  skipHistory = false
-): void => {
+export const removeColumnAt = (grid: HTMLElement, index: number, skipHistory = false): void => {
   if (!grid) return;
 
   const gridInfo = getGridInfo(grid);
 
   assert(gridInfo.columnCount > 1, "Cannot remove the only column");
-  assert(
-    index >= 0 && index < gridInfo.columnCount,
-    `Column index ${index} is out of bounds`
-  );
+  assert(index >= 0 && index < gridInfo.columnCount, `Column index ${index} is out of bounds`);
   const description = `Remove Column at ${index}`;
   const performOperation = () => {
     // Collect cells to remove BEFORE changing the grid structure
@@ -663,17 +598,14 @@ export const removeColumnAt = (
       if (cellColumn < index && cellColumn + spanX > index) {
         const newSpanX = spanX - 1;
         htmlCell.setAttribute("data-span-x", String(newSpanX));
-        if (newSpanX > 1)
-          htmlCell.style.setProperty("--span-x", String(newSpanX));
+        if (newSpanX > 1) htmlCell.style.setProperty("--span-x", String(newSpanX));
         else htmlCell.style.removeProperty("--span-x");
       }
     });
 
     // Update column widths attribute
     const currentColumnWidths = grid.getAttribute("data-column-widths") || "";
-    const columnWidths = currentColumnWidths
-      ? currentColumnWidths.split(",")
-      : [];
+    const columnWidths = currentColumnWidths ? currentColumnWidths.split(",") : [];
     columnWidths.splice(index, 1);
     grid.setAttribute("data-column-widths", columnWidths.join(","));
 
@@ -693,29 +625,18 @@ export const removeColumnAt = (
  * @param grid The grid container element
  * @param index The row index to remove (0-based)
  */
-export const removeRowAt = (
-  grid: HTMLElement,
-  index: number,
-  skipHistory = false
-): void => {
+export const removeRowAt = (grid: HTMLElement, index: number, skipHistory = false): void => {
   if (!grid) return;
 
   const gridInfo = getGridInfo(grid);
 
   assert(gridInfo.rowCount > 1, "Cannot remove the only row");
-  assert(
-    index >= 0 && index < gridInfo.rowCount,
-    `Row index ${index} is out of bounds`
-  );
+  assert(index >= 0 && index < gridInfo.rowCount, `Row index ${index} is out of bounds`);
   const description = `Remove Row at ${index}`;
   const performOperation = () => {
     // Collect cells to remove BEFORE changing the grid structure
     const cellsToRemove: HTMLElement[] = [];
-    for (
-      let columnIndex = 0;
-      columnIndex < gridInfo.columnCount;
-      columnIndex++
-    ) {
+    for (let columnIndex = 0; columnIndex < gridInfo.columnCount; columnIndex++) {
       cellsToRemove.push(getCell(grid, index, columnIndex));
     } // First adjust spans of cells that were affected by the removal
     const cells = getGridCells(grid);
@@ -728,8 +649,7 @@ export const removeRowAt = (
       if (cellRow < index && cellRow + spanY > index) {
         const newSpanY = spanY - 1;
         htmlCell.setAttribute("data-span-y", String(newSpanY));
-        if (newSpanY > 1)
-          htmlCell.style.setProperty("--span-y", String(newSpanY));
+        if (newSpanY > 1) htmlCell.style.setProperty("--span-y", String(newSpanY));
         else htmlCell.style.removeProperty("--span-y");
       }
     });
@@ -762,16 +682,13 @@ export function getRowIndex(cell: HTMLElement) {
 export function setColumnWidth(
   grid: HTMLElement,
   columnIndex: number,
-  width: string // 35px, hug, fill
+  width: string, // 35px, hug, fill
 ): void {
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
   const gridInfo = getGridInfo(grid);
   assert(
     columnIndex >= 0 && columnIndex < gridInfo.columnCount,
-    `Column index ${columnIndex} is out of bounds`
+    `Column index ${columnIndex} is out of bounds`,
   );
 
   const currentWidths = grid.getAttribute("data-column-widths") || "";
@@ -781,18 +698,12 @@ export function setColumnWidth(
     grid.setAttribute("data-column-widths", widthArray.join(","));
   }
 }
-export function getColumnWidth(
-  grid: HTMLElement,
-  columnIndex: number
-): string | null {
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+export function getColumnWidth(grid: HTMLElement, columnIndex: number): string | null {
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
   const gridInfo = getGridInfo(grid);
   assert(
     columnIndex >= 0 && columnIndex < gridInfo.columnCount,
-    `Column index ${columnIndex} is out of bounds`
+    `Column index ${columnIndex} is out of bounds`,
   );
 
   const currentWidths = grid.getAttribute("data-column-widths") || "";
@@ -801,39 +712,20 @@ export function getColumnWidth(
 }
 
 /** Gets the raw height spec for a given row (e.g., "hug", "fill", or "42px"). */
-export function getRowHeight(
-  grid: HTMLElement,
-  rowIndex: number
-): string | null {
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+export function getRowHeight(grid: HTMLElement, rowIndex: number): string | null {
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
   const gridInfo = getGridInfo(grid);
-  assert(
-    rowIndex >= 0 && rowIndex < gridInfo.rowCount,
-    `Row index ${rowIndex} is out of bounds`
-  );
+  assert(rowIndex >= 0 && rowIndex < gridInfo.rowCount, `Row index ${rowIndex} is out of bounds`);
   const currentHeights = grid.getAttribute("data-row-heights") || "";
   const heightArray = currentHeights.split(",");
   return heightArray[rowIndex] || null;
 }
 
 /** Sets the height for a given row to a spec (e.g., "hug", "fill", or "42px"). */
-export function setRowHeight(
-  grid: HTMLElement,
-  rowIndex: number,
-  height: string
-): void {
-  assert(
-    grid.classList.contains("grid"),
-    "grid parameter must have 'grid' class"
-  );
+export function setRowHeight(grid: HTMLElement, rowIndex: number, height: string): void {
+  assert(grid.classList.contains("grid"), "grid parameter must have 'grid' class");
   const gridInfo = getGridInfo(grid);
-  assert(
-    rowIndex >= 0 && rowIndex < gridInfo.rowCount,
-    `Row index ${rowIndex} is out of bounds`
-  );
+  assert(rowIndex >= 0 && rowIndex < gridInfo.rowCount, `Row index ${rowIndex} is out of bounds`);
   const currentHeights = grid.getAttribute("data-row-heights") || "";
   const heightArray = currentHeights ? currentHeights.split(",") : [];
 

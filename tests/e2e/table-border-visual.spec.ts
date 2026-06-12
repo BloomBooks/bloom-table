@@ -26,9 +26,7 @@ test.describe("Table Border Visual Validation", () => {
 
     // Debug: Log what borders are actually applied to each cell
     const cellBorderDebug = await page.evaluate(() => {
-      const cells = Array.from(
-        document.querySelectorAll("#grid-with-red-cross .cell")
-      );
+      const cells = Array.from(document.querySelectorAll("#grid-with-red-cross .cell"));
       return cells.map((cell, index) => {
         const computed = getComputedStyle(cell);
         return {
@@ -72,18 +70,14 @@ test.describe("Table Border Visual Validation", () => {
       };
     });
 
-    console.log(
-      "r1c1 actual computed styles:",
-      JSON.stringify(r1c1Styles, null, 2)
-    );
+    console.log("r1c1 actual computed styles:", JSON.stringify(r1c1Styles, null, 2));
 
     // Verify r1c1 has solid red borders on all sides per the cross pattern
     expect(r1c1Styles.borderTopStyle).toBe("solid");
     expect(r1c1Styles.borderRightStyle).toBe("solid");
     expect(r1c1Styles.borderBottomStyle).toBe("solid");
     expect(r1c1Styles.borderLeftStyle).toBe("solid");
-    const redPattern =
-      /(rgb\(\s*255\s*,\s*0\s*,\s*0\s*\))|(#ff0000)|(#f00)|\bred\b/i;
+    const redPattern = /(rgb\(\s*255\s*,\s*0\s*,\s*0\s*\))|(#ff0000)|(#f00)|\bred\b/i;
     expect(r1c1Styles.borderTopColor).toMatch(redPattern);
     expect(r1c1Styles.borderRightColor).toMatch(redPattern);
     expect(r1c1Styles.borderBottomColor).toMatch(redPattern);
@@ -171,8 +165,7 @@ test.describe("Table Border Visual Validation", () => {
     expect(grid3Styles.borderLeftStyle).toBe("solid");
 
     // Check that top, bottom, left borders are black
-    const blackPattern =
-      /(rgb\(\s*0\s*,\s*0\s*,\s*0\s*\))|(#000000)|(#000)|\bblack\b/i;
+    const blackPattern = /(rgb\(\s*0\s*,\s*0\s*,\s*0\s*\))|(#000000)|(#000)|\bblack\b/i;
     expect(grid3Styles.borderTopColor).toMatch(blackPattern);
     expect(grid3Styles.borderBottomColor).toMatch(blackPattern);
     expect(grid3Styles.borderLeftColor).toMatch(blackPattern);

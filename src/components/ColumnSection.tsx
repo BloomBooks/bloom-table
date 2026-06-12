@@ -78,22 +78,10 @@ export const ColumnSection: React.FC<Props> = ({
         onMouseDown={(e) => e.preventDefault()}
       >
         <div className="flex gap-3">
-          <IconButton
-            icon={addColumnLeftIcon}
-            alt="Insert Column Left"
-            onClick={onInsertLeft}
-          />
-          <IconButton
-            icon={addColumnRightIcon}
-            alt="Insert Column Right"
-            onClick={onInsertRight}
-          />
+          <IconButton icon={addColumnLeftIcon} alt="Insert Column Left" onClick={onInsertLeft} />
+          <IconButton icon={addColumnRightIcon} alt="Insert Column Right" onClick={onInsertRight} />
         </div>
-        <IconButton
-          icon={deleteColumnIcon}
-          alt="Delete Column"
-          onClick={onDelete}
-        />
+        <IconButton icon={deleteColumnIcon} alt="Delete Column" onClick={onDelete} />
       </div>{" "}
       <div className={subTitleStyle}>Size</div>
       <RadioGroup

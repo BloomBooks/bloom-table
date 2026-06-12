@@ -5,9 +5,7 @@ interface SelectedCellInfoProps {
   updateTrigger?: any; // Optional prop that can be used to trigger updates
 }
 
-const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({
-  updateTrigger,
-}) => {
+const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({ updateTrigger }) => {
   const [cellInfo, setCellInfo] = useState<{
     selected: boolean;
     row: number;
@@ -35,9 +33,7 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({
       return;
     }
 
-    const selectedCell = document.activeElement?.closest(
-      ".cell"
-    ) as HTMLElement;
+    const selectedCell = document.activeElement?.closest(".cell") as HTMLElement;
     if (!selectedCell) {
       setCellInfo({
         selected: false,
@@ -51,10 +47,8 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({
 
     // Get cell position information
     const { row, column } = Grid.getRowAndColumn(grid, selectedCell);
-    const spanX =
-      parseInt(selectedCell.style.getPropertyValue("--span-x")) || 1;
-    const spanY =
-      parseInt(selectedCell.style.getPropertyValue("--span-y")) || 1;
+    const spanX = parseInt(selectedCell.style.getPropertyValue("--span-x")) || 1;
+    const spanY = parseInt(selectedCell.style.getPropertyValue("--span-y")) || 1;
 
     setCellInfo({
       selected: true,
@@ -88,10 +82,7 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({
     return () => {
       document.removeEventListener("focusin", handleFocusChange);
       document.removeEventListener("focusout", handleFocusChange);
-      document.removeEventListener(
-        "gridHistoryUpdated",
-        handleGridHistoryUpdated
-      );
+      document.removeEventListener("gridHistoryUpdated", handleGridHistoryUpdated);
     };
   }, [updateTrigger]); // Re-attach listeners if updateTrigger changes
 

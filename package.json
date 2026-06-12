@@ -2,13 +2,20 @@
   "name": "bloom-grid",
   "version": "1.0.0",
   "description": "A TypeScript library for editing tables/grids in pure html",
-  "main": "dist/bloom-grid.umd.js",
-  "module": "dist/bloom-grid.mjs",
-  "types": "dist/bloom-grid.d.mts",
+  "keywords": [
+    "grid",
+    "table",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "",
   "files": [
     "dist",
     "bloom-grid.css"
   ],
+  "main": "dist/bloom-grid.umd.js",
+  "module": "dist/bloom-grid.mjs",
+  "types": "dist/bloom-grid.d.mts",
   "scripts": {
     "build": "vp pack",
     "dev": "vp dev",
@@ -21,13 +28,13 @@
     "e2e:ui": "npx playwright test --ui",
     "preview": "vp preview"
   },
-  "keywords": [
-    "grid",
-    "table",
-    "typescript"
-  ],
-  "author": "",
-  "license": "MIT",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "5",
+    "@mui/material": "5",
+    "jsdom": "^26.1.0"
+  },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "@types/node": "^24.0.1",
@@ -45,16 +52,9 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
-  "packageManager": "yarn@1.22.22",
   "volta": {
     "node": "22.11.0",
     "yarn": "1.22.22"
   },
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "5",
-    "@mui/material": "5",
-    "jsdom": "^26.1.0"
-  }
+  "packageManager": "yarn@1.22.22"
 }

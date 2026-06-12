@@ -68,16 +68,14 @@ let defaultCellContentTypeId: string = "text";
 export function getCurrentContentTypeId(cell: HTMLElement): string | undefined {
   return (
     cell.dataset.contentType /* use regex to identify */ ||
-    defaultCellContentsForEachType.find((c) =>
-      c.regexToIdentify.test(cell.innerHTML)
-    )?.id ||
+    defaultCellContentsForEachType.find((c) => c.regexToIdentify.test(cell.innerHTML))?.id ||
     defaultCellContentTypeId
   );
 }
 export function setupContentsOfCell(
   cell: HTMLElement,
   targetType?: string,
-  putInHistory: boolean = false
+  putInHistory: boolean = false,
 ): HTMLElement | null {
   const grid = cell.closest<HTMLElement>(".grid");
 
@@ -86,7 +84,7 @@ export function setupContentsOfCell(
   if (existingContentType === undefined && cell.children.length > 0) {
     // see if we can identify the content type from the cell's contents
     const content = defaultCellContentsForEachType.find((c) =>
-      c.regexToIdentify.test(cell.innerHTML)
+      c.regexToIdentify.test(cell.innerHTML),
     );
     if (content) {
       existingContentType = content.id; // if we found a match, use that as the existing content type
@@ -108,14 +106,12 @@ export function setupContentsOfCell(
     return (cell.firstChild as HTMLElement) || null;
   }
 
-  const content = defaultCellContentsForEachType.find(
-    (c) => c.id === targetType
-  );
+  const content = defaultCellContentsForEachType.find((c) => c.id === targetType);
   if (!content) {
     throw new Error(
       `Unknown content type: ${targetType}. Available types are: ${defaultCellContentsForEachType
         .map((c) => c.id)
-        .join(", ")}`
+        .join(", ")}`,
     );
   }
 
@@ -132,9 +128,8 @@ export function setupContentsOfCell(
           gridCell.dataset.contentType = defaultCellContentTypeId;
 
           gridCell.innerHTML =
-            defaultCellContentsForEachType.find(
-              (c) => c.id === defaultCellContentTypeId
-            )?.templateHtml || "!!!";
+            defaultCellContentsForEachType.find((c) => c.id === defaultCellContentTypeId)
+              ?.templateHtml || "!!!";
         });
 
         // Attach the embedded grid to enable all grid functionality
@@ -148,7 +143,7 @@ export function setupContentsOfCell(
     // so we check that now
     if (cell.children.length !== 1) {
       throw new Error(
-        `Cell contents must have exactly one root element, but found ${cell.children.length} elements.`
+        `Cell contents must have exactly one root element, but found ${cell.children.length} elements.`,
       );
     }
   };
@@ -157,7 +152,7 @@ export function setupContentsOfCell(
     gridHistoryManager.addHistoryEntry(
       grid,
       `Change Cell from ${existingContentType} to ${targetType}`,
-      doIt
+      doIt,
     );
   } else {
     doIt();

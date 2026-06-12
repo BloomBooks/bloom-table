@@ -26,7 +26,7 @@ function ensureMouseListener() {
       // Update all instances
       for (const inst of globalInstances) inst.updateOpacity();
     },
-    { passive: true }
+    { passive: true },
   );
 }
 

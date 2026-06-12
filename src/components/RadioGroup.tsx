@@ -17,12 +17,7 @@ type Props = {
 
 // No per-tile sizing here; tiles inherit size from IconButton.
 
-const RadioGroup: React.FC<Props> = ({
-  options,
-  value,
-  onChange,
-  className,
-}) => {
+const RadioGroup: React.FC<Props> = ({ options, value, onChange, className }) => {
   return (
     <div
       className={className}
@@ -45,9 +40,7 @@ const RadioGroup: React.FC<Props> = ({
               onClick={() => onChange(opt.id)}
               selected={selected}
               style={{
-                border: selected
-                  ? "3px solid rgba(255,255,255,0.95)"
-                  : "3px solid transparent",
+                border: selected ? "3px solid rgba(255,255,255,0.95)" : "3px solid transparent",
               }}
             >
               {!opt.icon && (

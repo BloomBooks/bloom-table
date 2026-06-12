@@ -13,10 +13,7 @@ type Props = {
   iconSize?: number; // default 32
   children?: React.ReactNode;
   selected?: boolean;
-} & Omit<
-  MUIButtonProps,
-  "children" | "title" | "onClick" | "className" | "style" | "aria-label"
->;
+} & Omit<MUIButtonProps, "children" | "title" | "onClick" | "className" | "style" | "aria-label">;
 
 // Styled MUI IconButton to match previous look & feel by default
 const StyledIconButton = styled(MuiIconButton, {
@@ -69,11 +66,7 @@ export const IconButton: React.FC<Props> = ({
     selected={selected}
     {...rest}
   >
-    {icon ? (
-      <img src={icon} alt="" style={{ width: iconSize, height: iconSize }} />
-    ) : (
-      children
-    )}
+    {icon ? <img src={icon} alt="" style={{ width: iconSize, height: iconSize }} /> : children}
   </StyledIconButton>
 );
 

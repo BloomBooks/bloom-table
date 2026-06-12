@@ -2,12 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import BorderSelector from "./BorderSelector";
 import WeightMenu from "./menus/WeightMenu";
 import StyleMenu from "./menus/StyleMenu";
-import {
-  BorderStyle,
-  BorderValueMap,
-  BorderWeight,
-  SelectedEdges,
-} from "./logic/types";
+import { BorderStyle, BorderValueMap, BorderWeight, SelectedEdges } from "./logic/types";
 import { computeInitialSelection } from "./logic/selectionInit";
 import {
   MixedOr,
@@ -26,9 +21,7 @@ function BorderControl(props: {
   // Maintain a local copy so the UI reflects changes immediately
   const [valueMap, setValueMap] = useState<BorderValueMap>(props.valueMap);
   const [selected, setSelected] = useState<SelectedEdges>(
-    () =>
-      props.initialSelected ??
-      computeInitialSelection(props.valueMap, showInner)
+    () => props.initialSelected ?? computeInitialSelection(props.valueMap, showInner),
   );
 
   // Sync local state when the upstream map changes (e.g., switching cells/tables)
@@ -38,11 +31,11 @@ function BorderControl(props: {
 
   const weight: MixedOr<BorderWeight> = useMemo(
     () => computeMixedWeight(valueMap, selected),
-    [valueMap, selected]
+    [valueMap, selected],
   );
   const style: MixedOr<BorderStyle> = useMemo(
     () => computeMixedStyle(valueMap, selected),
-    [valueMap, selected]
+    [valueMap, selected],
   );
 
   const disabled = interdependencyDisabled(weight, style);
@@ -53,7 +46,7 @@ function BorderControl(props: {
     change: Partial<{
       weight: BorderWeight;
       style: BorderStyle;
-    }>
+    }>,
   ) => {
     const edges = Array.from(selected);
     if (edges.length === 0) return; // nothing to apply

@@ -18,8 +18,7 @@ const SaveButton: React.FC<SaveButtonProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
-    const pageElement =
-      document.querySelector("#page") || document.querySelector(".page");
+    const pageElement = document.querySelector("#page") || document.querySelector(".page");
     if (!pageElement) {
       alert("Could not find page element to save.");
       return;
@@ -60,9 +59,7 @@ const SaveButton: React.FC<SaveButtonProps> = ({
       }
     } catch (error) {
       const errorDetails =
-        error instanceof Error
-          ? `${error.name}: ${error.message}`
-          : String(error);
+        error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       alert(`Error saving: ${errorDetails}`);
     } finally {
       setIsSaving(false);

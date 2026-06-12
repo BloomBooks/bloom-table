@@ -36,7 +36,7 @@ describe("grid-renderer", () => {
           { weight: 1, style: "solid", color: "#000" },
           { weight: 1, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
     parent.setAttribute(
       "data-edges-v",
@@ -46,7 +46,7 @@ describe("grid-renderer", () => {
           { weight: 1, style: "solid", color: "#000" },
           { weight: 1, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
 
     const leftCell = document.createElement("div");
@@ -71,14 +71,14 @@ describe("grid-renderer", () => {
           { weight: 1, style: "solid", color: "#000" },
           { weight: 1, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
     nestedA.setAttribute(
       "data-edges-v",
       JSON.stringify([
         [{ weight: 1, style: "solid", color: "#000" }],
         [{ weight: 1, style: "solid", color: "#000" }],
-      ])
+      ]),
     );
     // Add four cells to nested grid A
     for (let i = 0; i < 4; i++) {
@@ -128,7 +128,7 @@ describe("grid-renderer", () => {
           { weight: 2, style: "solid", color: "#000" },
           { weight: 2, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
     nestedB.setAttribute(
       "data-edges-v",
@@ -145,7 +145,7 @@ describe("grid-renderer", () => {
           { weight: 1, style: "solid", color: "#000" },
           { weight: 2, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
     // Add four cells to nested grid B
     for (let i = 0; i < 4; i++) {
@@ -218,7 +218,7 @@ describe("grid-renderer", () => {
             east: { weight: 1, style: "dashed", color: "blue" },
           },
         ],
-      ])
+      ]),
     );
 
     render(grid);
@@ -245,7 +245,7 @@ describe("grid-renderer", () => {
             east: { weight: 3, style: "dashed", color: "#888" },
           },
         ],
-      ])
+      ]),
     );
     const m = buildRenderModel(g);
     // Heavier east (3) should win and be assigned to b.left only
@@ -261,9 +261,7 @@ describe("grid-renderer", () => {
     g.setAttribute("data-column-widths", "hug,100px,fill");
     g.setAttribute("data-row-heights", "20px,hug");
     const m = buildRenderModel(g);
-    expect(m.templateColumns).toBe(
-      "minmax(60px,max-content) 100px minmax(60px,1fr)"
-    );
+    expect(m.templateColumns).toBe("minmax(60px,max-content) 100px minmax(60px,1fr)");
     expect(m.templateRows).toBe("20px minmax(20px,max-content)");
   });
 
@@ -290,14 +288,14 @@ describe("grid-renderer", () => {
     g.setAttribute("data-row-heights", "30px");
     g.setAttribute(
       "data-border-default",
-      JSON.stringify({ weight: 1, style: "solid", color: "#444" })
+      JSON.stringify({ weight: 1, style: "solid", color: "#444" }),
     );
     addCell(g); // left
     addCell(g); // right
     // Only west specified; east missing
     g.setAttribute(
       "data-edges-v",
-      JSON.stringify([[{ west: { weight: 0, style: "none", color: "#000" } }]])
+      JSON.stringify([[{ west: { weight: 0, style: "none", color: "#000" } }]]),
     );
     const m = buildRenderModel(g);
     // With zero gap, compare west (none) vs default -> winner is 'none', assigned to left.right
@@ -325,7 +323,7 @@ describe("grid-renderer", () => {
             east: { weight: 4, style: "solid", color: "blue" },
           },
         ],
-      ])
+      ]),
     );
     const m = buildRenderModel(g);
     // Expect the winner to be 'none' on the edge, applied to left cell's right and suppressing right cell's left
@@ -346,7 +344,7 @@ describe("grid-renderer", () => {
     // Neither side provided; fall back to edge default
     g.setAttribute(
       "data-border-default",
-      JSON.stringify({ weight: 1, style: "solid", color: "#444" })
+      JSON.stringify({ weight: 1, style: "solid", color: "#444" }),
     );
     g.setAttribute("data-edges-v", JSON.stringify([[{}]]));
     const m = buildRenderModel(g);
@@ -365,7 +363,7 @@ describe("grid-renderer", () => {
     g.setAttribute("data-gap-x", "8px");
     g.setAttribute(
       "data-border-default",
-      JSON.stringify({ weight: 2, style: "solid", color: "#333" })
+      JSON.stringify({ weight: 2, style: "solid", color: "#333" }),
     );
     const a = addCell(g);
     const b = addCell(g);
@@ -387,7 +385,7 @@ describe("grid-renderer", () => {
     addCell(g);
     g.setAttribute(
       "data-border-default",
-      JSON.stringify({ weight: 2, style: "solid", color: "#333" })
+      JSON.stringify({ weight: 2, style: "solid", color: "#333" }),
     );
     // Provide only interior edge; omit perimeters in unified H/V
     g.setAttribute("data-edges-v", JSON.stringify([[{}]]));
@@ -425,7 +423,7 @@ describe("grid-renderer", () => {
     // Default that would draw a line
     g.setAttribute(
       "data-border-default",
-      JSON.stringify({ weight: 1, style: "solid", color: "#000" })
+      JSON.stringify({ weight: 1, style: "solid", color: "#000" }),
     );
     // Case 1: entire entry unspecified (zero gap) -> default applies
     g.setAttribute("data-edges-v", JSON.stringify([[{}]]));
@@ -440,7 +438,7 @@ describe("grid-renderer", () => {
     // Case 2: explicit none on one side forces absence and suppresses default
     g.setAttribute(
       "data-edges-v",
-      JSON.stringify([[{ west: { style: "none", weight: 0, color: "#000" } }]])
+      JSON.stringify([[{ west: { style: "none", weight: 0, color: "#000" } }]]),
     );
     m = buildRenderModel(g);
     expect(m.cellBorders[0].right).toEqual({
@@ -469,7 +467,7 @@ describe("grid-renderer", () => {
         ],
         [null, null],
         [null, null],
-      ])
+      ]),
     );
 
     const m = buildRenderModel(g);
@@ -508,7 +506,7 @@ describe("grid-renderer", () => {
           { weight: 1, style: "solid", color: "#000" },
           { weight: 1, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
     g.setAttribute(
       "data-edges-v",
@@ -523,7 +521,7 @@ describe("grid-renderer", () => {
           { style: "none" },
           { weight: 1, style: "solid", color: "#000" },
         ],
-      ])
+      ]),
     );
     const m = buildRenderModel(g);
     // Top row perimeters
@@ -652,14 +650,14 @@ describe("grid-renderer", () => {
         ],
         [null, null],
         [null, null],
-      ])
+      ]),
     );
     g.setAttribute(
       "data-edges-v",
       JSON.stringify([
         [{ weight: 2, style: "double", color: "#000" }, null, null],
         [{ weight: 2, style: "double", color: "#000" }, null, null],
-      ])
+      ]),
     );
     render(g);
     // Top-left cell should have top and left borders as double and clamped to 4px
@@ -675,7 +673,7 @@ describe("grid-renderer", () => {
     const only = addCell(g2);
     g2.setAttribute(
       "data-edges-h",
-      JSON.stringify([[{ weight: 0, style: "double", color: "#000" }], [null]])
+      JSON.stringify([[{ weight: 0, style: "double", color: "#000" }], [null]]),
     );
     g2.setAttribute(
       "data-edges-v",
@@ -684,7 +682,7 @@ describe("grid-renderer", () => {
           { weight: 0, style: "double", color: "#000" },
           { weight: 0, style: "double", color: "#000" },
         ],
-      ])
+      ]),
     );
     render(g2);
     expect((only.style as any).borderTopStyle).toBe("none");

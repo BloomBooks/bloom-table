@@ -15,7 +15,7 @@ describe("selection highlighting", () => {
     attachGrid(grid);
 
     const firstEditable = grid.querySelector(
-      ".cell:nth-of-type(1) [contenteditable]"
+      ".cell:nth-of-type(1) [contenteditable]",
     ) as HTMLElement;
 
     // Simulate focus entering the first cell
@@ -41,10 +41,10 @@ describe("selection highlighting", () => {
     attachGrid(grid);
 
     const firstEditable = grid.querySelector(
-      ".cell:nth-of-type(1) [contenteditable]"
+      ".cell:nth-of-type(1) [contenteditable]",
     ) as HTMLElement;
     const secondEditable = grid.querySelector(
-      ".cell:nth-of-type(2) [contenteditable]"
+      ".cell:nth-of-type(2) [contenteditable]",
     ) as HTMLElement;
 
     // Focus first cell

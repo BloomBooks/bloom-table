@@ -45,7 +45,7 @@ describe("border-state:getGridOuterBorderValueMap", () => {
     g.style.setProperty("--edge-default-color", "#000");
     g.setAttribute(
       "data-border-default",
-      JSON.stringify({ weight: 2, style: "dashed", color: "red" })
+      JSON.stringify({ weight: 2, style: "dashed", color: "red" }),
     );
 
     const map = getGridOuterBorderValueMap(g);

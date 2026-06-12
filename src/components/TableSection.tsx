@@ -4,11 +4,7 @@ import Section from "./Section";
 import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 // no grid-model reads here; we derive current state via border-state/renderer
-import {
-  applyUniformInner,
-  setDefaultBorder,
-  applyOuterBorders,
-} from "../edge-utils";
+import { applyUniformInner, setDefaultBorder, applyOuterBorders } from "../edge-utils";
 import { render } from "../grid-renderer";
 import { getGridOuterBorderValueMap } from "../border-state";
 import { BloomGrid } from "../";
@@ -69,7 +65,7 @@ const applyBorderMapToGrid = (g: HTMLElement, map: BorderValueMap) => {
         color: outerColor,
       },
     },
-    outerColor
+    outerColor,
   );
   // Inner edges: write uniform inner H and V
   applyUniformInner(
@@ -80,7 +76,7 @@ const applyBorderMapToGrid = (g: HTMLElement, map: BorderValueMap) => {
       style: map.innerH.style,
       color: innerColor,
     } as any,
-    innerColor
+    innerColor,
   );
   applyUniformInner(
     g,
@@ -90,7 +86,7 @@ const applyBorderMapToGrid = (g: HTMLElement, map: BorderValueMap) => {
       style: map.innerV.style,
       color: innerColor,
     } as any,
-    innerColor
+    innerColor,
   );
 
   // Default border as a safety for unspecified edges
@@ -101,21 +97,18 @@ const applyBorderMapToGrid = (g: HTMLElement, map: BorderValueMap) => {
       style: map.innerH.style,
       color: innerColor,
     } as any,
-    innerColor
+    innerColor,
   );
 
   // Re-render so the per-cell inline styles reflect the updated model
   render(g);
 };
 
-const menuItemStyle =
-  "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
+const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
 
 export const TableSection: React.FC<Props> = ({ grid }) => {
   // Corner menu value state, derived from the grid and updated on change
-  const getCornerValue = (
-    g: HTMLElement | undefined | null
-  ): CornerRadius | "mixed" => {
+  const getCornerValue = (g: HTMLElement | undefined | null): CornerRadius | "mixed" => {
     if (!g) return 0;
     const cs = getComputedStyle(g);
     const radii = [
@@ -127,14 +120,10 @@ export const TableSection: React.FC<Props> = ({ grid }) => {
     const uniq = Array.from(new Set(radii));
     if (uniq.length !== 1) return "mixed";
     const r = uniq[0];
-    return ([0, 2, 4, 8] as number[]).includes(r)
-      ? (r as CornerRadius)
-      : ("mixed" as const);
+    return ([0, 2, 4, 8] as number[]).includes(r) ? (r as CornerRadius) : ("mixed" as const);
   };
 
-  const [cornerValue, setCornerValue] = useState<CornerRadius | "mixed">(
-    getCornerValue(grid)
-  );
+  const [cornerValue, setCornerValue] = useState<CornerRadius | "mixed">(getCornerValue(grid));
   useEffect(() => {
     setCornerValue(getCornerValue(grid));
   }, [grid]);
@@ -145,8 +134,7 @@ export const TableSection: React.FC<Props> = ({ grid }) => {
         <>
           {(() => {
             const valueMap = buildBorderMapFromGrid(grid);
-            const cornerDisabled =
-              valueMap.top.weight === 0 || valueMap.top.style === "none";
+            const cornerDisabled = valueMap.top.weight === 0 || valueMap.top.style === "none";
             return (
               <>
                 <div className={menuItemStyle} style={{ cursor: "default" }}>

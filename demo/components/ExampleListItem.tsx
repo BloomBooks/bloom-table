@@ -7,11 +7,7 @@ interface ExampleListItemProps {
   onSelect: () => void;
 }
 
-const ExampleListItem: React.FC<ExampleListItemProps> = ({
-  example,
-  isActive,
-  onSelect,
-}) => {
+const ExampleListItem: React.FC<ExampleListItemProps> = ({ example, isActive, onSelect }) => {
   return (
     <div
       className={`example-item example-list-item ${isActive ? "active" : ""}`}

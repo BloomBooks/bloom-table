@@ -46,20 +46,20 @@ class GridHistoryManager {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     performOperation: () => void, // The function that actually performs the DOM change
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    undoOperation?: (grid: HTMLElement, prevState: GridState) => void
+    undoOperation?: (grid: HTMLElement, prevState: GridState) => void,
   ): void {
     // Find the top-level grid - we may have been handed a child grid, but our history is for the top-level grid
     const topLevelGrid = this.findTopLevelGrid(grid);
 
     if (!topLevelGrid || !this.isAttached(topLevelGrid)) {
       console.warn(
-        "GridHistoryManager: Attempted to add history entry for a detached or null grid."
+        "GridHistoryManager: Attempted to add history entry for a detached or null grid.",
       );
       return;
     }
     if (this.operationInProgress) {
       console.warn(
-        "GridHistoryManager: Operation already in progress. Skipping new history entry."
+        "GridHistoryManager: Operation already in progress. Skipping new history entry.",
       );
       return;
     }
@@ -78,19 +78,14 @@ class GridHistoryManager {
         state: stateBeforeOperation,
         timestamp: Date.now(),
         label: description,
-        undoOperation:
-          undoOperation ||
-          ((grid, state) => this.defaultUndoOperation(grid, state)),
+        undoOperation: undoOperation || ((grid, state) => this.defaultUndoOperation(grid, state)),
       };
       this.history.push(entry);
       if (this.history.length > this.maxHistorySize) {
         this.history.shift();
       }
     } catch (error) {
-      console.error(
-        "GridHistoryManager: Error during operation execution:",
-        error
-      );
+      console.error("GridHistoryManager: Error during operation execution:", error);
     } finally {
       this.operationInProgress = false;
       if (operationSuccess) {
@@ -104,7 +99,7 @@ class GridHistoryManager {
   undo(grid: HTMLElement): boolean {
     if (!this.canUndo()) {
       console.warn(
-        "GridHistoryManager: Cannot undo. Either history is empty or an operation is in progress."
+        "GridHistoryManager: Cannot undo. Either history is empty or an operation is in progress.",
       );
       return false;
     }
@@ -118,9 +113,7 @@ class GridHistoryManager {
     // Find the top-level grid to ensure we're undoing on the same grid level that was captured
     const topLevelGrid = this.findTopLevelGrid(grid);
     if (!topLevelGrid || !this.isAttached(topLevelGrid)) {
-      console.warn(
-        "GridHistoryManager: Cannot undo. Top-level grid not found or not attached."
-      );
+      console.warn("GridHistoryManager: Cannot undo. Top-level grid not found or not attached.");
       // Put the entry back since we couldn't undo
       this.history.push(entry);
       return false;
@@ -130,8 +123,7 @@ class GridHistoryManager {
     let undoSuccess = false;
     try {
       const undoOp =
-        entry.undoOperation ||
-        ((grid, state) => this.defaultUndoOperation(grid, state));
+        entry.undoOperation || ((grid, state) => this.defaultUndoOperation(grid, state));
       undoOp(topLevelGrid, entry.state);
       undoSuccess = true;
     } catch (error) {

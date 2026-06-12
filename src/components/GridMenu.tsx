@@ -8,9 +8,7 @@ import RowSection from "./RowSection";
 import ColumnSection from "./ColumnSection";
 import CellSection from "./CellSection";
 
-const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (
-  props
-) => {
+const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (props) => {
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
@@ -72,11 +70,7 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (
     const grid = getTargetGridFromCell(props.currentCell!);
     const controller = new BloomGrid(grid);
     const current = controller.getSpan(props.currentCell!);
-    controller.setSpan(
-      props.currentCell!,
-      (current.x || 1) + 1,
-      current.y || 1
-    );
+    controller.setSpan(props.currentCell!, (current.x || 1) + 1, current.y || 1);
   };
 
   const handleContractCell = () => {
@@ -129,9 +123,7 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (
 
   const handleSelectParentCell = () => {
     const grid = getTargetGridFromSelection();
-    const parentCell = grid.parentElement?.closest(
-      ".cell"
-    ) as HTMLElement | null;
+    const parentCell = grid.parentElement?.closest(".cell") as HTMLElement | null;
     if (parentCell) {
       parentCell.focus();
     }
@@ -150,8 +142,7 @@ const GridMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (
   // no-op placeholder removed: variable was unused
   // If there's no current context (no selected cell or not within a grid),
   // show an instructional message instead of the full menu.
-  const hasContext =
-    !!props.currentCell && !!props.currentCell.closest(".grid");
+  const hasContext = !!props.currentCell && !!props.currentCell.closest(".grid");
   if (!hasContext) {
     return (
       <div
@@ -241,7 +232,7 @@ function assert(condition: boolean, message: string): asserts condition {
   }
 }
 
-/* 
+/*
 const [canUndo, setCanUndo] = useState(false);
   const [showBorders, setShowBorders] = useState(true);
   const [canRemoveRow, setCanRemoveRow] = useState(true);

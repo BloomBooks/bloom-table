@@ -24,8 +24,7 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
     try {
       const response = await fetch("/api/examples");
       if (response.ok) {
-        const data: { exercises: Example[]; tests: Example[] } =
-          await response.json();
+        const data: { exercises: Example[]; tests: Example[] } = await response.json();
         setexercises(data.exercises || []);
         setTests(data.tests || []);
 
@@ -41,10 +40,7 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
           setActiveId("");
         }
       } else {
-        console.error(
-          "Failed to fetch example files from API, status:",
-          response.status
-        );
+        console.error("Failed to fetch example files from API, status:", response.status);
         setexercises([]);
         setTests([]);
       }

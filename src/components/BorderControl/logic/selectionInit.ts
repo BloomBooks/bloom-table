@@ -1,18 +1,8 @@
-import {
-  BorderValueMap,
-  EdgeKey,
-  OuterEdges,
-  InnerEdges,
-  SelectedEdges,
-} from "./types";
+import { BorderValueMap, EdgeKey, OuterEdges, InnerEdges, SelectedEdges } from "./types";
 
 type Group = { key: string; edges: EdgeKey[] };
 
-function tupleForEdge(v: {
-  weight: number;
-  style: string;
-  radius: number;
-}): string {
+function tupleForEdge(v: { weight: number; style: string; radius: number }): string {
   return `${v.weight}|${v.style}|${v.radius}`;
 }
 
@@ -30,7 +20,7 @@ function tupleForEdge(v: {
  */
 export function computeInitialSelection(
   valueMap: BorderValueMap,
-  showInner: boolean
+  showInner: boolean,
 ): SelectedEdges {
   const edges: EdgeKey[] = [...OuterEdges, ...(showInner ? InnerEdges : [])];
 
@@ -47,8 +37,7 @@ export function computeInitialSelection(
   // sort by rules
   groups.sort((a, b) => {
     // 1) size desc
-    if (b.edges.length !== a.edges.length)
-      return b.edges.length - a.edges.length;
+    if (b.edges.length !== a.edges.length) return b.edges.length - a.edges.length;
     // 2) presence of any outer edge desc
     const aHasOuter = a.edges.some((e) => OuterEdges.includes(e));
     const bHasOuter = b.edges.some((e) => OuterEdges.includes(e));

@@ -39,15 +39,11 @@ test.describe("Focus after insert", () => {
       const { BloomGrid } = (window as any).__BG;
       const grid = document.querySelector("#main-grid") as HTMLElement;
       const controller = new BloomGrid(grid);
-      const selected = document.querySelector(
-        ".cell.cell--selected"
-      ) as HTMLElement;
+      const selected = document.querySelector(".cell.cell--selected") as HTMLElement;
       const cells = Array.from(grid.children);
       const idx = cells.indexOf(selected);
       const colCount =
-        (grid.getAttribute("data-column-widths") || "")
-          .split(",")
-          .filter(Boolean).length || 2;
+        (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length || 2;
       const row = Math.floor(idx / colCount);
       controller.addRowAt(row + 1);
     });
@@ -67,15 +63,11 @@ test.describe("Focus after insert", () => {
       const { BloomGrid } = (window as any).__BG;
       const grid = document.querySelector("#main-grid") as HTMLElement;
       const controller = new BloomGrid(grid);
-      const selected = document.querySelector(
-        ".cell.cell--selected"
-      ) as HTMLElement;
+      const selected = document.querySelector(".cell.cell--selected") as HTMLElement;
       const cells = Array.from(grid.children);
       const idx = cells.indexOf(selected);
       const colCount =
-        (grid.getAttribute("data-column-widths") || "")
-          .split(",")
-          .filter(Boolean).length || 2;
+        (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length || 2;
       const col = idx % colCount;
       controller.addColumnAt(col + 1);
     });

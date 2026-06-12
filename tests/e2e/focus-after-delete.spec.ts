@@ -47,9 +47,7 @@ test.describe("Focus after delete", () => {
     await expect(expectedCell.locator("[contenteditable]")).toBeFocused();
   });
 
-  test("Delete column focuses same row in neighbor column", async ({
-    page,
-  }) => {
+  test("Delete column focuses same row in neighbor column", async ({ page }) => {
     const gridSel = "#main-grid";
     // Start with 2x2: focus r1c1
     await focusCell(page, gridSel, nthCellIndex(1, 1, 2));

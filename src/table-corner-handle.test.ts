@@ -28,15 +28,11 @@ describe("corner handle drag to resize table", () => {
     attachGrid(grid);
 
     // Focus a cell to trigger overlay installation and show overlays
-    const firstEditable = grid.querySelector(
-      ".cell [contenteditable]"
-    ) as HTMLElement;
+    const firstEditable = grid.querySelector(".cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     // Corner handle is created on demand by overlays; find it
-    const handle = document.querySelector(
-      "[data-bgrid-corner-handle]"
-    ) as HTMLElement;
+    const handle = document.querySelector("[data-bgrid-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
 
     // Simulate drag: mousedown at current position, then move by enough pixels to increment rows/cols
@@ -52,16 +48,12 @@ describe("corner handle drag to resize table", () => {
         clientX: startX + 100,
         clientY: startY + 80,
         bubbles: true,
-      })
+      }),
     );
 
     // Expect attributes updated during live drag
-    const cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    const rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    const cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    const rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBeGreaterThanOrEqual(4);
     expect(rows).toBeGreaterThanOrEqual(4);
 
@@ -90,7 +82,7 @@ describe("corner handle drag to resize table", () => {
     const rowsAttr = Array(4).fill("hug").join(",");
     const cellsHtml = Array.from(
       { length: 16 },
-      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`
+      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`,
     ).join("");
     document.body.innerHTML = `
       <div class="grid" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
@@ -101,14 +93,10 @@ describe("corner handle drag to resize table", () => {
     attachGrid(grid);
 
     // Focus a cell to trigger overlays
-    const firstEditable = grid.querySelector(
-      ".cell [contenteditable]"
-    ) as HTMLElement;
+    const firstEditable = grid.querySelector(".cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
-    const handle = document.querySelector(
-      "[data-bgrid-corner-handle]"
-    ) as HTMLElement;
+    const handle = document.querySelector("[data-bgrid-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
 
     const rect = grid.getBoundingClientRect();
@@ -124,16 +112,12 @@ describe("corner handle drag to resize table", () => {
         clientX: startX - 90,
         clientY: startY - 70,
         bubbles: true,
-      })
+      }),
     );
 
     // Expect attributes updated during live drag (from 4x4 down to <= 3x3)
-    const cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    const rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    const cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    const rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBeLessThanOrEqual(3);
     expect(rows).toBeLessThanOrEqual(3);
 
@@ -155,14 +139,10 @@ describe("corner handle drag to resize table", () => {
     const grid = document.querySelector(".grid") as HTMLElement;
     attachGrid(grid);
 
-    const firstEditable = grid.querySelector(
-      ".cell [contenteditable]"
-    ) as HTMLElement;
+    const firstEditable = grid.querySelector(".cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
-    const handle = document.querySelector(
-      "[data-bgrid-corner-handle]"
-    ) as HTMLElement;
+    const handle = document.querySelector("[data-bgrid-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
 
     const rect = grid.getBoundingClientRect();
@@ -178,14 +158,10 @@ describe("corner handle drag to resize table", () => {
         clientX: startX + 100,
         clientY: startY + 80,
         bubbles: true,
-      })
+      }),
     );
-    let cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    let rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    let cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    let rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBeGreaterThanOrEqual(4);
     expect(rows).toBeGreaterThanOrEqual(4);
 
@@ -195,14 +171,10 @@ describe("corner handle drag to resize table", () => {
         clientX: startX + 10,
         clientY: startY + 10,
         bubbles: true,
-      })
+      }),
     );
-    cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBeLessThanOrEqual(2);
     expect(rows).toBeLessThanOrEqual(2);
 
@@ -218,7 +190,7 @@ describe("corner handle drag to resize table", () => {
     const rowsAttr = Array(4).fill("hug").join(",");
     const cellsHtml = Array.from(
       { length: 16 },
-      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`
+      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`,
     ).join("");
     document.body.innerHTML = `
       <div class="grid" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
@@ -228,14 +200,10 @@ describe("corner handle drag to resize table", () => {
     const grid = document.querySelector(".grid") as HTMLElement;
     attachGrid(grid);
 
-    const firstEditable = grid.querySelector(
-      ".cell [contenteditable]"
-    ) as HTMLElement;
+    const firstEditable = grid.querySelector(".cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
-    const handle = document.querySelector(
-      "[data-bgrid-corner-handle]"
-    ) as HTMLElement;
+    const handle = document.querySelector("[data-bgrid-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
 
     const rect = grid.getBoundingClientRect();
@@ -249,31 +217,23 @@ describe("corner handle drag to resize table", () => {
         clientX: startX - 100,
         clientY: startY - 80,
         bubbles: true,
-      })
+      }),
     );
 
     // End drag to commit history
     document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
     // Verify grid is now smaller
-    let cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    let rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    let cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    let rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBeLessThan(4);
     expect(rows).toBeLessThan(4);
 
     // Undo should restore 4x4
     const undoOk = gridHistoryManager.undo(grid);
     expect(undoOk).toBe(true);
-    cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBe(4);
     expect(rows).toBe(4);
 
@@ -292,14 +252,10 @@ describe("corner handle drag to resize table", () => {
     const grid = document.querySelector(".grid") as HTMLElement;
     attachGrid(grid);
 
-    const firstEditable = grid.querySelector(
-      ".cell [contenteditable]"
-    ) as HTMLElement;
+    const firstEditable = grid.querySelector(".cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
-    const handle = document.querySelector(
-      "[data-bgrid-corner-handle]"
-    ) as HTMLElement;
+    const handle = document.querySelector("[data-bgrid-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
 
     const rect = grid.getBoundingClientRect();
@@ -323,7 +279,7 @@ describe("corner handle drag to resize table", () => {
           clientX: step.x,
           clientY: step.y,
           bubbles: true,
-        })
+        }),
       );
     });
 
@@ -331,12 +287,8 @@ describe("corner handle drag to resize table", () => {
     document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
     // Verify final grid size (should be around 4x4 based on last step)
-    const cols = (grid.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter(Boolean).length;
-    const rows = (grid.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter(Boolean).length;
+    const cols = (grid.getAttribute("data-column-widths") || "").split(",").filter(Boolean).length;
+    const rows = (grid.getAttribute("data-row-heights") || "").split(",").filter(Boolean).length;
     expect(cols).toBeGreaterThanOrEqual(4);
     expect(rows).toBeGreaterThanOrEqual(4);
 
@@ -353,7 +305,7 @@ describe("corner handle drag to resize table", () => {
     const rowsAttr = Array(3).fill("hug").join(",");
     const cellsHtml = Array.from(
       { length: 9 },
-      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`
+      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`,
     ).join("");
     document.body.innerHTML = `
       <div class="grid" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
@@ -364,18 +316,14 @@ describe("corner handle drag to resize table", () => {
     attachGrid(grid);
 
     // Focus a cell to trigger overlays and establish initial selection
-    const firstEditable = grid.querySelector(
-      ".cell [contenteditable]"
-    ) as HTMLElement;
+    const firstEditable = grid.querySelector(".cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     // Verify initial selection state
     expect(document.querySelector(".cell.cell--selected")).toBeTruthy();
     expect(document.querySelector(".grid.grid--selected")).toBe(grid);
 
-    const handle = document.querySelector(
-      "[data-bgrid-corner-handle]"
-    ) as HTMLElement;
+    const handle = document.querySelector("[data-bgrid-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
 
     const rect = grid.getBoundingClientRect();
@@ -391,7 +339,7 @@ describe("corner handle drag to resize table", () => {
         clientX: startX - 50, // Move left to reduce columns
         clientY: startY - 40, // Move up to reduce rows
         bubbles: true,
-      })
+      }),
     );
 
     // Verify grid was resized (should be smaller)

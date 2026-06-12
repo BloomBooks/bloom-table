@@ -13,13 +13,9 @@ export function WeightSampleLine({
 }) {
   if (value === "mixed") return <span style={{ fontSize: 11 }}>Mixed</span>;
   if (value === 0) {
-    const content = (
-      <span style={{ fontSize: 13, fontWeight: 600, color }}>Ø</span>
-    );
+    const content = <span style={{ fontSize: 13, fontWeight: 600, color }}>Ø</span>;
     return fullWidth ? (
-      <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
-        {content}
-      </div>
+      <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>{content}</div>
     ) : (
       content
     );
@@ -33,12 +29,7 @@ export function WeightSampleLine({
   const xEnd = fullWidth ? viewBoxWidth : 28;
 
   return (
-    <svg
-      width={svgWidth}
-      height={18}
-      viewBox={`0 0 ${viewBoxWidth} 18`}
-      aria-hidden
-    >
+    <svg width={svgWidth} height={18} viewBox={`0 0 ${viewBoxWidth} 18`} aria-hidden>
       {visible ? (
         style === "double" ? (
           <>
@@ -60,23 +51,10 @@ export function WeightSampleLine({
             />
           </>
         ) : (
-          <line
-            x1={xStart}
-            y1="9"
-            x2={xEnd}
-            y2="9"
-            stroke={stroke}
-            strokeWidth={strokeWidth}
-          />
+          <line x1={xStart} y1="9" x2={xEnd} y2="9" stroke={stroke} strokeWidth={strokeWidth} />
         )
       ) : (
-        <rect
-          x={xStart}
-          y="8"
-          width={xEnd - xStart}
-          height="2"
-          fill="transparent"
-        />
+        <rect x={xStart} y="8" width={xEnd - xStart} height="2" fill="transparent" />
       )}
     </svg>
   );

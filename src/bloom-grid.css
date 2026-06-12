@@ -62,8 +62,8 @@
 }
 
 .grid.grid--selected {
-  outline: var(--selected-grid-outline-width)
-    var(--selected-grid-outline-style, solid) var(--selected-grid-outline-color);
+  outline: var(--selected-grid-outline-width) var(--selected-grid-outline-style, solid)
+    var(--selected-grid-outline-color);
   outline-offset: var(--selected-grid-outline-offset);
 }
 
@@ -71,37 +71,44 @@
 .grid.grid--selected .cell {
   /* Layered background gradients for 1px separators; each is transparent unless the corresponding --hint-*-color is set */
   background-image:
-    /* top */ linear-gradient(
+    /* top */
+    linear-gradient(
       to bottom,
       var(--hint-top-color, transparent) 0,
       var(--hint-top-color, transparent) 1px,
       transparent 1px
     ),
     /* right */
-      linear-gradient(
+    linear-gradient(
         to left,
         var(--hint-right-color, transparent) 0,
         var(--hint-right-color, transparent) 1px,
         transparent 1px
       ),
     /* bottom */
-      linear-gradient(
+    linear-gradient(
         to top,
         var(--hint-bottom-color, transparent) 0,
         var(--hint-bottom-color, transparent) 1px,
         transparent 1px
       ),
     /* left */
-      linear-gradient(
+    linear-gradient(
         to right,
         var(--hint-left-color, transparent) 0,
         var(--hint-left-color, transparent) 1px,
         transparent 1px
       );
   background-repeat: no-repeat;
-  background-size: 100% 1px, /* top */ 1px 100%, /* right */ 100% 1px,
+  background-size:
+    100% 1px,
+    /* top */ 1px 100%,
+    /* right */ 100% 1px,
     /* bottom */ 1px 100%; /* left */
-  background-position: 0 0, /* top */ 100% 0, /* right */ 0 100%,
+  background-position:
+    0 0,
+    /* top */ 100% 0,
+    /* right */ 0 100%,
     /* bottom */ 0 0; /* left */
 }
 

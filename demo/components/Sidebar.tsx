@@ -25,10 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onExampleSelect }) => {
           onExampleSelect(files[0]);
         }
       } else {
-        console.error(
-          "Failed to fetch example files from API, status:",
-          response.status
-        );
+        console.error("Failed to fetch example files from API, status:", response.status);
         setExampleFiles([]);
       }
     } catch (error) {

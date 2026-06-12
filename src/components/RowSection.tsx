@@ -34,9 +34,7 @@ export const RowSection: React.FC<Props> = ({
   try {
     if (grid && currentCell) {
       const activeAttr = grid.getAttribute("data-ui-active-row-index");
-      const rowIndex = activeAttr
-        ? parseInt(activeAttr, 10)
-        : Grid.getRowIndex(currentCell);
+      const rowIndex = activeAttr ? parseInt(activeAttr, 10) : Grid.getRowIndex(currentCell);
       const controller = new BloomGrid(grid);
       const raw = controller.getRowHeight(rowIndex) || "hug";
       const h = typeof raw === "string" ? raw.trim() : raw;
@@ -78,16 +76,8 @@ export const RowSection: React.FC<Props> = ({
         onMouseDown={(e) => e.preventDefault()}
       >
         <div className="flex gap-3">
-          <IconButton
-            icon={addRowAboveIcon}
-            alt="Insert Row Above"
-            onClick={onInsertAbove}
-          />
-          <IconButton
-            icon={addRowBelowIcon}
-            alt="Insert Row Below"
-            onClick={onInsertBelow}
-          />
+          <IconButton icon={addRowAboveIcon} alt="Insert Row Above" onClick={onInsertAbove} />
+          <IconButton icon={addRowBelowIcon} alt="Insert Row Below" onClick={onInsertBelow} />
         </div>
         <IconButton icon={deleteRowIcon} alt="Delete Row" onClick={onDelete} />
       </div>{" "}

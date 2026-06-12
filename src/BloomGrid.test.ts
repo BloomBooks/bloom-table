@@ -27,7 +27,7 @@ describe("BloomGrid controller", () => {
 
     // renderer should have applied template props at least once
     const calls = spy.mock.calls.filter(
-      (c) => c[0] === "--grid-column-count" || c[0] === "--grid-row-count"
+      (c) => c[0] === "--grid-column-count" || c[0] === "--grid-row-count",
     );
     expect(calls.length).toBeGreaterThan(0);
   });
@@ -37,9 +37,7 @@ describe("BloomGrid controller", () => {
     const before = grid.getAttribute("data-column-widths");
     ctrl.setColumnWidth(0, "200px");
     expect(grid.getAttribute("data-column-widths")).not.toBe(before);
-    expect(grid.getAttribute("data-column-widths")?.startsWith("200px")).toBe(
-      true
-    );
+    expect(grid.getAttribute("data-column-widths")?.startsWith("200px")).toBe(true);
   });
 
   it("sets spans and maintains skip semantics", () => {
@@ -72,15 +70,13 @@ describe("BloomGrid controller", () => {
   it("addColumnAt inserts columns at correct positions", () => {
     const { grid, ctrl } = setupGrid();
     const initialCellCount = grid.querySelectorAll(".cell").length;
-    const initialColumnCount =
-      grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const initialColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
 
     // Add column at start
     ctrl.addColumnAt(0);
 
     const afterStart = grid.querySelectorAll(".cell").length;
-    const startColumnCount =
-      grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const startColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(startColumnCount).toBe(initialColumnCount + 1);
     expect(afterStart).toBeGreaterThan(initialCellCount);
 
@@ -88,8 +84,7 @@ describe("BloomGrid controller", () => {
     ctrl.addColumnAt(1);
 
     const afterMiddle = grid.querySelectorAll(".cell").length;
-    const middleColumnCount =
-      grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const middleColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(middleColumnCount).toBe(startColumnCount + 1);
     expect(afterMiddle).toBeGreaterThan(afterStart);
 
@@ -97,8 +92,7 @@ describe("BloomGrid controller", () => {
     ctrl.addColumnAt(middleColumnCount);
 
     const afterEnd = grid.querySelectorAll(".cell").length;
-    const endColumnCount =
-      grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const endColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(endColumnCount).toBe(middleColumnCount + 1);
     expect(afterEnd).toBeGreaterThan(afterMiddle);
   });
@@ -106,15 +100,13 @@ describe("BloomGrid controller", () => {
   it("addRowAt inserts rows at correct positions", () => {
     const { grid, ctrl } = setupGrid();
     const initialCellCount = grid.querySelectorAll(".cell").length;
-    const initialRowCount =
-      grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const initialRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
 
     // Add row at start
     ctrl.addRowAt(0);
 
     const afterStart = grid.querySelectorAll(".cell").length;
-    const startRowCount =
-      grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const startRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
     expect(startRowCount).toBe(initialRowCount + 1);
     expect(afterStart).toBeGreaterThan(initialCellCount);
 
@@ -122,8 +114,7 @@ describe("BloomGrid controller", () => {
     ctrl.addRowAt(1);
 
     const afterMiddle = grid.querySelectorAll(".cell").length;
-    const middleRowCount =
-      grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const middleRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
     expect(middleRowCount).toBe(startRowCount + 1);
     expect(afterMiddle).toBeGreaterThan(afterStart);
   });
@@ -138,17 +129,14 @@ describe("BloomGrid controller", () => {
     ctrl.addRow();
 
     const beforeRemove = grid.querySelectorAll(".cell").length;
-    const beforeColumnCount =
-      grid.getAttribute("data-column-widths")?.split(",").length || 0;
-    const beforeRowCount =
-      grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const beforeColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const beforeRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
 
     // Remove column
     ctrl.removeColumnAt(1);
 
     const afterColumnRemove = grid.querySelectorAll(".cell").length;
-    const afterColumnCount =
-      grid.getAttribute("data-column-widths")?.split(",").length || 0;
+    const afterColumnCount = grid.getAttribute("data-column-widths")?.split(",").length || 0;
     expect(afterColumnCount).toBe(beforeColumnCount - 1);
     expect(afterColumnRemove).toBeLessThan(beforeRemove);
 
@@ -156,8 +144,7 @@ describe("BloomGrid controller", () => {
     ctrl.removeRowAt(0);
 
     const afterRowRemove = grid.querySelectorAll(".cell").length;
-    const afterRowCount =
-      grid.getAttribute("data-row-heights")?.split(",").length || 0;
+    const afterRowCount = grid.getAttribute("data-row-heights")?.split(",").length || 0;
     expect(afterRowCount).toBe(beforeRowCount - 1);
     expect(afterRowRemove).toBeLessThan(afterColumnRemove);
   });
@@ -195,8 +182,7 @@ describe("BloomGrid controller", () => {
 
       // Find the cell directly below the first cell
       // In default grid setup, this should be at position based on column count
-      const columnCount =
-        grid.getAttribute("data-column-widths")?.split(",").length || 2;
+      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 2;
       const cellBelow = cells[columnCount]; // Next row, same column
 
       expect(firstCell).toBeTruthy();
@@ -227,8 +213,7 @@ describe("BloomGrid controller", () => {
 
       const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
-      const columnCount =
-        grid.getAttribute("data-column-widths")?.split(",").length || 3;
+      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 3;
 
       // Find the cells that should be covered by a 2x2 span
       const rightCell = cells[1];
@@ -288,8 +273,7 @@ describe("BloomGrid controller", () => {
 
       const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
-      const columnCount =
-        grid.getAttribute("data-column-widths")?.split(",").length || 3;
+      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 3;
 
       const rightCell = cells[1];
       const belowCell = cells[columnCount];
@@ -325,8 +309,7 @@ describe("BloomGrid controller", () => {
 
       const cells = Array.from(grid.querySelectorAll<HTMLElement>(".cell"));
       const firstCell = cells[0];
-      const columnCount =
-        grid.getAttribute("data-column-widths")?.split(",").length || 3;
+      const columnCount = grid.getAttribute("data-column-widths")?.split(",").length || 3;
 
       // Start with horizontal span (1x2 -> 2 columns)
       ctrl.setSpan(firstCell, 2, 1);
@@ -392,7 +375,7 @@ describe("BloomGrid controller", () => {
 
       // Should have triggered renders (grid properties should be set)
       const calls = spy.mock.calls.filter(
-        (c) => c[0] === "--grid-column-count" || c[0] === "--grid-row-count"
+        (c) => c[0] === "--grid-column-count" || c[0] === "--grid-row-count",
       );
       expect(calls.length).toBeGreaterThan(0);
     });

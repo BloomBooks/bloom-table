@@ -8,21 +8,10 @@ type Props = {
   children?: React.ReactNode;
 };
 
-const Section: React.FC<Props> = ({
-  label,
-  className,
-  titleClassName,
-  children,
-}) => {
+const Section: React.FC<Props> = ({ label, className, titleClassName, children }) => {
   return (
     <div className={[sectionStyle, className].filter(Boolean).join(" ")}>
-      <h2
-        className={[sectionTitleStyle, titleClassName]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {label}
-      </h2>
+      <h2 className={[sectionTitleStyle, titleClassName].filter(Boolean).join(" ")}>{label}</h2>
       {children}
     </div>
   );

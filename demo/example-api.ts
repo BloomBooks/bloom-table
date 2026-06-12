@@ -28,7 +28,7 @@ export async function getExamples(req, res, next) {
               htmlFile: file,
               pngFile: pngExists ? pngFile : undefined, // Only include PNG if it exists
             };
-          })
+          }),
       );
 
       res.setHeader("Content-Type", "application/json");
@@ -49,10 +49,7 @@ export async function handleSaveExampleRequest(req, res) {
 
   // Enable CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,HEAD,PUT,PATCH,POST,DELETE"
-  );
+  res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   // Handle preflight request
@@ -83,9 +80,7 @@ export async function handleSaveExampleRequest(req, res) {
       }
 
       // Prevent directory traversal
-      const safeExampleName = path
-        .normalize(exampleName)
-        .replace(/^(\.\.[\\/])+/g, "");
+      const safeExampleName = path.normalize(exampleName).replace(/^(\.\.[\\/])+/g, "");
       if (safeExampleName.includes("..")) {
         res.statusCode = 400;
         res.end(JSON.stringify({ error: "Invalid example name." }));
@@ -93,18 +88,12 @@ export async function handleSaveExampleRequest(req, res) {
       }
 
       // Determine the file path
-      const filePath = path.resolve(
-        __dirname,
-        "pages",
-        `${safeExampleName}.html`
-      );
+      const filePath = path.resolve(__dirname, "pages", `${safeExampleName}.html`);
 
       console.log(`[API] Attempting to save to file: ${filePath}`);
       console.log(`[API] Current directory: ${__dirname}`);
       console.log(
-        `[API] Available files: ${(
-          await fs.readdir(path.join(__dirname, "pages"))
-        ).join(", ")}`
+        `[API] Available files: ${(await fs.readdir(path.join(__dirname, "pages"))).join(", ")}`,
       );
 
       try {
@@ -116,14 +105,13 @@ export async function handleSaveExampleRequest(req, res) {
         const { document } = dom.window;
 
         // Look for either id="page" or class="page"
-        const pageElement =
-          document.querySelector("#page") || document.querySelector(".page");
+        const pageElement = document.querySelector("#page") || document.querySelector(".page");
         if (!pageElement) {
           res.statusCode = 404;
           res.end(
             JSON.stringify({
               error: `Could not find a page element (with id='page' or class='page') in ${safeExampleName}.html`,
-            })
+            }),
           );
           return;
         }
@@ -142,7 +130,7 @@ export async function handleSaveExampleRequest(req, res) {
           res.end(
             JSON.stringify({
               error: `Example file not found: ${safeExampleName}.html`,
-            })
+            }),
           );
           return;
         }
@@ -151,7 +139,7 @@ export async function handleSaveExampleRequest(req, res) {
         res.end(
           JSON.stringify({
             error: "Internal server error while saving file.",
-          })
+          }),
         );
       }
     } catch (error) {

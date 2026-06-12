@@ -34,6 +34,6 @@ export function ensureSelectionHighlighting(): void {
         .forEach((g) => g.classList.remove("grid--selected"));
       grid.classList.add("grid--selected");
     },
-    true
+    true,
   );
 }

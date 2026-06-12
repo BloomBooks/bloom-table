@@ -25,14 +25,10 @@ export interface UIBorder {
   color?: string;
 }
 
-const toSpec = (
-  u?: UIBorder | null,
-  fallbackColor = "#444"
-): BorderSpec | null => {
+const toSpec = (u?: UIBorder | null, fallbackColor = "#444"): BorderSpec | null => {
   if (!u) return null;
   const color = u.color ?? fallbackColor;
-  if (u.weight <= 0 || u.style === "none")
-    return { weight: 0, style: "none", color };
+  if (u.weight <= 0 || u.style === "none") return { weight: 0, style: "none", color };
   return { weight: u.weight, style: u.style, color } as BorderSpec;
 };
 
@@ -71,7 +67,7 @@ export function ensureEdgesArrays(grid: HTMLElement) {
 export function applyUniformOuter(
   grid: HTMLElement,
   border: UIBorder | null,
-  colorFallback = "#000"
+  colorFallback = "#000",
 ) {
   ensureEdgesArrays(grid);
   const { rows, cols } = getGridSize(grid);
@@ -101,7 +97,7 @@ export function applyOuterBorders(
     bottom?: UIBorder | null;
     left?: UIBorder | null;
   },
-  colorFallback = "#000"
+  colorFallback = "#000",
 ) {
   ensureEdgesArrays(grid);
   const { rows, cols } = getGridSize(grid);
@@ -150,15 +146,13 @@ export function applyUniformInner(
   grid: HTMLElement,
   kind: "innerV" | "innerH",
   border: UIBorder | null,
-  colorFallback = "#444"
+  colorFallback = "#444",
 ) {
   ensureEdgesArrays(grid);
   const { rows, cols } = getGridSize(grid);
   const spec = toSpec(border, colorFallback);
   if (kind === "innerV") {
-    const v = (getEdgesV(grid) ?? []) as Array<
-      Array<HVVerticalEdgeCellSides | BorderSpec | null>
-    >;
+    const v = (getEdgesV(grid) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
     for (let r = 0; r < rows; r++) {
       for (let c = 1; c <= Math.max(0, cols - 1); c++) {
         // Write a single-spec for conciseness
@@ -183,7 +177,7 @@ export function applyUniformInner(
 export function setDefaultBorder(
   grid: HTMLElement,
   border: UIBorder | null,
-  colorFallback = "#444"
+  colorFallback = "#444",
 ) {
   setEdgeDefault(grid, toSpec(border, colorFallback));
 }
@@ -200,7 +194,7 @@ export function applyCellPerimeter(
     left?: UIBorder | null;
   },
   outerColorFallback = "#000",
-  innerColorFallback = "#444"
+  innerColorFallback = "#444",
 ) {
   ensureEdgesArrays(grid);
   const { rows, cols } = getGridSize(grid);
@@ -214,12 +208,8 @@ export function applyCellPerimeter(
   const sy = Math.max(1, span.y);
 
   // Fetch arrays
-  const v = (getEdgesV(grid) ?? []) as Array<
-    Array<HVVerticalEdgeCellSides | BorderSpec | null>
-  >;
-  const h = (getEdgesH(grid) ?? []) as Array<
-    Array<HVHorizontalEdgeCellSides | BorderSpec | null>
-  >;
+  const v = (getEdgesV(grid) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
+  const h = (getEdgesH(grid) ?? []) as Array<Array<HVHorizontalEdgeCellSides | BorderSpec | null>>;
 
   // Left
   if (map.left !== undefined) {

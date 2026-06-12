@@ -32,7 +32,7 @@ const Demo: React.FC = () => {
   // Function to load and parse HTML content
   const loadExampleContent = async (
     group: "exercises" | "tests",
-    filename: string
+    filename: string,
   ): Promise<string> => {
     try {
       const response = await fetch(`./${group}/${filename}`);
@@ -51,14 +51,9 @@ const Demo: React.FC = () => {
   };
 
   const handleExampleSelect = async (example: Example) => {
-    console.log(
-      `Loading example: ${example.name} (${example.group}/${example.htmlFile})`
-    );
+    console.log(`Loading example: ${example.name} (${example.group}/${example.htmlFile})`);
     setCurrentExample(example);
-    const exampleHtml = await loadExampleContent(
-      example.group,
-      example.htmlFile
-    );
+    const exampleHtml = await loadExampleContent(example.group, example.htmlFile);
     setExampleHtmlContent(exampleHtml);
 
     // Determine image path: use provided path or, for tests, try <name>.png in the tests folder
@@ -160,11 +155,7 @@ const Demo: React.FC = () => {
             position: "relative",
           }}
         >
-          <MainContent
-            id="test-container"
-            className="compact"
-            content={exampleHtmlContent}
-          />
+          <MainContent id="test-container" className="compact" content={exampleHtmlContent} />
         </div>
       )}
 
@@ -179,10 +170,7 @@ const Demo: React.FC = () => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h3
-              className="text-lg font-semibold text-white mb-2"
-              style={{ margin: 0 }}
-            >
+            <h3 className="text-lg font-semibold text-white mb-2" style={{ margin: 0 }}>
               Try to match the essence of the example
             </h3>
           </div>
@@ -230,5 +218,5 @@ const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
     <Demo />
-  </React.StrictMode>
+  </React.StrictMode>,
 );

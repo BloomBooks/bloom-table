@@ -11,7 +11,6 @@ This document explains the major parts of Bloom Grid, how they interact, and the
 ## Key modules
 
 - `grid-model.ts` — Data accessors & validation for the DOM model
-
   - Track sizing: `data-column-widths`, `data-row-heights` with helpers `get/setColumnWidths`, `get/setRowHeights`.
   - Spans: per-cell `data-span-x`, `data-span-y` via `getSpan` / `setSpan`.
   - Gaps: `data-gap-x`, `data-gap-y` lists or single values via `get/setGapX`, `get/setGapY`.
@@ -24,7 +23,6 @@ This document explains the major parts of Bloom Grid, how they interact, and the
   - Types: `BorderSpec`, `SpanSpec`, sided-edge entry types, with runtime JSON parsing and assertions.
 
 - `grid-renderer.ts` — Pure rendering of model to CSS styles
-
   - Reads model attributes and computes:
     - Templates: `grid-template-columns/rows` from track tokens (supporting `hug` and `fill`).
     - Spans: reads `data-span-x/y` on cells and sets CSS vars `--span-x/--span-y` used by CSS.
@@ -37,13 +35,11 @@ This document explains the major parts of Bloom Grid, how they interact, and the
   - Does not mutate `data-*` and never changes DOM structure.
 
 - `border-state.ts` — Derived UI-facing state helpers
-
   - Provides read-only helpers for UI components to reflect current border state without duplicating renderer logic.
   - Example: `getGridOuterBorderValueMap(grid)` derives the outer (table) border control values by building the render model and sampling perimeter cell sides. It honors `data-border-default` and CSS custom properties (`--edge-default-*`).
   - Keeps defaults centralized and out of UI code; UI reads from these helpers instead of inferring from the raw DOM.
 
 - `grid-renderer.ts` — Pure rendering function from DOM data to visual styles
-
   - Pure function: reads `data-*` from DOM → writes inline CSS styles.
   - Capabilities:
     - Templates: `grid-template-columns/rows` from track tokens (supporting `hug` and `fill`).
@@ -57,7 +53,6 @@ This document explains the major parts of Bloom Grid, how they interact, and the
   - Does not mutate `data-*` and never changes DOM structure.
 
 - `BloomGrid.ts` — Controller for high-level operations
-
   - Wraps structural and model updates and then renders immediately.
   - Structure: `addRow`, `removeLastRow`, `addColumn`, `removeLastColumn`, and positioned variants (via `structure.ts`).
   - Sizing: `setColumnWidth`, `setRowHeight` using `grid-model` helpers.
@@ -66,7 +61,6 @@ This document explains the major parts of Bloom Grid, how they interact, and the
   - History: Every operation creates a history entry via `gridHistoryManager`.
 
 - `structure.ts` — DOM structure operations
-
   - Grid cell management and track strings; default size token is `hug` for both rows and columns.
   - Spanning behavior: when a cell spans, covered cells remain in the DOM and are marked with class `skip`.
   - Provides helpers for adding/removing rows/columns and setting spans while keeping correct insertion order.

@@ -52,18 +52,10 @@ describe("grid-model", () => {
     const g = makeGrid();
     // Vertical edges: 1 row x 3 vertical boundaries (including perimeters)
     setEdgesV(g, [
-      [
-        null,
-        { west: { weight: 2, style: "solid", color: "#000" }, east: null },
-        null,
-      ],
+      [null, { west: { weight: 2, style: "solid", color: "#000" }, east: null }, null],
     ]);
     expect(getEdgesV(g)).toEqual([
-      [
-        null,
-        { west: { weight: 2, style: "solid", color: "#000" }, east: null },
-        null,
-      ],
+      [null, { west: { weight: 2, style: "solid", color: "#000" }, east: null }, null],
     ]);
 
     // Horizontal edges: 2 boundaries x 2 columns (including perimeters)

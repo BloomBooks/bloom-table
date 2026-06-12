@@ -13,18 +13,14 @@ test.describe("Borders changing - visual expectation", () => {
     await page.waitForSelector("#example-list");
 
     // Select New-grid
-    const newGridItem = page
-      .locator("#example-list")
-      .getByText("New-grid", { exact: false });
+    const newGridItem = page.locator("#example-list").getByText("New-grid", { exact: false });
     await newGridItem.click();
 
     const grid = page.locator("#example-container #main-grid.grid");
     await expect(grid).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
-    const firstCellEditor = page
-      .locator("#example-container .cell div[contenteditable]")
-      .first();
+    const firstCellEditor = page.locator("#example-container .cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     const tableSection = page
@@ -48,26 +44,20 @@ test.describe("Borders changing - visual expectation", () => {
     expect(styleTitle?.toLowerCase()).not.toContain("mixed");
     expect(weightTitle?.toLowerCase()).not.toContain("mixed");
   });
-  test("changing table style to dashed applies dashed borders (BUG)", async ({
-    page,
-  }) => {
+  test("changing table style to dashed applies dashed borders (BUG)", async ({ page }) => {
     await page.goto("/demo/index.html");
     await page.waitForSelector("#root");
     await page.waitForSelector("#example-list");
 
     // Select New-grid
-    const newGridItem = page
-      .locator("#example-list")
-      .getByText("New-grid", { exact: false });
+    const newGridItem = page.locator("#example-list").getByText("New-grid", { exact: false });
     await newGridItem.click();
 
     const grid = page.locator("#example-container #main-grid.grid");
     await expect(grid).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
-    const firstCellEditor = page
-      .locator("#example-container .cell div[contenteditable]")
-      .first();
+    const firstCellEditor = page.locator("#example-container .cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     // In the Table section, set Style=Dashed and Weight=2
@@ -76,13 +66,9 @@ test.describe("Borders changing - visual expectation", () => {
       .filter({ has: page.locator("h2", { hasText: "Table" }) })
       .first();
     await tableSection.locator('button[aria-label="Style"]').click();
-    await tableSection
-      .locator('div[role="menu"] [role="menuitemradio"][title="Dashed"]')
-      .click();
+    await tableSection.locator('div[role="menu"] [role="menuitemradio"][title="Dashed"]').click();
     await tableSection.locator('button[aria-label="Weight"]').click();
-    await tableSection
-      .locator('div[role="menu"] [role="menuitemradio"][title="2"]')
-      .click();
+    await tableSection.locator('div[role="menu"] [role="menuitemradio"][title="2"]').click();
 
     await page.waitForTimeout(150);
 
@@ -112,9 +98,7 @@ test.describe("Borders changing - visual expectation", () => {
     });
     // This is what should happen once the bug is fixed:
     expect(
-      [computed.right, computed.bottom, computed.top, computed.left].some(
-        (s) => s === "dashed"
-      )
+      [computed.right, computed.bottom, computed.top, computed.left].some((s) => s === "dashed"),
     ).toBe(true);
   });
 });
