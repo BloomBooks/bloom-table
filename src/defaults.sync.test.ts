@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { EDGE_DEFAULT } from "./defaults";
 
 // Simple parser to extract CSS custom properties from src/bloom-grid.css

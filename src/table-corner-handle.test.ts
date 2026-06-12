@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vite-plus/test";
 import { attachGrid, detachGrid } from "./attach";
 import { gridHistoryManager } from "./history";
 import { resetTableSizeButtons } from "./table-size-buttons";

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { getGridOuterBorderValueMap } from "./border-state";
 
 function makeGrid(cols = 2, rows = 2): HTMLElement {

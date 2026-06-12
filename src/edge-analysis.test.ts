@@ -1,5 +1,5 @@
 // Debug test to understand edge positions for red cross pattern
-import { describe, it } from "vitest";
+import { describe, it } from "vite-plus/test";
 
 describe("edge analysis for red cross pattern", () => {
   it("analyzes what edges are needed for complete borders on r1c1 and r2c2", () => {

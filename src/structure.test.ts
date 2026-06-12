@@ -1,4 +1,4 @@
-import { it, expect, beforeEach, afterEach, describe } from "vitest";
+import { it, expect, beforeEach, afterEach, describe } from "vite-plus/test";
 import {
   addColumn,
   addColumnAt,

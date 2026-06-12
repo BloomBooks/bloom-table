@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { buildRenderModel, render } from "./grid-renderer";
 
 function makeGrid(): HTMLElement {

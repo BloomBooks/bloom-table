@@ -3,23 +3,23 @@
   "version": "1.0.0",
   "description": "A TypeScript library for editing tables/grids in pure html",
   "main": "dist/bloom-grid.umd.js",
-  "module": "dist/bloom-grid.es.js",
-  "types": "dist/index.d.ts",
+  "module": "dist/bloom-grid.mjs",
+  "types": "dist/bloom-grid.d.mts",
   "files": [
     "dist",
     "bloom-grid.css"
   ],
   "scripts": {
-    "build": "vite build",
-    "dev": "vite --open /demo/index.html",
-    "build:watch": "vite build --watch",
+    "build": "vp pack",
+    "dev": "vp dev",
+    "build:watch": "vp pack --watch",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "//will run and exit": "",
-    "test": "yarn vitest run",
+    "test": "vp test run",
     "e2e": "npx playwright test",
     "e2e:ui": "npx playwright test --ui",
-    "preview": "vite preview"
+    "preview": "vp preview"
   },
   "keywords": [
     "grid",
@@ -33,14 +33,13 @@
     "@types/node": "^24.0.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.2",
     "happy-dom": "^15.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^3.2.4"
+    "vite": "^8.0.0",
+    "vite-plus": "^0.1.24"
   },
   "peerDependencies": {
     "react": "^18.0.0",

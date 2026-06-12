@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 import { applyBorderMapToGrid } from "../TableSection";
 import { BorderValueMap } from "./logic/types";
 import { render } from "../../grid-renderer";
