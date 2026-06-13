@@ -36,3 +36,10 @@ export { removeTableEditingArtifacts } from "./prepare-for-save";
 
 // React control panel (optional; requires the React/MUI peer dependencies).
 export { default as TableMenu } from "./components/TableMenu";
+
+// Injectable table-operations API. A host that renders TableMenu in a different
+// JS realm/iframe from the tables (e.g. Bloom's toolbox) imports defaultTableApi
+// *from the page frame's module* and passes it as TableMenu's tableApi prop, so
+// every operation runs in the realm whose history manager owns the table.
+export { defaultTableApi, useTableApi, TableApiContext } from "./components/TableApiContext";
+export type { TableApi } from "./components/TableApiContext";

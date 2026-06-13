@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 import { applyBorderMapToTable } from "../TableSection";
+import { defaultTableApi } from "../TableApiContext";
 import { BorderValueMap } from "./logic/types";
 import { render } from "../../table-renderer";
 
@@ -49,7 +50,7 @@ describe("BorderControl", () => {
       };
 
       // Apply the border map to the table
-      applyBorderMapToTable(table, borderMap);
+      applyBorderMapToTable(defaultTableApi, table, borderMap);
 
       // Render the table to apply the borders to the DOM
       render(table);
@@ -98,7 +99,7 @@ describe("BorderControl", () => {
         innerV: { weight: 0, style: "none", radius: 0 },
       };
 
-      applyBorderMapToTable(table, borderMap);
+      applyBorderMapToTable(defaultTableApi, table, borderMap);
       render(table);
 
       // Verify that each side has its own style

@@ -23,6 +23,7 @@
     },
     "./bloom-table.css": "./dist/bloom-table.css",
     "./bloom-table-edit.css": "./dist/bloom-table-edit.css",
+    "./table-menu.css": "./dist/table-menu.css",
     "./dist/*": "./dist/*"
   },
   "scripts": {

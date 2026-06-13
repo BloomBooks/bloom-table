@@ -1,6 +1,5 @@
 import React from "react";
-import * as Table from "../";
-import { BloomTable } from "../";
+import { useTableApi } from "./TableApiContext";
 import addColumnLeftIcon from "./icons/column-add-before.svg";
 import addColumnRightIcon from "./icons/column-add-after.svg";
 import deleteColumnIcon from "./icons/column-delete.svg";
@@ -30,13 +29,14 @@ export const ColumnSection: React.FC<Props> = ({
   onInsertRight,
   onDelete,
 }) => {
+  const api = useTableApi();
   // Determine current column width and map to radio value
   let selectedSize: "grow" | "hug" | "fixed" = "hug";
   let fixedLabel = "mm";
   try {
     if (table && currentCell) {
-      const { column: columnIndex } = Table.getRowAndColumn(table, currentCell);
-      const controller = new BloomTable(table);
+      const { column: columnIndex } = api.getRowAndColumn(table, currentCell);
+      const controller = new api.BloomTable(table);
       const raw = controller.getColumnWidth(columnIndex) || "hug";
       const w = typeof raw === "string" ? raw.trim() : raw;
       if (w === "hug") selectedSize = "hug";
@@ -58,8 +58,8 @@ export const ColumnSection: React.FC<Props> = ({
 
   const onChangeSize = (id: string) => {
     if (!table || !currentCell) return;
-    const { column: columnIndex } = Table.getRowAndColumn(table, currentCell);
-    const controller = new BloomTable(table);
+    const { column: columnIndex } = api.getRowAndColumn(table, currentCell);
+    const controller = new api.BloomTable(table);
     if (id === "grow") controller.setColumnWidth(columnIndex, "fill");
     else if (id === "hug") controller.setColumnWidth(columnIndex, "hug");
     else if (id === "fixed") {
@@ -75,8 +75,8 @@ export const ColumnSection: React.FC<Props> = ({
   let fixedValue = "";
   try {
     if (table && currentCell) {
-      colIdx = Table.getRowAndColumn(table, currentCell).column;
-      const w = (new BloomTable(table).getColumnWidth(colIdx) || "").trim();
+      colIdx = api.getRowAndColumn(table, currentCell).column;
+      const w = (new api.BloomTable(table).getColumnWidth(colIdx) || "").trim();
       if (/(px|mm)$/i.test(w)) fixedValue = w;
     }
   } catch {}
@@ -112,8 +112,8 @@ export const ColumnSection: React.FC<Props> = ({
           placeholder="e.g. 120px"
           onChange={(e) => {
             if (!table || !currentCell) return;
-            const { column } = Table.getRowAndColumn(table, currentCell);
-            new BloomTable(table).setColumnWidth(column, e.target.value);
+            const { column } = api.getRowAndColumn(table, currentCell);
+            new api.BloomTable(table).setColumnWidth(column, e.target.value);
           }}
           className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
           style={{ width: 90 }}

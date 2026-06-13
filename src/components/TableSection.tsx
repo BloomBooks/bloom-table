@@ -4,11 +4,9 @@ import Section from "./Section";
 import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 // no table-model reads here; we derive current state via border-state/renderer
-import { applyUniformInner, setDefaultBorder, applyOuterBorders } from "../edge-utils";
 import { render } from "../table-renderer";
-import { getTableOuterBorderValueMap } from "../border-state";
 import { getGapX, setGapX, getGapY, setGapY } from "../table-model";
-import { BloomTable } from "../";
+import { TableApi, useTableApi } from "./TableApiContext";
 
 type Props = {
   table?: HTMLElement;
@@ -20,9 +18,9 @@ const parsePx = (s: string | null | undefined): number => {
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 };
-const buildBorderMapFromTable = (g: HTMLElement): BorderValueMap => {
+const buildBorderMapFromTable = (api: TableApi, g: HTMLElement): BorderValueMap => {
   const cs = getComputedStyle(g);
-  const base = getTableOuterBorderValueMap(g);
+  const base = api.getTableOuterBorderValueMap(g);
 
   // Preserve corner radius reading from computed style (render owns setting)
   const radiusPx = parsePx(cs.borderTopLeftRadius);
@@ -40,13 +38,13 @@ const buildBorderMapFromTable = (g: HTMLElement): BorderValueMap => {
   };
 };
 
-const applyBorderMapToTable = (g: HTMLElement, map: BorderValueMap) => {
+const applyBorderMapToTable = (api: TableApi, g: HTMLElement, map: BorderValueMap) => {
   const cs = getComputedStyle(g);
   const outerColor = (cs.color || "black").trim();
   const innerColor = (cs.color || "#444").trim();
 
   // Write outer edges individually for each side based on the UI map
-  applyOuterBorders(
+  api.applyOuterBorders(
     g,
     {
       top: { weight: map.top.weight, style: map.top.style, color: outerColor },
@@ -69,7 +67,7 @@ const applyBorderMapToTable = (g: HTMLElement, map: BorderValueMap) => {
     outerColor,
   );
   // Inner edges: write uniform inner H and V
-  applyUniformInner(
+  api.applyUniformInner(
     g,
     "innerH",
     {
@@ -79,7 +77,7 @@ const applyBorderMapToTable = (g: HTMLElement, map: BorderValueMap) => {
     } as any,
     innerColor,
   );
-  applyUniformInner(
+  api.applyUniformInner(
     g,
     "innerV",
     {
@@ -91,7 +89,7 @@ const applyBorderMapToTable = (g: HTMLElement, map: BorderValueMap) => {
   );
 
   // Default border as a safety for unspecified edges
-  setDefaultBorder(
+  api.setDefaultBorder(
     g,
     {
       weight: map.innerH.weight,
@@ -102,12 +100,13 @@ const applyBorderMapToTable = (g: HTMLElement, map: BorderValueMap) => {
   );
 
   // Re-render so the per-cell inline styles reflect the updated model
-  render(g);
+  api.render(g);
 };
 
 const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
 
 export const TableSection: React.FC<Props> = ({ table }) => {
+  const api = useTableApi();
   // Corner menu value state, derived from the table and updated on change
   const getCornerValue = (g: HTMLElement | undefined | null): CornerRadius | "mixed" => {
     if (!g) return 0;
@@ -134,7 +133,7 @@ export const TableSection: React.FC<Props> = ({ table }) => {
       {table && (
         <>
           {(() => {
-            const valueMap = buildBorderMapFromTable(table);
+            const valueMap = buildBorderMapFromTable(api, table);
             const cornerDisabled = valueMap.top.weight === 0 || valueMap.top.style === "none";
             return (
               <>
@@ -142,7 +141,7 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                   <BorderControl
                     valueMap={valueMap}
                     showInner
-                    onChange={(next) => applyBorderMapToTable(table, next)}
+                    onChange={(next) => applyBorderMapToTable(api, table, next)}
                   />
                 </div>
                 <div className={menuItemStyle} style={{ cursor: "default" }}>
@@ -150,7 +149,7 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                     value={cornerValue}
                     onChange={(v) => {
                       if (!table) return;
-                      const ctrl = new BloomTable(table);
+                      const ctrl = new api.BloomTable(table);
                       ctrl.setTableCorners(v as number);
                       setCornerValue(v);
                     }}

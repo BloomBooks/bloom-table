@@ -1,0 +1,145 @@
+/* bloom-table: styling for the React control panel (TableMenu).
+ *
+ * The panel's components are written with Tailwind utility class names. The demo
+ * loads Tailwind (CDN) so they "just work" there, but a host app that embeds
+ * TableMenu (e.g. Bloom's toolbox) generally does NOT ship Tailwind, so without
+ * this file the flex rows collapse to vertical stacks and spacing is lost.
+ *
+ * Rather than make every consumer add Tailwind, we ship the exact subset of
+ * utilities the panel uses, all scoped under .table-menu so they cannot leak
+ * into the host's own styles. Import this file wherever TableMenu is rendered:
+ *   import "bloom-table/table-menu.css";
+ *
+ * Values match Tailwind v3 defaults. Keep this in sync if the components start
+ * using new utility classes.
+ */
+
+/* Root container utilities (border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5).
+   Background/color/opacity are set inline by the component. */
+.table-menu {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  width: 16rem;
+  z-index: 10;
+  padding: 0.625rem;
+}
+
+/* --- Layout --- */
+.table-menu .flex {
+  display: flex;
+}
+.table-menu .flex-col {
+  flex-direction: column;
+}
+.table-menu .items-center {
+  align-items: center;
+}
+.table-menu .justify-between {
+  justify-content: space-between;
+}
+.table-menu .gap-2 {
+  gap: 0.5rem;
+}
+.table-menu .gap-3 {
+  gap: 0.75rem;
+}
+.table-menu .gap-4 {
+  gap: 1rem;
+}
+
+/* --- Padding / margin --- */
+.table-menu .p-2 {
+  padding: 0.5rem;
+}
+.table-menu .px-2 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.table-menu .px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.table-menu .py-1 {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+.table-menu .pt-1 {
+  padding-top: 0.25rem;
+}
+.table-menu .pb-1 {
+  padding-bottom: 0.25rem;
+}
+.table-menu .pb-2 {
+  padding-bottom: 0.5rem;
+}
+.table-menu .pb-3 {
+  padding-bottom: 0.75rem;
+}
+.table-menu .mb-2 {
+  margin-bottom: 0.5rem;
+}
+.table-menu .ml-2 {
+  margin-left: 0.5rem;
+}
+
+/* --- Borders / radius --- */
+.table-menu .border {
+  border-width: 1px;
+  border-style: solid;
+}
+.table-menu .border-b {
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+}
+.table-menu .border-gray-200 {
+  border-color: #e5e7eb;
+}
+.table-menu .border-gray-300 {
+  border-color: #d1d5db;
+}
+.table-menu .border-gray-600 {
+  border-color: #4b5563;
+}
+.table-menu .border-gray-700 {
+  border-color: #374151;
+}
+.table-menu .rounded {
+  border-radius: 0.25rem;
+}
+.table-menu .rounded-md {
+  border-radius: 0.375rem;
+}
+
+/* --- Typography --- */
+.table-menu .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.table-menu .text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.table-menu .text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+.table-menu .font-medium {
+  font-weight: 500;
+}
+.table-menu .font-semibold {
+  font-weight: 600;
+}
+
+/* --- Effects / misc --- */
+.table-menu .opacity-80 {
+  opacity: 0.8;
+}
+.table-menu .opacity-90 {
+  opacity: 0.9;
+}
+.table-menu .bg-gray-100 {
+  background-color: #f3f4f6;
+}
