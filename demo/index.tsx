@@ -56,19 +56,10 @@ const Demo: React.FC = () => {
     const exampleHtml = await loadExampleContent(example.group, example.htmlFile);
     setExampleHtmlContent(exampleHtml);
 
-    // Determine image path: use provided path or, for tests, try <name>.png in the tests folder
-    let resolvedPngPath = example.pngPath;
-    if (example.group === "tests" && !resolvedPngPath) {
-      const base = example.htmlFile.replace(/\.html$/i, "");
-      const candidate = `./tests/${base}.png`;
-      try {
-        const resp = await fetch(candidate, { method: "GET" });
-        if (resp.ok) {
-          resolvedPngPath = candidate;
-        }
-      } catch {}
-    }
-    setExamplePngPath(resolvedPngPath);
+    // The /api/examples endpoint already resolves pngPath only for examples that
+    // actually have a thumbnail on disk, so use it directly (no client-side probe,
+    // which would log a 404 in the console for every example without a thumbnail).
+    setExamplePngPath(example.pngPath);
 
     // Load user's attempt from localStorage or initialize with default 2x2 (exercises only)
     if (example.group === "exercises") {
