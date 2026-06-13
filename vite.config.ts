@@ -54,8 +54,9 @@ export default defineConfig({
     dts: true,
     // Ship the stylesheets next to the bundle (was the copy-css-file plugin).
     // bloom-table.css holds the structural/read-time rules; bloom-table-edit.css
-    // holds the edit-only selection/hint rules.
-    copy: ["src/bloom-table.css", "src/bloom-table-edit.css"],
+    // holds the edit-only selection/hint rules; table-menu.css holds the React
+    // panel's utility styles for hosts that don't ship Tailwind.
+    copy: ["src/bloom-table.css", "src/bloom-table-edit.css", "src/table-menu.css"],
     outputOptions(options, format) {
       if (format === "umd") {
         options.globals = {
