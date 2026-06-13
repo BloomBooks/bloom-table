@@ -11,6 +11,9 @@ import { TableApi, useTableApi } from "./TableApiContext";
 // (leftover icons removed)
 import mergeIcon from "./icons/cell-merge.svg";
 import splitIcon from "./icons/cell-split.svg";
+import alignLeftIcon from "./icons/align-left.svg";
+import alignCenterIcon from "./icons/align-center.svg";
+import alignRightIcon from "./icons/align-right.svg";
 
 type Props = {
   currentCell?: HTMLElement | null;
@@ -104,34 +107,24 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       {/* Text alignment */}
       <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
         <div className="text-sm opacity-80 mb-2">Text alignment</div>
-        <div className="flex items-center gap-2 ml-2">
-          {(
-            [
-              { id: "start", label: "Left" },
-              { id: "center", label: "Center" },
-              { id: "end", label: "Right" },
-            ] as { id: CellAlign; label: string }[]
-          ).map(({ id, label }) => {
-            const active = currentCell ? (api.getCellAlign(currentCell) ?? "center") === id : false;
-            return (
-              <button
-                key={id}
-                type="button"
-                disabled={!currentCell}
-                onClick={() => {
-                  if (!currentCell) return;
-                  api.setCellAlign(currentCell, id);
-                  const table = currentCell.closest(".table") as HTMLElement | null;
-                  if (table) api.render(table);
-                }}
-                className="px-2 py-1 border border-gray-600 rounded text-sm"
-                style={{ fontWeight: active ? 700 : 400, opacity: currentCell ? 1 : 0.5 }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        {currentCell && (
+          <RadioGroup
+            className="ml-2"
+            value={api.getCellAlign(currentCell) ?? "center"}
+            onChange={(id) => {
+              api.setCellAlign(currentCell, id as CellAlign);
+              const table = currentCell.closest(".table") as HTMLElement | null;
+              if (table) api.render(table);
+            }}
+            options={
+              [
+                { id: "start", label: "Left", icon: alignLeftIcon },
+                { id: "center", label: "Center", icon: alignCenterIcon },
+                { id: "end", label: "Right", icon: alignRightIcon },
+              ] as { id: CellAlign; label: string; icon: string }[]
+            }
+          />
+        )}
       </div>
 
       {/* Merge / Split */}
