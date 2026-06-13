@@ -19,6 +19,12 @@ const TableMenu: React.FC<{
   const api: TableApi = props.tableApi ?? defaultTableApi;
   const [, forceUpdate] = useState(0);
 
+  // Normalize whatever the host hands us to the actual cell element. A host
+  // (e.g. Bloom) may pass the focused descendant of a cell (an editable child)
+  // rather than the `.bloom-cell` div itself; the panel's operations assert a
+  // real cell, so resolve to the nearest one. Null when not inside a cell.
+  const currentCell = (props.currentCell?.closest(".bloom-cell") as HTMLElement | null) ?? null;
+
   useEffect(() => {
     const handler = () => {
       // Force a re-render when the table history is updated
@@ -27,14 +33,14 @@ const TableMenu: React.FC<{
     // Listen on the document that actually owns the tables. When the panel is
     // hosted cross-iframe, history events fire on the page frame's document,
     // not the toolbox frame's, so bind currentCell.ownerDocument when we have it.
-    const doc = props.currentCell?.ownerDocument ?? document;
+    const doc = currentCell?.ownerDocument ?? document;
     doc.addEventListener("tableHistoryUpdated", handler);
     return () => doc.removeEventListener("tableHistoryUpdated", handler);
-  }, [props.currentCell]);
+  }, [currentCell]);
 
   useEffect(() => {
-    if (!props.currentCell) return;
-    const table = props.currentCell.closest(".bloom-table");
+    if (!currentCell) return;
+    const table = currentCell.closest(".bloom-table");
     if (!table) return;
 
     const observer = new MutationObserver(() => {
@@ -58,68 +64,68 @@ const TableMenu: React.FC<{
     return () => {
       observer.disconnect();
     };
-  }, [props.currentCell]);
+  }, [currentCell]);
 
   const getTargetTableFromSelection = (): HTMLElement => {
-    // Using props.currentCell is more reliable than document.activeElement,
+    // Using currentCell is more reliable than document.activeElement,
     // because focus can move to the menu itself when we click a menu item.
-    const table = props.currentCell!.closest(".bloom-table") as HTMLElement;
+    const table = currentCell!.closest(".bloom-table") as HTMLElement;
     return table;
   };
   const getTargetTableFromCell = (cell: HTMLElement): HTMLElement => {
-    // Using props.currentCell is more reliable than document.activeElement,
+    // Using currentCell is more reliable than document.activeElement,
     // because focus can move to the menu itself when we click a menu item.
     const table = cell.closest(".bloom-table") as HTMLElement;
     return table;
   };
   const handleSetCellContentType = (contentTypeId: string) => {
-    assert(!!props.currentCell, "No cell selected");
-    api.setupContentsOfCell(props.currentCell!, contentTypeId, true);
+    assert(!!currentCell, "No cell selected");
+    api.setupContentsOfCell(currentCell!, contentTypeId, true);
   };
 
   const handleExtendCell = () => {
-    assert(!!props.currentCell, "No cell selected");
-    const table = getTargetTableFromCell(props.currentCell!);
+    assert(!!currentCell, "No cell selected");
+    const table = getTargetTableFromCell(currentCell!);
     const controller = new api.BloomTable(table);
-    const current = controller.getSpan(props.currentCell!);
-    controller.setSpan(props.currentCell!, (current.x || 1) + 1, current.y || 1);
+    const current = controller.getSpan(currentCell!);
+    controller.setSpan(currentCell!, (current.x || 1) + 1, current.y || 1);
   };
 
   const handleContractCell = () => {
-    assert(!!props.currentCell, "No cell selected");
-    const table = getTargetTableFromCell(props.currentCell!);
+    assert(!!currentCell, "No cell selected");
+    const table = getTargetTableFromCell(currentCell!);
     const controller = new api.BloomTable(table);
-    const current = controller.getSpan(props.currentCell!);
+    const current = controller.getSpan(currentCell!);
     const nextX = Math.max(1, (current.x || 1) - 1);
-    controller.setSpan(props.currentCell!, nextX, current.y || 1);
+    controller.setSpan(currentCell!, nextX, current.y || 1);
   };
   const handleInsertRowAbove = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = api.getRowIndex(props.currentCell!);
+    const rowIndex = api.getRowIndex(currentCell!);
     const controller = new api.BloomTable(table);
     controller.addRowAt(rowIndex);
   };
   const handleInsertRowBelow = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = api.getRowIndex(props.currentCell!);
+    const rowIndex = api.getRowIndex(currentCell!);
     const controller = new api.BloomTable(table);
     controller.addRowAt(rowIndex + 1);
   };
   const handleDeleteRow = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = api.getRowIndex(props.currentCell!);
+    const rowIndex = api.getRowIndex(currentCell!);
     const controller = new api.BloomTable(table);
     controller.removeRowAt(rowIndex);
   };
   const handleInsertColumnLeft = () => {
-    const table = getTargetTableFromCell(props.currentCell!); // TODO doesn't have cell param
-    const columnIndex = api.getRowAndColumn(table, props.currentCell!).column;
+    const table = getTargetTableFromCell(currentCell!); // TODO doesn't have cell param
+    const columnIndex = api.getRowAndColumn(table, currentCell!).column;
     const controller = new api.BloomTable(table);
     controller.addColumnAt(columnIndex);
   };
 
   const handleInsertColumnRight = () => {
-    const cell = props.currentCell!;
+    const cell = currentCell!;
     const table = getTargetTableFromCell(cell);
     const columnIndex = api.getRowAndColumn(table, cell).column;
     const controller = new api.BloomTable(table);
@@ -128,7 +134,7 @@ const TableMenu: React.FC<{
 
   const handleDeleteColumn = () => {
     const table = getTargetTableFromSelection();
-    const columnIndex = api.getRowAndColumn(table, props.currentCell!).column;
+    const columnIndex = api.getRowAndColumn(table, currentCell!).column;
     const controller = new api.BloomTable(table);
     controller.removeColumnAt(columnIndex);
   };
@@ -141,20 +147,20 @@ const TableMenu: React.FC<{
     }
   };
   const handleUndo = () => {
-    const table = props.currentCell ? getTargetTableFromSelection() : null;
+    const table = currentCell ? getTargetTableFromSelection() : null;
     if (!table) return;
     api.undoLastOperation(table);
   };
 
   // (Old border toggle handlers removed in favor of BorderControl)
 
-  const table = props.currentCell ? getTargetTableFromSelection() : undefined;
+  const table = currentCell ? getTargetTableFromSelection() : undefined;
   const parentCell = table?.parentElement?.closest(".bloom-cell");
 
   // no-op placeholder removed: variable was unused
   // If there's no current context (no selected cell or not within a table),
   // show an instructional message instead of the full menu.
-  const hasContext = !!props.currentCell && !!props.currentCell.closest(".bloom-table");
+  const hasContext = !!currentCell && !!currentCell.closest(".bloom-table");
   if (!hasContext) {
     return (
       <div
@@ -174,8 +180,8 @@ const TableMenu: React.FC<{
       style={{
         backgroundColor: "#2E2E2E",
         color: "rgba(255,255,255,0.95)",
-        opacity: !!props.currentCell ? 1 : 0.5,
-        pointerEvents: !!props.currentCell ? "auto" : "none",
+        opacity: !!currentCell ? 1 : 0.5,
+        pointerEvents: !!currentCell ? "auto" : "none",
       }}
 
       // onMouseDown, store the current document selection in a react state. Then onMouseUp, restore the selection.
@@ -185,7 +191,7 @@ const TableMenu: React.FC<{
       <TableSection table={table} />
       <RowSection
         table={table}
-        currentCell={props.currentCell}
+        currentCell={currentCell}
         onInsertAbove={handleInsertRowAbove}
         onInsertBelow={handleInsertRowBelow}
         onDelete={handleDeleteRow}
@@ -193,13 +199,13 @@ const TableMenu: React.FC<{
 
       <ColumnSection
         table={table}
-        currentCell={props.currentCell}
+        currentCell={currentCell}
         onInsertLeft={handleInsertColumnLeft}
         onInsertRight={handleInsertColumnRight}
         onDelete={handleDeleteColumn}
       />
       <CellSection
-        currentCell={props.currentCell}
+        currentCell={currentCell}
         onSetContentType={handleSetCellContentType}
         onExtend={handleExtendCell}
         onContract={handleContractCell}

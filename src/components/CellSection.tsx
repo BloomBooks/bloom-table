@@ -4,14 +4,7 @@ import RadioGroup from "./RadioGroup";
 import IconButton from "./IconButton";
 import { BorderControl } from "./BorderControl/BorderControl";
 import type { BorderStyle, BorderValueMap } from "./BorderControl/logic/types";
-import { render } from "../table-renderer";
-import {
-  getCellCorners,
-  setCellCorners,
-  getCellPadding,
-  setCellPadding,
-  type CellAlign,
-} from "../table-model";
+import type { CellAlign } from "../table-model";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 import type { CornerRadius } from "./BorderControl/logic/types";
 import { TableApi, useTableApi } from "./TableApiContext";
@@ -141,12 +134,12 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
         <div className="text-sm opacity-80 mb-2">Corners</div>
         {currentCell && (
           <CornerMenu
-            value={(getCellCorners(currentCell)?.radius ?? 0) as CornerRadius}
+            value={(api.getCellCorners(currentCell)?.radius ?? 0) as CornerRadius}
             onChange={(v) => {
               if (!currentCell) return;
-              setCellCorners(currentCell, v ? { radius: v } : null);
+              api.setCellCorners(currentCell, v ? { radius: v } : null);
               const table = currentCell.closest(".bloom-table") as HTMLElement | null;
-              if (table) render(table);
+              if (table) api.render(table);
             }}
           />
         )}
@@ -157,15 +150,15 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
         <div className="text-sm opacity-80 mb-2">Padding</div>
         {currentCell && (
           <input
-            key={`pad:${borderControlKey}:${getCellPadding(currentCell) ?? ""}`}
+            key={`pad:${borderControlKey}:${api.getCellPadding(currentCell) ?? ""}`}
             aria-label="Cell padding"
             type="text"
-            defaultValue={getCellPadding(currentCell) ?? ""}
+            defaultValue={api.getCellPadding(currentCell) ?? ""}
             placeholder="e.g. 6px 16px"
             onChange={(e) => {
-              setCellPadding(currentCell, e.target.value || null);
+              api.setCellPadding(currentCell, e.target.value || null);
               const table = currentCell.closest(".bloom-table") as HTMLElement | null;
-              if (table) render(table);
+              if (table) api.render(table);
             }}
             className="ml-2 px-2 py-1 border border-gray-600 rounded text-sm text-black"
             style={{ width: 120 }}

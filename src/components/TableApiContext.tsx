@@ -29,7 +29,18 @@ import {
   applyOuterBorders,
 } from "../edge-utils";
 import { getCellPerimeterValueMap, getTableOuterBorderValueMap } from "../border-state";
-import { getCellAlign, setCellAlign } from "../table-model";
+import {
+  getCellAlign,
+  setCellAlign,
+  getCellCorners,
+  setCellCorners,
+  getCellPadding,
+  setCellPadding,
+  getGapX,
+  setGapX,
+  getGapY,
+  setGapY,
+} from "../table-model";
 
 /** Every table operation the React panel needs, bundled so a host can inject a
  *  realm-correct implementation. Types are derived from the real functions. */
@@ -60,6 +71,16 @@ export interface TableApi {
   // per-cell alignment
   getCellAlign: typeof getCellAlign;
   setCellAlign: typeof setCellAlign;
+  // per-cell corners / padding
+  getCellCorners: typeof getCellCorners;
+  setCellCorners: typeof setCellCorners;
+  getCellPadding: typeof getCellPadding;
+  setCellPadding: typeof setCellPadding;
+  // per-table gaps
+  getGapX: typeof getGapX;
+  setGapX: typeof setGapX;
+  getGapY: typeof getGapY;
+  setGapY: typeof setGapY;
 }
 
 /** The api built from this module's own functions; used when no api is injected. */
@@ -83,6 +104,14 @@ export const defaultTableApi: TableApi = {
   getTableOuterBorderValueMap,
   getCellAlign,
   setCellAlign,
+  getCellCorners,
+  setCellCorners,
+  getCellPadding,
+  setCellPadding,
+  getGapX,
+  setGapX,
+  getGapY,
+  setGapY,
 };
 
 export const TableApiContext = createContext<TableApi>(defaultTableApi);

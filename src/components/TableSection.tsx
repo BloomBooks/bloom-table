@@ -4,8 +4,6 @@ import Section from "./Section";
 import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 // no table-model reads here; we derive current state via border-state/renderer
-import { render } from "../table-renderer";
-import { getGapX, setGapX, getGapY, setGapY } from "../table-model";
 import { TableApi, useTableApi } from "./TableApiContext";
 
 type Props = {
@@ -160,27 +158,27 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                   <div className="text-sm opacity-80 mb-2">Gap (X / Y)</div>
                   <div className="flex items-center gap-2 ml-2">
                     <input
-                      key={`gapx:${getGapX(table)[0] ?? ""}`}
+                      key={`gapx:${api.getGapX(table)[0] ?? ""}`}
                       aria-label="Gap X"
                       type="text"
-                      defaultValue={getGapX(table)[0] ?? ""}
+                      defaultValue={api.getGapX(table)[0] ?? ""}
                       placeholder="x"
                       onChange={(e) => {
-                        setGapX(table, e.target.value);
-                        render(table);
+                        api.setGapX(table, e.target.value);
+                        api.render(table);
                       }}
                       className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
                       style={{ width: 70 }}
                     />
                     <input
-                      key={`gapy:${getGapY(table)[0] ?? ""}`}
+                      key={`gapy:${api.getGapY(table)[0] ?? ""}`}
                       aria-label="Gap Y"
                       type="text"
-                      defaultValue={getGapY(table)[0] ?? ""}
+                      defaultValue={api.getGapY(table)[0] ?? ""}
                       placeholder="y"
                       onChange={(e) => {
-                        setGapY(table, e.target.value);
-                        render(table);
+                        api.setGapY(table, e.target.value);
+                        api.render(table);
                       }}
                       className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
                       style={{ width: 70 }}
