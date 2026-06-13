@@ -42,7 +42,7 @@ function getAttrList(el: HTMLElement, name: string): string[] {
 function getCells(table: HTMLElement): HTMLElement[] {
   const result: HTMLElement[] = [];
   Array.from(table.children).forEach((child) => {
-    if (child instanceof HTMLElement && child.classList.contains("cell")) {
+    if (child instanceof HTMLElement && child.classList.contains("bloom-cell")) {
       result.push(child);
     }
   });
@@ -143,7 +143,7 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   const isNestedTable = !!(
     table.parentElement &&
     table.parentElement.classList &&
-    table.parentElement.classList.contains("cell")
+    table.parentElement.classList.contains("bloom-cell")
   );
 
   function idx(r: number, c: number): number {
@@ -316,8 +316,8 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         // No corresponding cells (e.g., empty table shell): skip
         continue;
       }
-      const leftIsSkip = leftCell.classList.contains("skip");
-      const rightIsSkip = rightCell.classList.contains("skip");
+      const leftIsSkip = leftCell.classList.contains("bloom-skip");
+      const rightIsSkip = rightCell.classList.contains("bloom-skip");
       const { west, east } = readV(r, c + 1);
       const gap = hasPositiveGapX(c);
       if (gap) {
@@ -357,8 +357,8 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
       if (!topCell || !bottomCell) {
         continue;
       }
-      const topIsSkip = topCell.classList.contains("skip");
-      const bottomIsSkip = bottomCell.classList.contains("skip");
+      const topIsSkip = topCell.classList.contains("bloom-skip");
+      const bottomIsSkip = bottomCell.classList.contains("bloom-skip");
       const { north, south } = readH(r + 1, c);
       const gap = hasPositiveGapY(r);
       if (gap) {

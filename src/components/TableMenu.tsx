@@ -22,7 +22,7 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
 
   useEffect(() => {
     if (!props.currentCell) return;
-    const table = props.currentCell.closest(".table");
+    const table = props.currentCell.closest(".bloom-table");
     if (!table) return;
 
     const observer = new MutationObserver(() => {
@@ -51,13 +51,13 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
   const getTargetTableFromSelection = (): HTMLElement => {
     // Using props.currentCell is more reliable than document.activeElement,
     // because focus can move to the menu itself when we click a menu item.
-    const table = props.currentCell!.closest(".table") as HTMLElement;
+    const table = props.currentCell!.closest(".bloom-table") as HTMLElement;
     return table;
   };
   const getTargetTableFromCell = (cell: HTMLElement): HTMLElement => {
     // Using props.currentCell is more reliable than document.activeElement,
     // because focus can move to the menu itself when we click a menu item.
-    const table = cell.closest(".table") as HTMLElement;
+    const table = cell.closest(".bloom-table") as HTMLElement;
     return table;
   };
   const handleSetCellContentType = (contentTypeId: string) => {
@@ -123,7 +123,7 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
 
   const handleSelectParentCell = () => {
     const table = getTargetTableFromSelection();
-    const parentCell = table.parentElement?.closest(".cell") as HTMLElement | null;
+    const parentCell = table.parentElement?.closest(".bloom-cell") as HTMLElement | null;
     if (parentCell) {
       parentCell.focus();
     }
@@ -137,12 +137,12 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
   // (Old border toggle handlers removed in favor of BorderControl)
 
   const table = props.currentCell ? getTargetTableFromSelection() : undefined;
-  const parentCell = table?.parentElement?.closest(".cell");
+  const parentCell = table?.parentElement?.closest(".bloom-cell");
 
   // no-op placeholder removed: variable was unused
   // If there's no current context (no selected cell or not within a table),
   // show an instructional message instead of the full menu.
-  const hasContext = !!props.currentCell && !!props.currentCell.closest(".table");
+  const hasContext = !!props.currentCell && !!props.currentCell.closest(".bloom-table");
   if (!hasContext) {
     return (
       <div
@@ -280,7 +280,7 @@ const [canUndo, setCanUndo] = useState(false);
 
     // Check if a cell is selected and update our stored reference
     const currentlyFocusedCell = document.activeElement?.closest(
-      ".cell"
+      ".bloom-cell"
     ) as HTMLElement;
 
     // Only update the stored reference if we actually have a focused cell

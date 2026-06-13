@@ -14,7 +14,7 @@
   --edge-default-color: #000;
 }
 
-.table {
+.bloom-table {
   display: grid;
   width: 100%;
   height: 100%;
@@ -23,7 +23,7 @@
   background: var(--bg, transparent);
 }
 
-.cell {
+.bloom-cell {
   background: var(--cell-bg);
   padding: var(--cell-padding);
 
@@ -41,22 +41,22 @@
 /* A skipped cell is one that is logically "covered" by
    a previous cell's row or column span. We hide it
    completely so the CSS grid layout ignores it. */
-.cell.skip {
+.bloom-cell.bloom-skip {
   display: none;
 }
 
-.cell:nth-of-type(odd) {
+.bloom-cell:nth-of-type(odd) {
   border-radius: var(--cell-border-radius-odd);
 }
 /* removed outline-based even-cell override */
 
 /* Ensure nested tables fill their parent cell */
-.cell[data-content-type="table"] > .table {
+.bloom-cell[data-content-type="table"] > .bloom-table {
   width: 100%;
   height: 100%;
 }
 
 /* Remove padding when the cell contains a table */
-.cell[data-content-type="table"] {
+.bloom-cell[data-content-type="table"] {
   --this-padding: 0;
 }

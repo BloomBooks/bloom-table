@@ -70,12 +70,12 @@ export function ensureTableSizeButtons(): void {
     (event) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
-      const cell = target.closest(".cell") as HTMLElement | null;
+      const cell = target.closest(".bloom-cell") as HTMLElement | null;
       if (!cell) {
         scheduleOverlayReposition();
         return;
       }
-      const table = cell.closest(".table") as HTMLElement | null;
+      const table = cell.closest(".bloom-table") as HTMLElement | null;
       if (!table) return;
       showEdgeOverlays(table);
     },
@@ -174,9 +174,9 @@ function ensureCornerHandle() {
     });
 
     const table =
-      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".table") ||
+      (document.querySelector(".bloom-cell.cell--selected") as HTMLElement | null)?.closest(".bloom-table") ||
       overlayTable ||
-      (document.querySelector(".table") as HTMLElement | null);
+      (document.querySelector(".bloom-table") as HTMLElement | null);
     if (!table) {
       console.log("🔴 No table found for corner drag");
       return;
@@ -189,8 +189,8 @@ function ensureCornerHandle() {
 
     // Store initial selection state to restore after drag
     const initialActiveCell =
-      document.querySelector(".cell.cell--selected") || document.activeElement?.closest(".cell");
-    const initialSelectedTable = initialActiveCell?.closest(".table");
+      document.querySelector(".bloom-cell.cell--selected") || document.activeElement?.closest(".bloom-cell");
+    const initialSelectedTable = initialActiveCell?.closest(".bloom-table");
     cornerInitialSelection = {
       activeCell: initialActiveCell as HTMLElement | null,
       selectedTable: initialSelectedTable as HTMLElement | null,
@@ -443,19 +443,19 @@ function handleCornerDragUp() {
     console.log("🔄 Restoring selection to table after drag", {
       hadActiveCell: !!savedSelection.activeCell,
       hadSelectedTable: !!savedSelection.selectedTable,
-      tableCellCount: table.querySelectorAll(".cell").length,
+      tableCellCount: table.querySelectorAll(".bloom-cell").length,
     });
 
     try {
       // Find the first cell in the potentially resized table
-      const firstCell = table.querySelector(".cell") as HTMLElement;
+      const firstCell = table.querySelector(".bloom-cell") as HTMLElement;
       if (firstCell) {
         // Explicitly clear any existing selection before setting new one
         document
-          .querySelectorAll(".cell.cell--selected")
+          .querySelectorAll(".bloom-cell.cell--selected")
           .forEach((el) => el.classList.remove("cell--selected"));
         document
-          .querySelectorAll(".table.table--selected")
+          .querySelectorAll(".bloom-table.table--selected")
           .forEach((el) => el.classList.remove("table--selected"));
 
         // Apply selection classes directly to ensure they're set
@@ -487,8 +487,8 @@ function handleCornerDragUp() {
 
       // Add a slight delay then verify the final state
       setTimeout(() => {
-        const finalSelectedCell = document.querySelector(".cell.cell--selected");
-        const finalSelectedTable = document.querySelector(".table.table--selected");
+        const finalSelectedCell = document.querySelector(".bloom-cell.cell--selected");
+        const finalSelectedTable = document.querySelector(".bloom-table.table--selected");
         const finalActiveElement = document.activeElement;
 
         console.log("🔍 Final selection state after restoration", {
@@ -498,15 +498,15 @@ function handleCornerDragUp() {
           activeElementTag: finalActiveElement?.tagName,
           activeElementClass: (finalActiveElement as HTMLElement)?.className,
           activeElementInOurTable:
-            !!finalActiveElement?.closest(".table") && finalActiveElement?.closest(".table") === table,
+            !!finalActiveElement?.closest(".bloom-table") && finalActiveElement?.closest(".bloom-table") === table,
         });
 
         if (!finalSelectedCell || finalSelectedTable !== table) {
           console.log("⚠️ Selection restoration may have failed!", {
             expectedTable: table,
             actualSelectedTable: finalSelectedTable,
-            allSelectedCells: document.querySelectorAll(".cell.cell--selected").length,
-            allSelectedTables: document.querySelectorAll(".table.table--selected").length,
+            allSelectedCells: document.querySelectorAll(".bloom-cell.cell--selected").length,
+            allSelectedTables: document.querySelectorAll(".bloom-table.table--selected").length,
           });
         }
 
@@ -774,8 +774,8 @@ function repositionEdgeOverlays() {
   } else if (!targetTable) {
     // Only derive from selected cell when not dragging
     const table =
-      (document.querySelector(".cell.cell--selected") as HTMLElement | null)?.closest(".table") ||
-      (document.querySelector(".table") as HTMLElement | null);
+      (document.querySelector(".bloom-cell.cell--selected") as HTMLElement | null)?.closest(".bloom-table") ||
+      (document.querySelector(".bloom-table") as HTMLElement | null);
     if (table) {
       targetTable = table as HTMLElement;
       overlayTable = targetTable; // Update the stored reference
@@ -817,7 +817,7 @@ function getElementAnchorName(el: HTMLElement, key: string, prefix: string): str
 function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
   const children = Array.from(table.children) as HTMLElement[];
   for (const el of children) {
-    if (!el.classList || !el.classList.contains("cell")) continue;
+    if (!el.classList || !el.classList.contains("bloom-cell")) continue;
     try {
       const { row, column } = getRowAndColumn(table, el);
       if (row === targetRow && column === targetCol) return el;
@@ -903,8 +903,8 @@ function applyAnchorPositioning(table: HTMLElement) {
 }
 
 function tryInsertColumnRight() {
-  const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -922,8 +922,8 @@ function tryInsertColumnRight() {
 }
 
 function tryInsertColumnLeft() {
-  const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -938,8 +938,8 @@ function tryInsertColumnLeft() {
 }
 
 function tryInsertRowAbove() {
-  const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -954,8 +954,8 @@ function tryInsertRowAbove() {
 }
 
 function tryInsertRowBelow() {
-  const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -973,8 +973,8 @@ function tryInsertRowBelow() {
 }
 
 function tryRemoveColumn() {
-  const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -987,8 +987,8 @@ function tryRemoveColumn() {
 }
 
 function tryRemoveRow() {
-  const cell = document.querySelector<HTMLElement>(".cell.cell--selected");
-  const table = (cell?.closest(".table") as HTMLElement | null) ?? overlayTable;
+  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -1028,7 +1028,7 @@ function ensureDeletePreviewDiv(): HTMLDivElement {
 
 function showDeletePreview(kind: PreviewKind) {
   if (!overlayTable) return;
-  const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
+  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
   if (!selected) return;
   currentPreviewKind = kind;
   const div = ensureDeletePreviewDiv();
@@ -1045,7 +1045,7 @@ function hideDeletePreview() {
 
 function updateDeletePreviewGeometry() {
   if (!deletePreviewVisible || !overlayTable || !deletePreviewDiv) return;
-  const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
+  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
   if (!selected) {
     hideDeletePreview();
     return;
@@ -1053,7 +1053,7 @@ function updateDeletePreviewGeometry() {
   const { row, column } = getRowAndColumn(overlayTable, selected);
   // Find all visible cells and compute bounds for the target row/column
   const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("cell"),
+    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("bloom-cell"),
   );
   let minLeft = Infinity,
     maxRight = -Infinity,
@@ -1118,7 +1118,7 @@ function ensureAddPreviewDiv(): HTMLDivElement {
 
 function showAddPreview(kind: PreviewKind, position: "above" | "below" | "left" | "right") {
   if (!overlayTable) return;
-  const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
+  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
   if (!selected) return;
   currentAddKind = kind;
   currentAddPosition = position;
@@ -1138,14 +1138,14 @@ function hideAddPreview() {
 function updateAddPreviewGeometry() {
   if (!addPreviewVisible || !overlayTable || !addPreviewDiv) return;
   if (!currentAddKind || !currentAddPosition) return;
-  const selected = document.querySelector<HTMLElement>(".cell.cell--selected");
+  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
   if (!selected) {
     hideAddPreview();
     return;
   }
   const { row, column } = getRowAndColumn(overlayTable, selected);
   const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("cell"),
+    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("bloom-cell"),
   );
   let minLeft = Infinity,
     maxRight = -Infinity,

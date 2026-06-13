@@ -30,7 +30,7 @@ This document defines the current DOM data-\* model used by Bloom Grid, the goal
 Selection highlighting (non-model):
 
 - For usability, we add purely presentational classes when focus enters a cell:
-  - `cell--selected` on the active `.cell` (styled with a blue CSS `outline`)
+  - `cell--selected` on the active `.bloom-cell` (styled with a blue CSS `outline`)
   - `grid--selected` on the containing `.grid` (styled with a purple `outline`)
 - These do not affect the data-\* model and are applied by a global listener installed at attach time. The outlines avoid layout shifts and are distinct from renderer-managed borders.
 
@@ -45,7 +45,7 @@ Cell sizing and content:
 - `data-span-x`, `data-span-y`: integers ≥ 1 (default 1) indicating column/row span for a cell
 - `data-content-type`: `text | image | grid` (existing)
 
-- Spans: internal edges under a spanning cell are suppressed; only the span’s perimeter edges render. Covered cells retain DOM presence with class `skip`; the renderer avoids painting borders for `skip` cells and attributes the shared edges to the spanning owner.
+- Spans: internal edges under a spanning cell are suppressed; only the span’s perimeter edges render. Covered cells retain DOM presence with class `bloom-skip`; the renderer avoids painting borders for `bloom-skip` cells and attributes the shared edges to the spanning owner.
 
 Corners:
 

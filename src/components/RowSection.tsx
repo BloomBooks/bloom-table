@@ -67,6 +67,19 @@ export const RowSection: React.FC<Props> = ({
       controller.setRowHeight(rowIndex, next);
     }
   };
+
+  // Current fixed value (for the editable field below).
+  let rowIdx = -1;
+  let fixedValue = "";
+  try {
+    if (table && currentCell) {
+      const activeAttr = table.getAttribute("data-ui-active-row-index");
+      rowIdx = activeAttr ? parseInt(activeAttr, 10) : Table.getRowIndex(currentCell);
+      const h = (new BloomTable(table).getRowHeight(rowIdx) || "").trim();
+      if (/(px|mm)$/i.test(h)) fixedValue = h;
+    }
+  } catch {}
+
   return (
     <Section label="Row">
       <div className={subTitleStyle}>Add / Remove</div>
@@ -88,6 +101,24 @@ export const RowSection: React.FC<Props> = ({
         value={selectedSize}
         onChange={onChangeSize}
       />
+      <div className="px-4 pt-1 flex items-center gap-2">
+        <span className="text-sm opacity-80">Fixed</span>
+        <input
+          key={`rh:${rowIdx}:${fixedValue}`}
+          aria-label="Row height"
+          type="text"
+          defaultValue={fixedValue}
+          placeholder="e.g. 60px"
+          onChange={(e) => {
+            if (!table || !currentCell) return;
+            const activeAttr = table.getAttribute("data-ui-active-row-index");
+            const rowIndex = activeAttr ? parseInt(activeAttr, 10) : Table.getRowIndex(currentCell);
+            new BloomTable(table).setRowHeight(rowIndex, e.target.value);
+          }}
+          className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
+          style={{ width: 90 }}
+        />
+      </div>
     </Section>
   );
 };

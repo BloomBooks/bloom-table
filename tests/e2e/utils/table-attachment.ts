@@ -9,7 +9,7 @@ export async function attachTablesToPage(page: Page): Promise<void> {
     type: "module",
     content: `
       import { attachTable } from "/src/attach.js";
-      document.querySelectorAll(".table").forEach((table) => {
+      document.querySelectorAll(".bloom-table").forEach((table) => {
         attachTable(table);
       });
     `,

@@ -5,7 +5,7 @@ test.describe("Resize Rows and Columns", () => {
   test("row and column drag resize updates both data and UI", async ({ page }) => {
     // Navigate to new-table demo
     await page.goto("/demo/exercises/new-table.html");
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
     await attachTablesToPage(page);
 
     const table = page.locator("#main-table");
@@ -13,10 +13,10 @@ test.describe("Resize Rows and Columns", () => {
 
     // Test that the table is properly set up
     const gridInfo = await table.evaluate((el) => ({
-      hasGridClass: el.classList.contains("table"),
+      hasGridClass: el.classList.contains("bloom-table"),
       dataColumnWidths: el.getAttribute("data-column-widths"),
       dataRowHeights: el.getAttribute("data-row-heights"),
-      cellCount: el.querySelectorAll(".cell").length,
+      cellCount: el.querySelectorAll(".bloom-cell").length,
       gridStyle: {
         display: window.getComputedStyle(el).display,
         gridTemplateColumns: window.getComputedStyle(el).gridTemplateColumns,
@@ -39,7 +39,7 @@ test.describe("Resize Rows and Columns", () => {
     await page.goto("/demo/exercises/new-table.html");
 
     // Wait for the page to load
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
 
     // Manually attach grids since we removed script tags from HTML files
     await attachTablesToPage(page);
@@ -52,10 +52,10 @@ test.describe("Resize Rows and Columns", () => {
       const table = document.querySelector("#main-table");
       if (!table) return null;
 
-      const cells = Array.from(table.querySelectorAll(".cell"));
+      const cells = Array.from(table.querySelectorAll(".bloom-cell"));
 
       return {
-        hasGridClass: table.classList.contains("table"),
+        hasGridClass: table.classList.contains("bloom-table"),
         dataColumnWidths: table.getAttribute("data-column-widths"),
         dataRowHeights: table.getAttribute("data-row-heights"),
         cellCount: cells.length,
@@ -78,7 +78,7 @@ test.describe("Resize Rows and Columns", () => {
     console.log("Table structure after attachment:", JSON.stringify(gridStructure, null, 2));
 
     // Add some content to the first row to make it easier to see height changes
-    const firstCell = table.locator(".cell").first();
+    const firstCell = table.locator(".bloom-cell").first();
     await firstCell.click();
     await page.keyboard.type("Some content in first row to test resizing");
 
@@ -107,7 +107,7 @@ test.describe("Resize Rows and Columns", () => {
       const table = document.querySelector("#main-table") as HTMLElement;
       if (!table) return { error: "No table found" };
 
-      const cell = table.querySelector(".cell") as HTMLElement;
+      const cell = table.querySelector(".bloom-cell") as HTMLElement;
       if (!cell) return { error: "No cell found" };
 
       // Get the bounds
@@ -231,7 +231,7 @@ test.describe("Resize Rows and Columns", () => {
     await page.waitForTimeout(1000);
 
     // Look for a table in the demo
-    const table = page.locator(".table").first();
+    const table = page.locator(".bloom-table").first();
     await expect(table).toBeVisible();
 
     // Get initial computed table template for any table
@@ -245,7 +245,7 @@ test.describe("Resize Rows and Columns", () => {
     console.log("Initial table info:", initialGridInfo);
 
     // Try to find a cell and perform a manual drag test
-    const cell = table.locator(".cell").first();
+    const cell = table.locator(".bloom-cell").first();
     if (await cell.isVisible()) {
       console.log("Found cell, attempting manual drag test");
 
@@ -318,7 +318,7 @@ test.describe("Resize Rows and Columns", () => {
   test.skip("reverts row height on undo", async ({ page }) => {
     // Navigate to new-table demo
     await page.goto("/demo/exercises/new-table.html");
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
     await attachTablesToPage(page);
 
     const table = page.locator("#main-table");
@@ -330,7 +330,7 @@ test.describe("Resize Rows and Columns", () => {
     );
 
     // Perform a drag operation
-    const firstCell = table.locator(".cell").first();
+    const firstCell = table.locator(".bloom-cell").first();
     const firstCellBounds = await firstCell.boundingBox();
     expect(firstCellBounds).not.toBeNull();
 

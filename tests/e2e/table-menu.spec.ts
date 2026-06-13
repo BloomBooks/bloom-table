@@ -28,7 +28,7 @@ test.describe("TableMenu Integration Tests", () => {
 
       // Wait for the example to load and table to appear
       await page.waitForTimeout(1000);
-      await page.waitForSelector("#example-container .table", {
+      await page.waitForSelector("#example-container .bloom-table", {
         timeout: 10000,
       });
     }
@@ -36,7 +36,7 @@ test.describe("TableMenu Integration Tests", () => {
 
   test("can add column to the left", async ({ page }) => {
     // Click on a cell to focus it - specifically click on the contenteditable element
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200); // Give time for focus handling
@@ -68,7 +68,7 @@ test.describe("TableMenu Integration Tests", () => {
   });
 
   test("can add column to the right", async ({ page }) => {
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -90,7 +90,7 @@ test.describe("TableMenu Integration Tests", () => {
   });
 
   test("can add row above", async ({ page }) => {
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -112,7 +112,7 @@ test.describe("TableMenu Integration Tests", () => {
   });
 
   test("can add row below", async ({ page }) => {
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -135,7 +135,7 @@ test.describe("TableMenu Integration Tests", () => {
 
   test("can delete column", async ({ page }) => {
     // First add an extra column so we can safely delete one
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -163,7 +163,7 @@ test.describe("TableMenu Integration Tests", () => {
 
   test("can delete row", async ({ page }) => {
     // First add an extra row so we can safely delete one
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -190,7 +190,7 @@ test.describe("TableMenu Integration Tests", () => {
   });
 
   test("complex operations: multiple adds and removes", async ({ page }) => {
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -217,7 +217,7 @@ test.describe("TableMenu Integration Tests", () => {
     await page.waitForTimeout(100);
 
     // Ensure a cell is still focused after column deletion
-    const cellAfterColumnDelete = page.locator("#example-container .cell").first();
+    const cellAfterColumnDelete = page.locator("#example-container .bloom-cell").first();
     await cellAfterColumnDelete.click();
     await page.waitForTimeout(100);
 
@@ -234,7 +234,7 @@ test.describe("TableMenu Integration Tests", () => {
   });
 
   test("undo functionality works", async ({ page }) => {
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -283,7 +283,7 @@ test.describe("TableMenu Integration Tests", () => {
     await expect(gridMenu).toContainText("Click in any table cell");
 
     // Click on a cell
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const firstCellEditor = firstCell.locator("div[contenteditable]");
     await firstCellEditor.click();
     await page.waitForTimeout(200);
@@ -308,7 +308,7 @@ test.describe("TableMenu Integration Tests", () => {
 // Helper functions
 async function getColumnCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
-    const table = document.querySelector("#example-container .table") as HTMLElement;
+    const table = document.querySelector("#example-container .bloom-table") as HTMLElement;
     const columnWidths = table?.getAttribute("data-column-widths");
     return columnWidths ? columnWidths.split(",").length : 0;
   });
@@ -316,12 +316,12 @@ async function getColumnCount(page: Page): Promise<number> {
 
 async function getRowCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
-    const table = document.querySelector("#example-container .table") as HTMLElement;
+    const table = document.querySelector("#example-container .bloom-table") as HTMLElement;
     const rowHeights = table?.getAttribute("data-row-heights");
     return rowHeights ? rowHeights.split(",").length : 0;
   });
 }
 
 async function getCellCount(page: Page): Promise<number> {
-  return await page.locator("#example-container .cell").count();
+  return await page.locator("#example-container .bloom-cell").count();
 }

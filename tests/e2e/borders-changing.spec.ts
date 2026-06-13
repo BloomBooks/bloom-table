@@ -16,11 +16,11 @@ test.describe("Borders changing - visual expectation", () => {
     const newGridItem = page.locator("#example-list").getByText("New-table", { exact: false });
     await newGridItem.click();
 
-    const table = page.locator("#example-container #main-table.table");
+    const table = page.locator("#example-container #main-table.bloom-table");
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
-    const firstCellEditor = page.locator("#example-container .cell div[contenteditable]").first();
+    const firstCellEditor = page.locator("#example-container .bloom-cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     const tableSection = page
@@ -53,11 +53,11 @@ test.describe("Borders changing - visual expectation", () => {
     const newGridItem = page.locator("#example-list").getByText("New-table", { exact: false });
     await newGridItem.click();
 
-    const table = page.locator("#example-container #main-table.table");
+    const table = page.locator("#example-container #main-table.bloom-table");
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
-    const firstCellEditor = page.locator("#example-container .cell div[contenteditable]").first();
+    const firstCellEditor = page.locator("#example-container .bloom-cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     // In the Table section, set Style=Dashed and Weight=2
@@ -86,7 +86,7 @@ test.describe("Borders changing - visual expectation", () => {
     expect(modelHasDashed).toBe(true);
 
     // Expect both inner and outer edges to reflect the change since all edges are initially selected
-    const firstCell = page.locator("#example-container .cell").first();
+    const firstCell = page.locator("#example-container .bloom-cell").first();
     const computed = await firstCell.evaluate((el) => {
       const cs = getComputedStyle(el);
       return {

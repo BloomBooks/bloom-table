@@ -6,14 +6,14 @@ import { render } from "../../table-renderer";
 // Helper to create a basic 2x2 table
 function createTestTable(): HTMLElement {
   const table = document.createElement("div");
-  table.className = "table";
+  table.className = "bloom-table";
   table.setAttribute("data-column-widths", "100px,100px");
   table.setAttribute("data-row-heights", "50px,50px");
 
   // Add 4 cells
   for (let i = 0; i < 4; i++) {
     const cell = document.createElement("div");
-    cell.className = "cell";
+    cell.className = "bloom-cell";
     cell.setAttribute("data-content-type", "text");
     const content = document.createElement("div");
     content.contentEditable = "true";
@@ -75,7 +75,7 @@ describe("BorderControl", () => {
       expect(edgesV[0][0].weight).toBe(2);
 
       // Check that the actual cell styles are applied correctly
-      const cells = table.querySelectorAll(".cell");
+      const cells = table.querySelectorAll(".bloom-cell");
       const topLeftCell = cells[0] as HTMLElement;
 
       // Top border should be dashed 2px

@@ -8,7 +8,17 @@ import type { BorderStyle, BorderValueMap } from "./BorderControl/logic/types";
 import { applyCellPerimeter, ensureEdgesArrays } from "../edge-utils";
 import { getCellPerimeterValueMap } from "../border-state";
 import { render } from "../table-renderer";
-import { getCellAlign, setCellAlign, type CellAlign } from "../table-model";
+import {
+  getCellAlign,
+  setCellAlign,
+  getCellCorners,
+  setCellCorners,
+  getCellPadding,
+  setCellPadding,
+  type CellAlign,
+} from "../table-model";
+import CornerMenu from "./BorderControl/menus/CornerMenu";
+import type { CornerRadius } from "./BorderControl/logic/types";
 // icons
 // icons are now owned by CellContentType; no direct imports here
 // (leftover icons removed)
@@ -26,13 +36,13 @@ const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full t
 
 // --- Border helpers for a single cell ---
 const buildBorderMapFromCell = (c: HTMLElement): BorderValueMap => {
-  const table = c.closest(".table") as HTMLElement | null;
+  const table = c.closest(".bloom-table") as HTMLElement | null;
   if (table) ensureEdgesArrays(table);
   return getCellPerimeterValueMap(c);
 };
 const applyBorderMapToCell = (c: HTMLElement, map: BorderValueMap) => {
   // Write via edge model so renderer picks it up deterministically
-  const table = c.closest(".table") as HTMLElement | null;
+  const table = c.closest(".bloom-table") as HTMLElement | null;
   if (!table) return;
   const cs = getComputedStyle(table);
   const outerColor = (cs.color || "black").trim();
@@ -62,10 +72,10 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
   // Compute a stable key for the current cell to remount BorderControl on cell change
   const borderControlKey: string | undefined = useMemo(() => {
     if (!currentCell) return undefined;
-    const table = currentCell.closest(".table") as HTMLElement | null;
+    const table = currentCell.closest(".bloom-table") as HTMLElement | null;
     if (!table) return undefined;
     const cells = Array.from(table.children).filter(
-      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("cell"),
+      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
     );
     const idx = cells.indexOf(currentCell);
     return idx >= 0 ? String(idx) : undefined;
@@ -123,7 +133,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
                 onClick={() => {
                   if (!currentCell) return;
                   setCellAlign(currentCell, id);
-                  const table = currentCell.closest(".table") as HTMLElement | null;
+                  const table = currentCell.closest(".bloom-table") as HTMLElement | null;
                   if (table) render(table);
                 }}
                 className="px-2 py-1 border border-gray-600 rounded text-sm"
@@ -134,6 +144,43 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
             );
           })}
         </div>
+      </div>
+
+      {/* Corners (per-cell) */}
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+        <div className="text-sm opacity-80 mb-2">Corners</div>
+        {currentCell && (
+          <CornerMenu
+            value={(getCellCorners(currentCell)?.radius ?? 0) as CornerRadius}
+            onChange={(v) => {
+              if (!currentCell) return;
+              setCellCorners(currentCell, v ? { radius: v } : null);
+              const table = currentCell.closest(".bloom-table") as HTMLElement | null;
+              if (table) render(table);
+            }}
+          />
+        )}
+      </div>
+
+      {/* Padding */}
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+        <div className="text-sm opacity-80 mb-2">Padding</div>
+        {currentCell && (
+          <input
+            key={`pad:${borderControlKey}:${getCellPadding(currentCell) ?? ""}`}
+            aria-label="Cell padding"
+            type="text"
+            defaultValue={getCellPadding(currentCell) ?? ""}
+            placeholder="e.g. 6px 16px"
+            onChange={(e) => {
+              setCellPadding(currentCell, e.target.value || null);
+              const table = currentCell.closest(".bloom-table") as HTMLElement | null;
+              if (table) render(table);
+            }}
+            className="ml-2 px-2 py-1 border border-gray-600 rounded text-sm text-black"
+            style={{ width: 120 }}
+          />
+        )}
       </div>
 
       {/* Merge / Split */}

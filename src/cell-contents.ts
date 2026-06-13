@@ -34,11 +34,11 @@ export const defaultCellContentsForEachType: CellContentType[] = [
     id: "table",
     englishName: "Table",
     icon: tableIcon,
-    templateHtml: `<div class='table' data-column-widths='fill,fill' data-row-heights='fill,fill'>
-            <div class='cell' data-content-type='text'></div>
-            <div class='cell' data-content-type='text'></div>
-            <div class='cell' data-content-type='text'></div>
-            <div class='cell' data-content-type='text'></div>
+    templateHtml: `<div class='bloom-table' data-column-widths='fill,fill' data-row-heights='fill,fill'>
+            <div class='bloom-cell' data-content-type='text'></div>
+            <div class='bloom-cell' data-content-type='text'></div>
+            <div class='bloom-cell' data-content-type='text'></div>
+            <div class='bloom-cell' data-content-type='text'></div>
         </div>`,
     regexToIdentify: /<div[^>]*class=['"][^'"]*table[^'"]*['"][^>]*>/,
   },
@@ -110,7 +110,7 @@ export function setupContentsOfCell(
   targetType?: string,
   putInHistory: boolean = false,
 ): HTMLElement | null {
-  const table = cell.closest<HTMLElement>(".table");
+  const table = cell.closest<HTMLElement>(".bloom-table");
 
   // First we figure out what is already there in the cell.
   let existingContentType = cell.dataset.contentType;
@@ -154,9 +154,9 @@ export function setupContentsOfCell(
 
     // if we just inserted a table, set each of its cells to the default content type
     if (targetType === "table") {
-      const embeddedTable = cell.querySelector<HTMLElement>(".table");
+      const embeddedTable = cell.querySelector<HTMLElement>(".bloom-table");
       if (embeddedTable) {
-        const tableCells = embeddedTable.querySelectorAll<HTMLElement>(".cell");
+        const tableCells = embeddedTable.querySelectorAll<HTMLElement>(".bloom-cell");
         tableCells.forEach((tableCell) => {
           tableCell.dataset.contentType = defaultCellContentTypeId;
 

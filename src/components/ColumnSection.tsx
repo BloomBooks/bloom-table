@@ -69,6 +69,18 @@ export const ColumnSection: React.FC<Props> = ({
       controller.setColumnWidth(columnIndex, next);
     }
   };
+
+  // Current fixed value (for the editable field below).
+  let colIdx = -1;
+  let fixedValue = "";
+  try {
+    if (table && currentCell) {
+      colIdx = Table.getRowAndColumn(table, currentCell).column;
+      const w = (new BloomTable(table).getColumnWidth(colIdx) || "").trim();
+      if (/(px|mm)$/i.test(w)) fixedValue = w;
+    }
+  } catch {}
+
   return (
     <Section label="Column">
       <div className={subTitleStyle}>Add / Remove</div>
@@ -90,6 +102,23 @@ export const ColumnSection: React.FC<Props> = ({
         value={selectedSize}
         onChange={onChangeSize}
       />
+      <div className="px-4 pt-1 flex items-center gap-2">
+        <span className="text-sm opacity-80">Fixed</span>
+        <input
+          key={`cw:${colIdx}:${fixedValue}`}
+          aria-label="Column width"
+          type="text"
+          defaultValue={fixedValue}
+          placeholder="e.g. 120px"
+          onChange={(e) => {
+            if (!table || !currentCell) return;
+            const { column } = Table.getRowAndColumn(table, currentCell);
+            new BloomTable(table).setColumnWidth(column, e.target.value);
+          }}
+          className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
+          style={{ width: 90 }}
+        />
+      </div>
     </Section>
   );
 };

@@ -68,7 +68,7 @@ export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap 
 }
 
 export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
-  const table = cell.closest(".table") as HTMLElement | null;
+  const table = cell.closest(".bloom-table") as HTMLElement | null;
   if (!table) {
     return {
       top: { weight: 0, style: "none", radius: 0 },
@@ -81,7 +81,7 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
   }
   const model = buildRenderModel(table);
   const cells = Array.from(table.children).filter(
-    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("cell"),
+    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
   );
   const index = cells.indexOf(cell);
   const rows = model.rowHeights.length;

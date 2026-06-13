@@ -32,7 +32,7 @@ afterEach(() => {
 
 it("addColumn adds widths", () => {
   const table = document.createElement("div");
-  table.className = "table";
+  table.className = "bloom-table";
   table.setAttribute("data-column-widths", "100px,200px");
   table.setAttribute("data-row-heights", "50px,100px");
   document.body.appendChild(table);
@@ -142,12 +142,12 @@ it("removeLastColumn does nothing if no columns exist", () => {
 
 function expectCellToBeSkipped(table: HTMLElement, row: number, column: number) {
   const cell = getCell(table, row, column);
-  expect(cell.classList.contains("skip")).toBeTruthy();
+  expect(cell.classList.contains("bloom-skip")).toBeTruthy();
 }
 
 function expectCellToNotBeSkipped(table: HTMLElement, row: number, column: number) {
   const cell = getCell(table, row, column);
-  expect(cell.classList.contains("skip")).toBeFalsy();
+  expect(cell.classList.contains("bloom-skip")).toBeFalsy();
 }
 describe("span-related tests", () => {
   it("setCellSpan(2,1) marks cell to the right with 'skip' class", () => {
@@ -377,7 +377,7 @@ it("addColumnAt(0) inserts cells at correct positions", () => {
   const table = newTable();
   // Label cells before operation
   const cells = Array.from(table.children).filter((child) =>
-    child.classList.contains("cell"),
+    child.classList.contains("bloom-cell"),
   ) as HTMLElement[];
   cells.forEach((cell, index) => {
     cell.id = `original-${index}`;
@@ -391,7 +391,7 @@ it("addColumnAt(0) inserts cells at correct positions", () => {
   expect(newInfo.cellCount).toBe(originalInfo.cellCount + originalInfo.rowCount);
   // Check that original cells can still be found (they moved positions)
   const originalCells = Array.from(table.children).filter(
-    (child) => child.classList.contains("cell") && child.id.startsWith("original-"),
+    (child) => child.classList.contains("bloom-cell") && child.id.startsWith("original-"),
   ) as HTMLElement[];
   expect(originalCells.length).toBe(originalInfo.cellCount);
 });
@@ -522,7 +522,7 @@ describe("Cell positioning and content preservation", () => {
     expect(newInfo.columnCount).toBe(originalInfo.columnCount + 1);
     expect(newInfo.cellCount).toBe(originalInfo.cellCount + originalInfo.rowCount); // Check that original cells still exist with their content
     const originalCells = Array.from(table.children).filter(
-      (child) => child.classList.contains("cell") && child.id.startsWith("orig-"),
+      (child) => child.classList.contains("bloom-cell") && child.id.startsWith("orig-"),
     ) as HTMLElement[];
     expect(originalCells.length).toBe(originalInfo.cellCount);
 
@@ -550,7 +550,7 @@ describe("Cell positioning and content preservation", () => {
     expect(newInfo.rowCount).toBe(originalInfo.rowCount + 1);
     expect(newInfo.cellCount).toBe(originalInfo.cellCount + originalInfo.columnCount); // Check that original cells still exist with their content
     const originalCells = Array.from(table.children).filter(
-      (child) => child.classList.contains("cell") && child.id.startsWith("orig-"),
+      (child) => child.classList.contains("bloom-cell") && child.id.startsWith("orig-"),
     ) as HTMLElement[];
     expect(originalCells.length).toBe(originalInfo.cellCount);
 

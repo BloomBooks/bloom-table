@@ -8,11 +8,11 @@ test.describe("Cell BorderControl shows current perimeter state", () => {
 
     // Open Table-border example
     await page.locator("#example-list").getByText("table-border", { exact: false }).click();
-    const table = page.locator("#example-container #table-with-red-cross.table");
+    const table = page.locator("#example-container #table-with-red-cross.bloom-table");
     await expect(table).toBeVisible();
 
     // Focus first cell (r1c1) and read Cell section menus
-    const firstCellEditor = table.locator(".cell div[contenteditable]"),
+    const firstCellEditor = table.locator(".bloom-cell div[contenteditable]"),
       second = firstCellEditor.nth(1);
     await firstCellEditor.first().click();
 

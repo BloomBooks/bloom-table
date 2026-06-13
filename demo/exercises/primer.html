@@ -21,7 +21,7 @@
     >
       <div
         id="main-table"
-        class="table"
+        class="bloom-table"
         data-column-widths="fill"
         data-row-heights="fit,fit,fit"
         style="
@@ -36,9 +36,9 @@
 
 
         <!-- ---------- Row 2 ---------- -->
-        <div class="cell">
+        <div class="bloom-cell">
           <div
-            class="table"
+            class="bloom-table"
             id="top nested-grid"
             data-column-widths="fill,fill"
             data-row-heights="fit,fit"
@@ -46,10 +46,10 @@
             data-border-inner-v='{"weight":1,"style":"solid","color":"green"}'
           >
             <!-- Row 2.1 -->
-            <div class="cell"><div contenteditable="true">A</div></div>
-            <div class="cell"><div contenteditable="true">B</div></div>
+            <div class="bloom-cell"><div contenteditable="true">A</div></div>
+            <div class="bloom-cell"><div contenteditable="true">B</div></div>
             <!-- Row 2.2 -->
-            <div class="cell" data-span-x="2">
+            <div class="bloom-cell" data-span-x="2">
               <div contenteditable="true">Spanning nested cell</div>
             </div>
             <!-- Covered neighbor remains in DOM; class "skip" may be applied dynamically by structure.ts when interactive. -->
@@ -57,9 +57,9 @@
         </div>
 
         <!-- ---------- Row (fill) ---------- -->
-        <div class="cell">
+        <div class="bloom-cell">
           <div
-            class="table"
+            class="bloom-table"
             data-column-widths="fit,fit,fit"
             data-row-heights="fit,fit"
             data-border-inner-h='{"weight":1,"style":"solid","color":"black"}'
@@ -71,18 +71,18 @@
             "
           >
             <!-- Row 3.1 -->
-            <div class="cell"><div contenteditable="true">l</div></div>
-            <div class="cell"><div contenteditable="true">a</div></div>
-            <div class="cell"><div contenteditable="true">m</div></div>
+            <div class="bloom-cell"><div contenteditable="true">l</div></div>
+            <div class="bloom-cell"><div contenteditable="true">a</div></div>
+            <div class="bloom-cell"><div contenteditable="true">m</div></div>
             <!-- Row 3.2 -->
-            <div class="cell"><div contenteditable="true">i</div></div>
-            <div class="cell"><div contenteditable="true">p</div></div>
-            <div class="cell"><div contenteditable="true">i</div></div>
+            <div class="bloom-cell"><div contenteditable="true">i</div></div>
+            <div class="bloom-cell"><div contenteditable="true">p</div></div>
+            <div class="bloom-cell"><div contenteditable="true">i</div></div>
           </div>
         </div>
 
         <!-- ---------- Row (default fit) ---------- -->
-        <div class="cell">
+        <div class="bloom-cell">
           <div contenteditable="true">Papa i salim mama smapim lip.</div>
         </div>       
       </div>

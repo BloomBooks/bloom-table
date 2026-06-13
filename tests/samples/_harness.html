@@ -49,7 +49,7 @@
         page.innerHTML = await res.text();
 
         // Attach every table in a clean read state.
-        page.querySelectorAll(".table").forEach((table) => attachTable(table));
+        page.querySelectorAll(".bloom-table").forEach((table) => attachTable(table));
 
         // Wait for any images to settle so the screenshot is complete.
         const imgs = Array.from(page.querySelectorAll("img"));

@@ -25,10 +25,10 @@
 }
 
 /* Selected outlines (non-intrusive, no layout shift) */
-.cell.cell--selected {
+.bloom-cell.cell--selected {
   position: relative; /* establish containing block for overlay */
 }
-.cell.cell--selected::after {
+.bloom-cell.cell--selected::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -39,14 +39,14 @@
   z-index: 1;
 }
 
-.table.table--selected {
+.bloom-table.table--selected {
   outline: var(--selected-table-outline-width) var(--selected-table-outline-style, solid)
     var(--selected-table-outline-color);
   outline-offset: var(--selected-table-outline-offset);
 }
 
 /* Boundary hints: shown only when table is selected, and only where borders are none */
-.table.table--selected .cell {
+.bloom-table.table--selected .bloom-cell {
   /* Layered background gradients for 1px separators; each is transparent unless the corresponding --hint-*-color is set */
   background-image:
     /* top */
@@ -90,7 +90,7 @@
     /* bottom */ 0 0; /* left */
 }
 
-.cell > div[contenteditable="true"] {
+.bloom-cell > div[contenteditable="true"] {
   min-width: 2em; /* without a min-width, you can't click in an empty cell that was added dynamically*/
   text-align: center;
   /*padding: 1em; /* Give it some clickable area around the text so that it's not hard to get your cursor in there when there is no text

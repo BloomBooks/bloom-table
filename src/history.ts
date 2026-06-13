@@ -227,12 +227,12 @@ class TableHistoryManager {
   private findTopLevelTable(table: HTMLElement): HTMLElement {
     // Start from the current table and traverse up to find the top-level table
     let currentTable = table;
-    let parentTable = currentTable.parentElement?.closest<HTMLElement>(".table");
+    let parentTable = currentTable.parentElement?.closest<HTMLElement>(".bloom-table");
 
     // Keep moving up until we find a table that has no parent table
     while (parentTable) {
       currentTable = parentTable;
-      parentTable = currentTable.parentElement?.closest<HTMLElement>(".table");
+      parentTable = currentTable.parentElement?.closest<HTMLElement>(".bloom-table");
     }
 
     return currentTable;

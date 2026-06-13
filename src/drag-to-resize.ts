@@ -402,12 +402,12 @@ export class DragToResize {
     currentValue: string;
     index: number;
   } | null {
-    const cell = target.closest<HTMLElement>(".cell");
+    const cell = target.closest<HTMLElement>(".bloom-cell");
 
     if (!cell) {
       return null;
     }
-    const table = cell.closest<HTMLElement>(".table");
+    const table = cell.closest<HTMLElement>(".bloom-table");
     if (!table) {
       throw new Error("getResizeInfo: Could not find parent table.");
     }
@@ -458,7 +458,7 @@ export class DragToResize {
   }
 
   private findParentTable(row: HTMLElement, _verbose: boolean): HTMLElement | null {
-    return row.closest<HTMLElement>(".table") || null;
+    return row.closest<HTMLElement>(".bloom-table") || null;
   }
 
   private handleDoubleClick = (event: MouseEvent): void => {

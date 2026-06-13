@@ -37,7 +37,7 @@ describe("setupContentsOfCell", () => {
   it("should use history when putInHistory is true", () => {
     cell = document.createElement("div");
     const table = document.createElement("div");
-    table.classList.add("table");
+    table.classList.add("bloom-table");
     table.appendChild(cell);
     const addHistoryEntry = vi.spyOn(tableHistoryManager, "addHistoryEntry");
     setupContentsOfCell(cell, "text", true);

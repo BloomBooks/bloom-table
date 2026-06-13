@@ -21,13 +21,13 @@ import {
 
 function makeTable(): HTMLElement {
   const table = document.createElement("div");
-  table.className = "table";
+  table.className = "bloom-table";
   return table as HTMLElement;
 }
 
 function makeCell(): HTMLElement {
   const cell = document.createElement("div");
-  cell.className = "cell";
+  cell.className = "bloom-cell";
   return cell as HTMLElement;
 }
 

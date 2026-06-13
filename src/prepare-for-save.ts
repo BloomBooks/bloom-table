@@ -30,11 +30,11 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
 
   // Transient per-cell hint colors and selection classes left by the renderer
   // and the selection highlighter.
-  root.querySelectorAll<HTMLElement>(".cell").forEach((cell) => {
+  root.querySelectorAll<HTMLElement>(".bloom-cell").forEach((cell) => {
     kHintColorProps.forEach((p) => cell.style.removeProperty(p));
     cell.classList.remove("cell--selected");
   });
-  root.querySelectorAll<HTMLElement>(".table").forEach((table) => {
+  root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
     table.classList.remove("table--selected");
   });
 }

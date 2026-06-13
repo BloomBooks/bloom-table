@@ -247,7 +247,9 @@ export function BorderSelector(props: {
         opacity={segOpacity("bottom")}
         onClick={() => toggle("bottom")}
         style={{ cursor: "pointer" }}
-      />
+      >
+        <title>Toggle bottom border</title>
+      </rect>
       {useBevel && (
         <>
           <rect

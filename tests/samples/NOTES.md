@@ -87,6 +87,35 @@ Revised per user feedback (`output/user-feedback.md`): title now sits over the d
 divider joins the upper line, and the two rules are separated by a spacer row. Header column
 widths `[96,100,96]` and block divider position are both centered (=146px) so they coincide.
 
+## Phase 2 — reproduced through the demo UI (all 7 ✅)
+
+Each sample now has a `NN.recipe.ts` that builds it through the *real* toolbar (Playwright
+interpreter in `ui/interpreter.ts`); `tests/e2e/ui-build.spec.ts` asserts the built table's
+model deep-equals the validated `NN.html`. **All 7 pass** (`pnpm e2e ui-build`). Built-table
+screenshots in `output/ui/NN.png`. Reference + how-to: `ui/DSL.md`.
+
+To make every sample UI-buildable, four toolbar controls were added (matching existing section
+styling), wired to model setters + `render()`:
+- **Gap (X/Y)** inputs → `setGapX`/`setGapY` (`TableSection.tsx`).
+- **Per-cell padding** input → `setCellPadding`, and **per-cell Corners** menu → `setCellCorners`
+  (`CellSection.tsx`).
+- **Fixed-dimension** inputs for column width / row height (`ColumnSection.tsx`,`RowSection.tsx`).
+- Added a missing `<title>` to the border selector's bottom edge (`BorderSelector.tsx`) so it's
+  selectable/testable like the others.
+
+Findings from driving the real UI (see also the harness comments):
+1. The 19 failing e2e UI tests are **stale `#example-container` selectors** (post grid→table
+   rename), not the API. The new `demo/ui-harness.html` sidesteps the example flow.
+2. **Tailwind `.table { display:table }` collided with bloom-table's `.table { display:grid }`.**
+   ✅ **RESOLVED:** all page-content structural classes are now `bloom-`prefixed
+   (`.bloom-table` / `.bloom-cell` / `.bloom-skip`), so Tailwind's `.table` utility no longer
+   collides. (UI/editor classes — `table-menu`, `cell--selected`, `table--selected` — are
+   intentionally left unprefixed; the prefix is only for what ends up in the saved book page.)
+3. The table border control couples innerH+innerV; **vertical-only** interior rules are set
+   per-cell instead. Nested tables default to `fill,fill`, so recipes set `hug` explicitly where
+   the design wants content sizing.
+4. Edge-overlay buttons sit over cells, so the interpreter focuses cells via `.focus()`.
+
 ## Library changes made this session (all tested; `pnpm test` green, `pnpm typecheck` clean)
 
 - `src/table-renderer.ts`: wire `data-gap-x`/`-y` → CSS `column-gap`/`row-gap`; apply per-cell

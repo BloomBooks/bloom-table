@@ -7,7 +7,7 @@ test.describe("Embedded Grids", () => {
     await page.goto("/demo/tests/embedded-tables.html");
 
     // Wait for the page to load
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
 
     // Manually attach grids since we removed script tags from HTML files
     await attachTablesToPage(page);
@@ -32,7 +32,7 @@ test.describe("Embedded Grids", () => {
     expect(mainGridStyles.gridTemplateRows).toBe("150px");
 
     // === Test the embedded table structure ===
-    const embeddedGrid = mainGrid.locator(".cell[data-content-type='table'] > .table");
+    const embeddedGrid = mainGrid.locator(".bloom-cell[data-content-type='table'] > .bloom-table");
     await expect(embeddedGrid).toBeVisible();
 
     // Check that the embedded table has proper 2x2 layout
@@ -53,7 +53,7 @@ test.describe("Embedded Grids", () => {
     expect(rows).toHaveLength(2);
 
     // === Test embedded table cells ===
-    const embeddedCells = embeddedGrid.locator(".cell");
+    const embeddedCells = embeddedGrid.locator(".bloom-cell");
     await expect(embeddedCells).toHaveCount(4);
 
     // Check that all embedded cells are visible and have proper content
@@ -106,10 +106,10 @@ test.describe("Embedded Grids", () => {
 
   test("validates that embedded grids fill their parent cell", async ({ page }) => {
     await page.goto("/demo/tests/embedded-tables.html");
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
 
-    const parentCell = page.locator("#main-table .cell[data-content-type='table']");
-    const embeddedGrid = parentCell.locator("> .table");
+    const parentCell = page.locator("#main-table .bloom-cell[data-content-type='table']");
+    const embeddedGrid = parentCell.locator("> .bloom-table");
 
     // Get dimensions of parent cell and embedded table
     const parentRect = await parentCell.boundingBox();

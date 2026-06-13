@@ -1,0 +1,30 @@
+<!-- Illustration for design/finding-3-*.md: how a table behaves with fill,fill (the default a
+     nested table gets) vs hug,hug. Each table sits in the same 200×120 dashed box. NB: this is
+     a documentation illustration, not a sample — the wrapper divs/inline styles are fine here. -->
+<div style="display: flex; gap: 48px; align-items: flex-start; font-family: 'Segoe UI', Arial, sans-serif;">
+  <div>
+    <div style="font-size: 14px; margin-bottom: 6px;">fill,fill &nbsp;(nested-table default)</div>
+    <div style="width: 200px; height: 120px; outline: 2px dashed #bbb; display: inline-block;">
+      <div class="bloom-table" data-column-widths="fill,fill" data-row-heights="fill,fill"
+        data-border-default='{"weight":1,"style":"solid","color":"#000"}'>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">a</div></div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">b</div></div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">c</div></div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">d</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size: 14px; margin-bottom: 6px;">hug,hug &nbsp;(content-sized)</div>
+    <div style="width: 200px; height: 120px; outline: 2px dashed #bbb; display: inline-block;">
+      <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug"
+        data-border-default='{"weight":1,"style":"solid","color":"#000"}'>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">a</div></div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">b</div></div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">c</div></div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">d</div></div>
+      </div>
+    </div>
+  </div>
+</div>

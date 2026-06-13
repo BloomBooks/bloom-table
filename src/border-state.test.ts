@@ -3,14 +3,14 @@ import { getTableOuterBorderValueMap } from "./border-state";
 
 function makeTable(cols = 2, rows = 2): HTMLElement {
   const table = document.createElement("div");
-  table.className = "table";
+  table.className = "bloom-table";
   table.setAttribute("data-column-widths", Array(cols).fill("hug").join(","));
   table.setAttribute("data-row-heights", Array(rows).fill("hug").join(","));
   // Create cells (DOM order by rows x cols)
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cell = document.createElement("div");
-      cell.className = "cell";
+      cell.className = "bloom-cell";
       table.appendChild(cell);
     }
   }

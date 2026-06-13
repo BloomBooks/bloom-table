@@ -9,11 +9,11 @@
  *
  * ### HTML Structure:
  * ```html
- * <div class="table" data-column-widths="100px,fit" data-row-heights="50px,60px">
- *   <div class="cell">Cell 0,0</div>
- *   <div class="cell">Cell 0,1</div>
- *   <div class="cell">Cell 1,0</div>
- *   <div class="cell">Cell 1,1</div>
+ * <div class="bloom-table" data-column-widths="100px,fit" data-row-heights="50px,60px">
+ *   <div class="bloom-cell">Cell 0,0</div>
+ *   <div class="bloom-cell">Cell 0,1</div>
+ *   <div class="bloom-cell">Cell 1,0</div>
+ *   <div class="bloom-cell">Cell 1,1</div>
  * </div>
  * ```
  *
@@ -54,7 +54,7 @@
  * - Standard CSS units: "100px", "2rem", "50%", etc.
  *
  * # Warning:
- * Be careful with querySelectorAll with advanced selectors like ":scope > .cell". because the unit tests
+ * Be careful with querySelectorAll with advanced selectors like ":scope > .bloom-cell". because the unit tests
  * use happy-dom, which do not support this selector properly. There may be other selectors that also do not work.
  */
 
@@ -84,11 +84,11 @@ function assert(condition: boolean, message: string): asserts condition {
  * @returns Array of all cell elements in DOM order
  */
 export function getTableCells(table: HTMLElement): HTMLElement[] {
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
 
   const cells: HTMLElement[] = [];
   Array.from(table.children).forEach((element) => {
-    if (element.classList.contains("cell")) {
+    if (element.classList.contains("bloom-cell")) {
       cells.push(element as HTMLElement);
     } else {
       console.debug(`Element ${element.tagName} is not a cell, skipping.`);
@@ -97,7 +97,7 @@ export function getTableCells(table: HTMLElement): HTMLElement[] {
 
   // in both js-dom and happy-dom v15, the querySelectorAll gives "0" when "":scope > selector" is used
   // const cellsViaSelector = Array.from(
-  //   table.querySelectorAll<HTMLElement>(":scope > .cell")
+  //   table.querySelectorAll<HTMLElement>(":scope > .bloom-cell")
   // );
   // if (cellsViaSelector.length !== cells.length) {
   //   console.warn(
@@ -115,7 +115,7 @@ export function getTableCells(table: HTMLElement): HTMLElement[] {
  */
 function createCell(): HTMLElement {
   const newCell = document.createElement("div");
-  newCell.className = "cell";
+  newCell.className = "bloom-cell";
 
   // Use cell-contents.ts to set up the default contents
   setupContentsOfCell(newCell);
@@ -135,12 +135,12 @@ export const getTargetTable = (): HTMLElement | null => {
     return null;
   }
 
-  return currentElement.closest<HTMLElement>(".table") || null;
+  return currentElement.closest<HTMLElement>(".bloom-table") || null;
 };
 
 export const addRow = (table: HTMLElement, skipHistory = false): void => {
   //assert(table instanceof HTMLElement, "table parameter must be an HTMLElement");
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
 
   const description = "Add Row";
   const performOperation = () => {
@@ -315,7 +315,7 @@ export function getTableInfo(table: HTMLElement): {
 }
 
 export function changeCellSpan(cell: HTMLElement, xChange: number, yChange: number): void {
-  const table = cell.closest<HTMLElement>(".table");
+  const table = cell.closest<HTMLElement>(".bloom-table");
   assert(!!table, "Cell must be inside a table element");
 
   const currentSpanX = parseInt(cell.getAttribute("data-span-x") || "1") || 1;
@@ -356,7 +356,7 @@ export function changeCellSpan(cell: HTMLElement, xChange: number, yChange: numb
  * @throws {Error} If the span would exceed table boundaries
  */
 export function setCellSpan(cell: HTMLElement, newHorizontalSpan: number, newVerticalSpan: number) {
-  const table = cell.closest<HTMLElement>(".table");
+  const table = cell.closest<HTMLElement>(".bloom-table");
   assert(!!table, "Cell must be inside a table element");
 
   const currentSpanX = parseInt(cell.style.getPropertyValue("--span-x")) || 1;
@@ -384,7 +384,7 @@ export function setCellSpan(cell: HTMLElement, newHorizontalSpan: number, newVer
     for (let c = column; c < column + currentSpanX; c++) {
       if (r === row && c === column) continue; // Skip the spanning cell itself
       const coveredCell = getCell(table, r, c);
-      coveredCell.classList.remove("skip");
+      coveredCell.classList.remove("bloom-skip");
     }
   }
 
@@ -401,7 +401,7 @@ export function setCellSpan(cell: HTMLElement, newHorizontalSpan: number, newVer
     for (let c = column; c < column + newHorizontalSpan; c++) {
       if (r === row && c === column) continue; // Skip the spanning cell itself
       const coveredCell = getCell(table, r, c);
-      coveredCell.classList.add("skip");
+      coveredCell.classList.add("bloom-skip");
     }
   }
 }
@@ -418,8 +418,8 @@ export function getRowAndColumn(
   table: HTMLElement,
   cell: HTMLElement,
 ): { row: number; column: number } {
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
-  assert(cell.classList.contains("cell"), "cell parameter must have 'cell' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
+  assert(cell.classList.contains("bloom-cell"), "cell parameter must have 'cell' class");
 
   const tableInfo = getTableInfo(table);
   const cells = getTableCells(table);
@@ -450,7 +450,7 @@ export function getCell(table: HTMLElement, row: number, column: number): HTMLEl
   // Check that table is an HTMLElement (or derivative)
   // No need to check instanceof HTMLElement since HTMLDivElement and other specific elements will pass this check
   // The presence of the 'table' class is sufficient for our validation
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
 
   const tableInfo = getTableInfo(table);
   assert(row >= 0 && row < tableInfo.rowCount, `Row index ${row} would be out of bounds`);
@@ -672,7 +672,7 @@ export const removeRowAt = (table: HTMLElement, index: number, skipHistory = fal
 };
 
 export function getRowIndex(cell: HTMLElement) {
-  const table = cell.closest<HTMLElement>(".table");
+  const table = cell.closest<HTMLElement>(".bloom-table");
   assert(!!table, "Cell must be inside a table element");
 
   const { row } = getRowAndColumn(table, cell);
@@ -684,7 +684,7 @@ export function setColumnWidth(
   columnIndex: number,
   width: string, // 35px, hug, fill
 ): void {
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
   const tableInfo = getTableInfo(table);
   assert(
     columnIndex >= 0 && columnIndex < tableInfo.columnCount,
@@ -699,7 +699,7 @@ export function setColumnWidth(
   }
 }
 export function getColumnWidth(table: HTMLElement, columnIndex: number): string | null {
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
   const tableInfo = getTableInfo(table);
   assert(
     columnIndex >= 0 && columnIndex < tableInfo.columnCount,
@@ -713,7 +713,7 @@ export function getColumnWidth(table: HTMLElement, columnIndex: number): string 
 
 /** Gets the raw height spec for a given row (e.g., "hug", "fill", or "42px"). */
 export function getRowHeight(table: HTMLElement, rowIndex: number): string | null {
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
   const tableInfo = getTableInfo(table);
   assert(rowIndex >= 0 && rowIndex < tableInfo.rowCount, `Row index ${rowIndex} is out of bounds`);
   const currentHeights = table.getAttribute("data-row-heights") || "";
@@ -723,7 +723,7 @@ export function getRowHeight(table: HTMLElement, rowIndex: number): string | nul
 
 /** Sets the height for a given row to a spec (e.g., "hug", "fill", or "42px"). */
 export function setRowHeight(table: HTMLElement, rowIndex: number, height: string): void {
-  assert(table.classList.contains("table"), "table parameter must have 'table' class");
+  assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
   const tableInfo = getTableInfo(table);
   assert(rowIndex >= 0 && rowIndex < tableInfo.rowCount, `Row index ${rowIndex} is out of bounds`);
   const currentHeights = table.getAttribute("data-row-heights") || "";

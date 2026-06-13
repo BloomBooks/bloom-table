@@ -17,18 +17,18 @@ describe("corner handle drag to resize table", () => {
 
   it("adds/removes rows and columns while dragging and commits one history entry", () => {
     document.body.innerHTML = `
-      <div class="table" data-column-widths="hug,hug" data-row-heights="hug,hug">
-        <div class="cell"><div contenteditable>1</div></div>
-        <div class="cell"><div contenteditable>2</div></div>
-        <div class="cell"><div contenteditable>3</div></div>
-        <div class="cell"><div contenteditable>4</div></div>
+      <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">
+        <div class="bloom-cell"><div contenteditable>1</div></div>
+        <div class="bloom-cell"><div contenteditable>2</div></div>
+        <div class="bloom-cell"><div contenteditable>3</div></div>
+        <div class="bloom-cell"><div contenteditable>4</div></div>
       </div>`;
 
-    const table = document.querySelector(".table") as HTMLElement;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
     attachTable(table);
 
     // Focus a cell to trigger overlay installation and show overlays
-    const firstEditable = table.querySelector(".cell [contenteditable]") as HTMLElement;
+    const firstEditable = table.querySelector(".bloom-cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     // Corner handle is created on demand by overlays; find it
@@ -82,18 +82,18 @@ describe("corner handle drag to resize table", () => {
     const rowsAttr = Array(4).fill("hug").join(",");
     const cellsHtml = Array.from(
       { length: 16 },
-      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`,
+      (_, i) => `<div class="bloom-cell"><div contenteditable>${i + 1}</div></div>`,
     ).join("");
     document.body.innerHTML = `
-      <div class="table" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
+      <div class="bloom-table" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
         ${cellsHtml}
       </div>`;
 
-    const table = document.querySelector(".table") as HTMLElement;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
     attachTable(table);
 
     // Focus a cell to trigger overlays
-    const firstEditable = table.querySelector(".cell [contenteditable]") as HTMLElement;
+    const firstEditable = table.querySelector(".bloom-cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     const handle = document.querySelector("[data-btable-corner-handle]") as HTMLElement;
@@ -129,17 +129,17 @@ describe("corner handle drag to resize table", () => {
 
   it("can grow then shrink within the same drag gesture", () => {
     document.body.innerHTML = `
-      <div class="table" data-column-widths="hug,hug" data-row-heights="hug,hug">
-        <div class="cell"><div contenteditable>1</div></div>
-        <div class="cell"><div contenteditable>2</div></div>
-        <div class="cell"><div contenteditable>3</div></div>
-        <div class="cell"><div contenteditable>4</div></div>
+      <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">
+        <div class="bloom-cell"><div contenteditable>1</div></div>
+        <div class="bloom-cell"><div contenteditable>2</div></div>
+        <div class="bloom-cell"><div contenteditable>3</div></div>
+        <div class="bloom-cell"><div contenteditable>4</div></div>
       </div>`;
 
-    const table = document.querySelector(".table") as HTMLElement;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
     attachTable(table);
 
-    const firstEditable = table.querySelector(".cell [contenteditable]") as HTMLElement;
+    const firstEditable = table.querySelector(".bloom-cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     const handle = document.querySelector("[data-btable-corner-handle]") as HTMLElement;
@@ -190,17 +190,17 @@ describe("corner handle drag to resize table", () => {
     const rowsAttr = Array(4).fill("hug").join(",");
     const cellsHtml = Array.from(
       { length: 16 },
-      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`,
+      (_, i) => `<div class="bloom-cell"><div contenteditable>${i + 1}</div></div>`,
     ).join("");
     document.body.innerHTML = `
-      <div class="table" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
+      <div class="bloom-table" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
         ${cellsHtml}
       </div>`;
 
-    const table = document.querySelector(".table") as HTMLElement;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
     attachTable(table);
 
-    const firstEditable = table.querySelector(".cell [contenteditable]") as HTMLElement;
+    const firstEditable = table.querySelector(".bloom-cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     const handle = document.querySelector("[data-btable-corner-handle]") as HTMLElement;
@@ -242,17 +242,17 @@ describe("corner handle drag to resize table", () => {
 
   it("handles high-velocity dragging without losing the drag session", () => {
     document.body.innerHTML = `
-      <div class="table" data-column-widths="hug,hug" data-row-heights="hug,hug">
-        <div class="cell"><div contenteditable>1</div></div>
-        <div class="cell"><div contenteditable>2</div></div>
-        <div class="cell"><div contenteditable>3</div></div>
-        <div class="cell"><div contenteditable>4</div></div>
+      <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">
+        <div class="bloom-cell"><div contenteditable>1</div></div>
+        <div class="bloom-cell"><div contenteditable>2</div></div>
+        <div class="bloom-cell"><div contenteditable>3</div></div>
+        <div class="bloom-cell"><div contenteditable>4</div></div>
       </div>`;
 
-    const table = document.querySelector(".table") as HTMLElement;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
     attachTable(table);
 
-    const firstEditable = table.querySelector(".cell [contenteditable]") as HTMLElement;
+    const firstEditable = table.querySelector(".bloom-cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     const handle = document.querySelector("[data-btable-corner-handle]") as HTMLElement;
@@ -305,23 +305,23 @@ describe("corner handle drag to resize table", () => {
     const rowsAttr = Array(3).fill("hug").join(",");
     const cellsHtml = Array.from(
       { length: 9 },
-      (_, i) => `<div class="cell"><div contenteditable>${i + 1}</div></div>`,
+      (_, i) => `<div class="bloom-cell"><div contenteditable>${i + 1}</div></div>`,
     ).join("");
     document.body.innerHTML = `
-      <div class="table" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
+      <div class="bloom-table" data-column-widths="${colsAttr}" data-row-heights="${rowsAttr}">
         ${cellsHtml}
       </div>`;
 
-    const table = document.querySelector(".table") as HTMLElement;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
     attachTable(table);
 
     // Focus a cell to trigger overlays and establish initial selection
-    const firstEditable = table.querySelector(".cell [contenteditable]") as HTMLElement;
+    const firstEditable = table.querySelector(".bloom-cell [contenteditable]") as HTMLElement;
     firstEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
     // Verify initial selection state
-    expect(document.querySelector(".cell.cell--selected")).toBeTruthy();
-    expect(document.querySelector(".table.table--selected")).toBe(table);
+    expect(document.querySelector(".bloom-cell.cell--selected")).toBeTruthy();
+    expect(document.querySelector(".bloom-table.table--selected")).toBe(table);
 
     const handle = document.querySelector("[data-btable-corner-handle]") as HTMLElement;
     expect(handle).toBeTruthy();
@@ -357,8 +357,8 @@ describe("corner handle drag to resize table", () => {
 
     // ❓ THE BUG: After corner drag ends, selection should be maintained
     // but currently these expectations fail because selection is lost
-    const selectedCellAfter = document.querySelector(".cell.cell--selected");
-    const selectedTableAfter = document.querySelector(".table.table--selected");
+    const selectedCellAfter = document.querySelector(".bloom-cell.cell--selected");
+    const selectedTableAfter = document.querySelector(".bloom-table.table--selected");
 
     console.log("🔍 Selection state after drag:", {
       selectedCell: !!selectedCellAfter,
@@ -373,9 +373,9 @@ describe("corner handle drag to resize table", () => {
 
     // Also verify that a cell in the table is focused
     const activeElement = document.activeElement;
-    const activeCell = activeElement?.closest(".cell");
+    const activeCell = activeElement?.closest(".bloom-cell");
     expect(activeCell).toBeTruthy();
-    expect(activeCell?.closest(".table")).toBe(table);
+    expect(activeCell?.closest(".bloom-table")).toBe(table);
 
     detachTable(table);
   });

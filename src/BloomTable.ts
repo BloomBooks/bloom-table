@@ -24,8 +24,8 @@ import { getCell } from "./structure";
 
 export class BloomTable {
   constructor(private table: HTMLElement) {
-    if (!this.table.classList.contains("table")) {
-      this.table.classList.add("table");
+    if (!this.table.classList.contains("bloom-table")) {
+      this.table.classList.add("bloom-table");
     }
   }
 
@@ -40,7 +40,7 @@ export class BloomTable {
   // Structure ops (already history-wrapped in structure.ts)
   addRow(): void {
     // Capture selected column (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
     if (sel) {
       const widths = getColumnWidths(this.table);
@@ -57,7 +57,7 @@ export class BloomTable {
 
   removeLastRow(): void {
     // Capture target column from current selection, and last row index before removal
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
     const widthsBefore = getColumnWidths(this.table);
     const heightsBefore = getRowHeights(this.table);
@@ -78,7 +78,7 @@ export class BloomTable {
 
   addColumn(): void {
     // Capture selected row (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
     if (sel) {
       const heights = getRowHeights(this.table);
@@ -95,7 +95,7 @@ export class BloomTable {
 
   removeLastColumn(): void {
     // Capture target row from current selection, and last column index before removal
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
     const heightsBefore = getRowHeights(this.table);
     const widthsBefore = getColumnWidths(this.table);
@@ -117,7 +117,7 @@ export class BloomTable {
   // Positioned structure ops
   addRowAt(index: number): void {
     // Capture selected column (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
     if (sel) {
       const widths = getColumnWidths(this.table);
@@ -132,7 +132,7 @@ export class BloomTable {
 
   addColumnAt(index: number): void {
     // Capture selected row (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
     if (sel) {
       const heights = getRowHeights(this.table);
@@ -148,7 +148,7 @@ export class BloomTable {
 
   removeRowAt(index: number): void {
     // Capture selected column from current selection prior to removal
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
     const widthsBefore = getColumnWidths(this.table);
     if (sel && widthsBefore.length > 0) {
@@ -167,7 +167,7 @@ export class BloomTable {
 
   removeColumnAt(index: number): void {
     // Capture selected row from current selection prior to removal
-    const sel = this.table.querySelector<HTMLElement>(".cell.cell--selected");
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
     const widthsBefore = getColumnWidths(this.table);
     const heightsBefore = getRowHeights(this.table);

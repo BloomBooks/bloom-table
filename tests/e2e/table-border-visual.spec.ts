@@ -7,7 +7,7 @@ test.describe("Table Border Visual Validation", () => {
     await page.goto("/demo/tests/table-border.html");
 
     // Wait for the page to load
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
 
     // Manually attach grids since we removed script tags from HTML files
     await attachTablesToPage(page);
@@ -26,7 +26,7 @@ test.describe("Table Border Visual Validation", () => {
 
     // Debug: Log what borders are actually applied to each cell
     const cellBorderDebug = await page.evaluate(() => {
-      const cells = Array.from(document.querySelectorAll("#table-with-red-cross .cell"));
+      const cells = Array.from(document.querySelectorAll("#table-with-red-cross .bloom-cell"));
       return cells.map((cell, index) => {
         const computed = getComputedStyle(cell);
         return {
@@ -44,10 +44,10 @@ test.describe("Table Border Visual Validation", () => {
     const grid1 = page.locator("#table-with-red-cross");
     await expect(grid1).toBeVisible();
 
-    const r1c1 = grid1.locator(".cell").nth(0);
-    const r1c2 = grid1.locator(".cell").nth(1);
-    const r2c1 = grid1.locator(".cell").nth(2);
-    const r2c2 = grid1.locator(".cell").nth(3);
+    const r1c1 = grid1.locator(".bloom-cell").nth(0);
+    const r1c2 = grid1.locator(".bloom-cell").nth(1);
+    const r2c1 = grid1.locator(".bloom-cell").nth(2);
+    const r2c2 = grid1.locator(".bloom-cell").nth(3);
 
     // Check computed styles for r1c1 (should have red borders applied via per-side CSS borders)
     const r1c1Styles = await r1c1.evaluate((el) => {
@@ -112,7 +112,7 @@ test.describe("Table Border Visual Validation", () => {
     const grid2 = page.locator("#table-with-external-border");
     await expect(grid2).toBeVisible();
 
-    const grid2r1c1 = grid2.locator(".cell").nth(0);
+    const grid2r1c1 = grid2.locator(".bloom-cell").nth(0);
 
     const grid2Styles = await grid2r1c1.evaluate((el) => {
       const computed = getComputedStyle(el);
@@ -141,7 +141,7 @@ test.describe("Table Border Visual Validation", () => {
     const grid3 = page.locator("#table-with-red-border");
     await expect(grid3).toBeVisible();
 
-    const grid3r1c1 = grid3.locator(".cell").nth(0);
+    const grid3r1c1 = grid3.locator(".bloom-cell").nth(0);
 
     const grid3Styles = await grid3r1c1.evaluate((el) => {
       const computed = getComputedStyle(el);
@@ -173,7 +173,7 @@ test.describe("Table Border Visual Validation", () => {
 
   test("visual regression - table rendering", async ({ page }) => {
     await page.goto("/demo/tests/table-border.html");
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
 
     // Manually attach grids since we removed script tags from HTML files
     await attachTablesToPage(page);

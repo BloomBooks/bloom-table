@@ -11,7 +11,7 @@ export function attachTable(tableDiv: HTMLElement): void {
   if (!tableDiv) throw new Error("Table element is required");
 
   // Ensure the table has the correct class and attributes
-  tableDiv.classList.add("table");
+  tableDiv.classList.add("bloom-table");
   // Install global selection highlighter once
   ensureSelectionHighlighting();
   // Install global table size buttons once

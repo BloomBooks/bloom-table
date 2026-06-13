@@ -3,13 +3,13 @@ import { buildRenderModel, render } from "./table-renderer";
 
 function makeTable(): HTMLElement {
   const table = document.createElement("div");
-  table.className = "table";
+  table.className = "bloom-table";
   return table as HTMLElement;
 }
 
 function addCell(table: HTMLElement, spanX = 1, spanY = 1): HTMLElement {
   const cell = document.createElement("div");
-  cell.className = "cell";
+  cell.className = "bloom-cell";
   if (spanX !== 1) cell.setAttribute("data-span-x", String(spanX));
   if (spanY !== 1) cell.setAttribute("data-span-y", String(spanY));
   table.appendChild(cell);
@@ -84,7 +84,7 @@ describe("table-renderer", () => {
   it("nested table defaults to no outer perimeter; explicit perimeters are allowed", () => {
     // Parent table: 1 row x 2 cols; left cell will contain a nested table
     const parent = document.createElement("div");
-    parent.className = "table";
+    parent.className = "bloom-table";
     parent.setAttribute("data-column-widths", "200px,200px");
     parent.setAttribute("data-row-heights", "120px");
 
@@ -114,17 +114,17 @@ describe("table-renderer", () => {
     );
 
     const leftCell = document.createElement("div");
-    leftCell.className = "cell";
+    leftCell.className = "bloom-cell";
     leftCell.dataset.contentType = "table";
     parent.appendChild(leftCell);
 
     const rightCell = document.createElement("div");
-    rightCell.className = "cell";
+    rightCell.className = "bloom-cell";
     parent.appendChild(rightCell);
 
     // Scenario A: Build a nested table inside left cell WITHOUT explicit perimeters (interior-only arrays)
     const nestedA = document.createElement("div");
-    nestedA.className = "table";
+    nestedA.className = "bloom-table";
     nestedA.setAttribute("data-column-widths", "fill,fill");
     nestedA.setAttribute("data-row-heights", "fill,fill");
     // interior-only: H length = R-1 = 1, V length per row = C-1 = 1
@@ -147,7 +147,7 @@ describe("table-renderer", () => {
     // Add four cells to nested table A
     for (let i = 0; i < 4; i++) {
       const c = document.createElement("div");
-      c.className = "cell";
+      c.className = "bloom-cell";
       nestedA.appendChild(c);
     }
     leftCell.appendChild(nestedA);
@@ -171,7 +171,7 @@ describe("table-renderer", () => {
 
     // Scenario B: A nested table WITH explicit perimeters in H and V arrays should honor those perimeters
     const nestedB = document.createElement("div");
-    nestedB.className = "table";
+    nestedB.className = "bloom-table";
     nestedB.setAttribute("data-column-widths", "fill,fill");
     nestedB.setAttribute("data-row-heights", "fill,fill");
     nestedB.setAttribute(
@@ -214,7 +214,7 @@ describe("table-renderer", () => {
     // Add four cells to nested table B
     for (let i = 0; i < 4; i++) {
       const c = document.createElement("div");
-      c.className = "cell";
+      c.className = "bloom-cell";
       nestedB.appendChild(c);
     }
     leftCell.appendChild(nestedB);
@@ -264,7 +264,7 @@ describe("table-renderer", () => {
   });
   it("sided edges with gap allow neighbors to differ", () => {
     const table = document.createElement("div");
-    table.className = "table";
+    table.className = "bloom-table";
     table.setAttribute("data-column-widths", "100px,100px");
     table.setAttribute("data-row-heights", "30px");
     table.setAttribute("data-gap-x", "10px");
@@ -696,7 +696,7 @@ describe("table-renderer", () => {
 
   it("clamps 'double' style to at least 4px when rendering", () => {
     const g = makeTable();
-    g.className = "table";
+    g.className = "bloom-table";
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px,30px");
     // create 2x2

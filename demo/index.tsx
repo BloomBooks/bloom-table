@@ -20,11 +20,11 @@ const Demo: React.FC = () => {
   const default2x2Grid = useMemo(() => {
     return `
       <div id="page" style="background: white; height: 600px; width: 500px">
-        <div id="main-table" class="table" data-column-widths="hug,hug" data-row-heights="hug,hug">
-          <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
-          <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
-          <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
-          <div class="cell" data-content-type="text"><div contenteditable="true"></div></div>
+        <div id="main-table" class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">
+          <div class="bloom-cell" data-content-type="text"><div contenteditable="true"></div></div>
+          <div class="bloom-cell" data-content-type="text"><div contenteditable="true"></div></div>
+          <div class="bloom-cell" data-content-type="text"><div contenteditable="true"></div></div>
+          <div class="bloom-cell" data-content-type="text"><div contenteditable="true"></div></div>
         </div>
       </div>`;
   }, []);

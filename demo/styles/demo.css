@@ -93,12 +93,12 @@ body {
 }
 
 /* Ensure headings look like proper headings - override Tailwind reset */
-.cell h1,
-.cell h2,
-.cell h3,
-.cell h4,
-.cell h5,
-.cell h6,
+.bloom-cell h1,
+.bloom-cell h2,
+.bloom-cell h3,
+.bloom-cell h4,
+.bloom-cell h5,
+.bloom-cell h6,
 [contenteditable] h1,
 [contenteditable] h2,
 [contenteditable] h3,
@@ -111,27 +111,27 @@ body {
 
 /* Removed empty h1 ruleset to satisfy linter (font-size was commented out) */
 
-.cell h2,
+.bloom-cell h2,
 [contenteditable] h2 {
   font-size: 1.5em !important;
 }
 
-.cell h3,
+.bloom-cell h3,
 [contenteditable] h3 {
   font-size: 1.25em !important;
 }
 
-.cell h4,
+.bloom-cell h4,
 [contenteditable] h4 {
   font-size: 1.1em !important;
 }
 
-.cell h5,
+.bloom-cell h5,
 [contenteditable] h5 {
   font-size: 1em !important;
 }
 
-.cell h6,
+.bloom-cell h6,
 [contenteditable] h6 {
   font-size: 0.9em !important;
 }

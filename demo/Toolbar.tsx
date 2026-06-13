@@ -17,8 +17,8 @@ const Toolbar: React.FC<{}> = () => {
 
     const handleCellFocus = (event: FocusEvent) => {
       const target = event.target as HTMLDivElement;
-      if (target && target.closest(".cell")) {
-        setCurrentCell(target.closest(".cell") as HTMLDivElement);
+      if (target && target.closest(".bloom-cell")) {
+        setCurrentCell(target.closest(".bloom-cell") as HTMLDivElement);
       }
       // Not setting to null on blur allows the menu to be used
       // without the cell losing focus.
@@ -44,7 +44,7 @@ const Toolbar: React.FC<{}> = () => {
           onMouseDown={(e) => e.preventDefault()} // Prevent default to avoid losing focus
           onClick={() => {
             if (currentCell) {
-              tableHistoryManager.undo(currentCell!.closest(".table") as HTMLElement);
+              tableHistoryManager.undo(currentCell!.closest(".bloom-table") as HTMLElement);
             }
           }}
           style={{

@@ -14,7 +14,7 @@ export function ensureSelectionHighlighting(): void {
     (event) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
-      const cell = target.closest(".cell") as HTMLElement | null;
+      const cell = target.closest(".bloom-cell") as HTMLElement | null;
       if (!cell) {
         // Do not clear selection on non-cell focus; persistence desired.
         return;
@@ -22,15 +22,15 @@ export function ensureSelectionHighlighting(): void {
 
       // Move cell selection
       document
-        .querySelectorAll<HTMLElement>(".cell.cell--selected")
+        .querySelectorAll<HTMLElement>(".bloom-cell.cell--selected")
         .forEach((el) => el.classList.remove("cell--selected"));
       cell.classList.add("cell--selected");
 
       // Mark the nearest table as selected, clear others
-      const table = cell.closest(".table") as HTMLElement | null;
+      const table = cell.closest(".bloom-table") as HTMLElement | null;
       if (!table) return;
       document
-        .querySelectorAll<HTMLElement>(".table.table--selected")
+        .querySelectorAll<HTMLElement>(".bloom-table.table--selected")
         .forEach((g) => g.classList.remove("table--selected"));
       table.classList.add("table--selected");
     },

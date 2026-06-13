@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bloom Table — UI build harness</title>
+    <!-- No Tailwind CDN here — keeps the harness free of a network dependency for tests. The
+         toolbar is functional via aria-labels without it. (bloom-table's structural classes are
+         now bloom-prefixed, so the old Tailwind `.table` collision no longer applies anyway.) -->
+    <link rel="stylesheet" href="../src/bloom-table.css" />
+    <link rel="stylesheet" href="../src/bloom-table-edit.css" />
+    <link rel="stylesheet" href="./styles/demo.css" />
+    <style>
+      /* Neutral, black-text page so UI-applied borders (which take their colour from
+         the table's computed text colour) match the #000 used in the validated NN.html. */
+      #editor {
+        background: #fff;
+        color: #000;
+        padding: 24px;
+        font-family: "Andika", "Segoe UI", Arial, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./ui-harness.tsx"></script>
+  </body>
+</html>

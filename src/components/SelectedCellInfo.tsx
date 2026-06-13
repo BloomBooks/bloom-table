@@ -33,7 +33,7 @@ const SelectedCellInfo: React.FC<SelectedCellInfoProps> = ({ updateTrigger }) =>
       return;
     }
 
-    const selectedCell = document.activeElement?.closest(".cell") as HTMLElement;
+    const selectedCell = document.activeElement?.closest(".bloom-cell") as HTMLElement;
     if (!selectedCell) {
       setCellInfo({
         selected: false,

@@ -7,6 +7,7 @@ import CornerMenu from "./BorderControl/menus/CornerMenu";
 import { applyUniformInner, setDefaultBorder, applyOuterBorders } from "../edge-utils";
 import { render } from "../table-renderer";
 import { getTableOuterBorderValueMap } from "../border-state";
+import { getGapX, setGapX, getGapY, setGapY } from "../table-model";
 import { BloomTable } from "../";
 
 type Props = {
@@ -155,6 +156,37 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                     }}
                     disabled={cornerDisabled}
                   />
+                </div>
+                <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+                  <div className="text-sm opacity-80 mb-2">Gap (X / Y)</div>
+                  <div className="flex items-center gap-2 ml-2">
+                    <input
+                      key={`gapx:${getGapX(table)[0] ?? ""}`}
+                      aria-label="Gap X"
+                      type="text"
+                      defaultValue={getGapX(table)[0] ?? ""}
+                      placeholder="x"
+                      onChange={(e) => {
+                        setGapX(table, e.target.value);
+                        render(table);
+                      }}
+                      className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
+                      style={{ width: 70 }}
+                    />
+                    <input
+                      key={`gapy:${getGapY(table)[0] ?? ""}`}
+                      aria-label="Gap Y"
+                      type="text"
+                      defaultValue={getGapY(table)[0] ?? ""}
+                      placeholder="y"
+                      onChange={(e) => {
+                        setGapY(table, e.target.value);
+                        render(table);
+                      }}
+                      className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
+                      style={{ width: 70 }}
+                    />
+                  </div>
                 </div>
               </>
             );

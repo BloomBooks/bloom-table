@@ -14,7 +14,7 @@ test.describe("Undo resize column", () => {
     page,
   }) => {
     await page.goto("/demo/exercises/new-table.html");
-    await page.waitForSelector(".table");
+    await page.waitForSelector(".bloom-table");
     await attachTablesToPage(page);
 
     // Expose the history manager singleton so we can trigger undo exactly as
@@ -41,7 +41,7 @@ test.describe("Undo resize column", () => {
     console.log("Initial:", initial);
 
     // Drag the right edge of the first cell to widen column 0.
-    const firstCell = table.locator(".cell").first();
+    const firstCell = table.locator(".bloom-cell").first();
     const bounds = await firstCell.boundingBox();
     expect(bounds).not.toBeNull();
 

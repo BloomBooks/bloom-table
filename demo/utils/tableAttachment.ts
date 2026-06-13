@@ -8,7 +8,7 @@ import { attachTable } from "../../src/attach";
  * @param container - The container to search for grids. If not provided, searches the entire document.
  */
 export function attachAllTables(container: Document | HTMLElement = document): void {
-  const gridElements = container.querySelectorAll<HTMLElement>(".table");
+  const gridElements = container.querySelectorAll<HTMLElement>(".bloom-table");
   gridElements.forEach((table) => {
     attachTable(table);
   });

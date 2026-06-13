@@ -3,10 +3,10 @@ export function migrateTable(tableDiv: HTMLElement): void {
 
   // make sure that every div.cell that has a first child that is a div.table
   // is selectable by setting its tabindex to -1
-  const cells = tableDiv.querySelectorAll("div.cell");
+  const cells = tableDiv.querySelectorAll("div.bloom-cell");
   cells.forEach((cell) => {
     const firstChild = cell.firstElementChild;
-    if (firstChild && firstChild.classList.contains("table")) {
+    if (firstChild && firstChild.classList.contains("bloom-table")) {
       cell.setAttribute("tabindex", "-1");
     }
   });

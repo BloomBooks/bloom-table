@@ -7,11 +7,11 @@ can't express, the library itself gets fixed.
 
 ## Rules
 
-- **Each sample is ONE table.** Every `NN.html` must have a single root `.table` element —
+- **Each sample is ONE table.** Every `NN.html` must have a single root `.bloom-table` element —
   no sibling tables, no flex/grid wrapper composing several tables. When a design needs
   sub-structure (a block beside another, boxes within a layout, a title above a grid),
   express it with **embedded/nested tables**: a cell with `data-content-type="table"` whose
-  child is another `.table`. The renderer suppresses a nested table's perimeter so the shared
+  child is another `.bloom-table`. The renderer suppresses a nested table's perimeter so the shared
   boundary is a single stroke. Non-table text (titles, captions) goes in cells of the
   outer/nested table, not in bare divs alongside it.
 
@@ -19,7 +19,7 @@ can't express, the library itself gets fixed.
   user driving *this library's UI*: the toolbar/menu buttons (add/remove rows & columns,
   set borders/edges, corners, gaps, spans, cell content type), typing text into cells, and
   inserting images. That means an `NN.html` may contain **only**:
-  - the structural classes `.table` / `.cell`,
+  - the structural classes `.bloom-table` / `.bloom-cell`,
   - the author-level `data-*` attributes the library's own operations set
     (`data-column-widths`, `data-row-heights`, `data-edges-h` / `-v`, `data-border-default`,
     `data-corners`, `data-gap-x` / `-y`, `data-span-x` / `-y`, `data-content-type`),
@@ -35,7 +35,7 @@ can't express, the library itself gets fixed.
 ## Files
 
 - `NN.png` — target design (input). The thing we're trying to reproduce.
-- `NN.html` — the attempt: a self-contained HTML fragment with one or more `.table`
+- `NN.html` — the attempt: a self-contained HTML fragment with one or more `.bloom-table`
   elements **plus** any surrounding markup (titles, rules, captions). **No `<script>`
   tags** — the harness attaches the tables.
 - `_harness.html` — render page. Open `?name=NN`; it fetches `NN.html`, injects it into a
@@ -70,3 +70,15 @@ can't express, the library itself gets fixed.
 6. File the result: move `output/NN.png` into `output/ai-success/` or `output/ai-gaveup/`.
 
 Manual harness check (in a browser): `http://localhost:5173/tests/samples/_harness.html?name=NN`.
+
+## UI recipes (Phase 2 — build it through the toolbar)
+
+Phase 1 proves a sample is expressible as HTML. Phase 2 proves a real user can build it through
+the demo's toolbar UI. Each sample gets a `NN.recipe.ts` (beside `NN.png` / `NN.html`) — a list
+of DSL commands describing the user's clicks/typing. A Playwright interpreter replays them
+against `demo/ui-harness.html` and the `tests/e2e/ui-build.spec.ts` test asserts the built
+table's model deep-equals the validated `NN.html` (a built-table screenshot is saved to
+`output/ui/NN.png`).
+
+- DSL command reference + how to author/run a recipe: [`ui/DSL.md`](ui/DSL.md).
+- Run: `pnpm e2e ui-build` (needs `pnpm dev`).
