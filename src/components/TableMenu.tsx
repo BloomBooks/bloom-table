@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from "react";
-import * as Table from "../";
-import { BloomTable } from "../";
-import { setupContentsOfCell } from "../cell-contents";
 
 import TableSection from "./TableSection";
 import RowSection from "./RowSection";
 import ColumnSection from "./ColumnSection";
 import CellSection from "./CellSection";
+import { TableApi, TableApiContext, defaultTableApi } from "./TableApiContext";
 
-const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (props) => {
+const TableMenu: React.FC<{
+  currentCell: HTMLElement | null | undefined;
+  // Host-supplied operations object. When the panel runs in a different realm
+  // from the tables (e.g. Bloom's toolbox iframe), the host injects an api
+  // built in the page frame so operations run there. Defaults to this module's
+  // own functions, so the demo and same-realm hosts pass nothing.
+  tableApi?: TableApi;
+}> = (props) => {
+  // Resolve the api at the host (provider) level. We read props directly rather
+  // than useTableApi() because TableMenu sits *outside* the provider it renders.
+  const api: TableApi = props.tableApi ?? defaultTableApi;
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
@@ -16,9 +24,13 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
       // Force a re-render when the table history is updated
       forceUpdate((x) => x + 1);
     };
-    document.addEventListener("tableHistoryUpdated", handler);
-    return () => document.removeEventListener("tableHistoryUpdated", handler);
-  }, []);
+    // Listen on the document that actually owns the tables. When the panel is
+    // hosted cross-iframe, history events fire on the page frame's document,
+    // not the toolbox frame's, so bind currentCell.ownerDocument when we have it.
+    const doc = props.currentCell?.ownerDocument ?? document;
+    doc.addEventListener("tableHistoryUpdated", handler);
+    return () => doc.removeEventListener("tableHistoryUpdated", handler);
+  }, [props.currentCell]);
 
   useEffect(() => {
     if (!props.currentCell) return;
@@ -62,13 +74,13 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
   };
   const handleSetCellContentType = (contentTypeId: string) => {
     assert(!!props.currentCell, "No cell selected");
-    setupContentsOfCell(props.currentCell!, contentTypeId, true);
+    api.setupContentsOfCell(props.currentCell!, contentTypeId, true);
   };
 
   const handleExtendCell = () => {
     assert(!!props.currentCell, "No cell selected");
     const table = getTargetTableFromCell(props.currentCell!);
-    const controller = new BloomTable(table);
+    const controller = new api.BloomTable(table);
     const current = controller.getSpan(props.currentCell!);
     controller.setSpan(props.currentCell!, (current.x || 1) + 1, current.y || 1);
   };
@@ -76,48 +88,48 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
   const handleContractCell = () => {
     assert(!!props.currentCell, "No cell selected");
     const table = getTargetTableFromCell(props.currentCell!);
-    const controller = new BloomTable(table);
+    const controller = new api.BloomTable(table);
     const current = controller.getSpan(props.currentCell!);
     const nextX = Math.max(1, (current.x || 1) - 1);
     controller.setSpan(props.currentCell!, nextX, current.y || 1);
   };
   const handleInsertRowAbove = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = Table.getRowIndex(props.currentCell!);
-    const controller = new BloomTable(table);
+    const rowIndex = api.getRowIndex(props.currentCell!);
+    const controller = new api.BloomTable(table);
     controller.addRowAt(rowIndex);
   };
   const handleInsertRowBelow = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = Table.getRowIndex(props.currentCell!);
-    const controller = new BloomTable(table);
+    const rowIndex = api.getRowIndex(props.currentCell!);
+    const controller = new api.BloomTable(table);
     controller.addRowAt(rowIndex + 1);
   };
   const handleDeleteRow = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = Table.getRowIndex(props.currentCell!);
-    const controller = new BloomTable(table);
+    const rowIndex = api.getRowIndex(props.currentCell!);
+    const controller = new api.BloomTable(table);
     controller.removeRowAt(rowIndex);
   };
   const handleInsertColumnLeft = () => {
     const table = getTargetTableFromCell(props.currentCell!); // TODO doesn't have cell param
-    const columnIndex = Table.getRowAndColumn(table, props.currentCell!).column;
-    const controller = new BloomTable(table);
+    const columnIndex = api.getRowAndColumn(table, props.currentCell!).column;
+    const controller = new api.BloomTable(table);
     controller.addColumnAt(columnIndex);
   };
 
   const handleInsertColumnRight = () => {
     const cell = props.currentCell!;
     const table = getTargetTableFromCell(cell);
-    const columnIndex = Table.getRowAndColumn(table, cell).column;
-    const controller = new BloomTable(table);
+    const columnIndex = api.getRowAndColumn(table, cell).column;
+    const controller = new api.BloomTable(table);
     controller.addColumnAt(columnIndex + 1);
   };
 
   const handleDeleteColumn = () => {
     const table = getTargetTableFromSelection();
-    const columnIndex = Table.getRowAndColumn(table, props.currentCell!).column;
-    const controller = new BloomTable(table);
+    const columnIndex = api.getRowAndColumn(table, props.currentCell!).column;
+    const controller = new api.BloomTable(table);
     controller.removeColumnAt(columnIndex);
   };
 
@@ -131,7 +143,7 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
   const handleUndo = () => {
     const table = props.currentCell ? getTargetTableFromSelection() : null;
     if (!table) return;
-    Table.undoLastOperation(table);
+    api.undoLastOperation(table);
   };
 
   // (Old border toggle handlers removed in favor of BorderControl)
@@ -155,6 +167,7 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
   }
 
   return (
+    <TableApiContext.Provider value={api}>
     <div
       className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
       /* if haveSelectedCell is false, dim/disable the menu */
@@ -197,12 +210,12 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
         <button
           className="px-2 py-1 rounded-md text-sm"
           style={{
-            backgroundColor: Table.canUndo() && table ? "#2D8294" : "#555",
+            backgroundColor: api.canUndo() && table ? "#2D8294" : "#555",
             color: "rgba(255,255,255,0.95)",
-            cursor: Table.canUndo() && table ? "pointer" : "not-allowed",
-            opacity: Table.canUndo() && table ? 1 : 0.6,
+            cursor: api.canUndo() && table ? "pointer" : "not-allowed",
+            opacity: api.canUndo() && table ? 1 : 0.6,
           }}
-          disabled={!Table.canUndo() || !table}
+          disabled={!api.canUndo() || !table}
           onClick={handleUndo}
         >
           Undo
@@ -223,6 +236,7 @@ const TableMenu: React.FC<{ currentCell: HTMLElement | null | undefined }> = (pr
         </button>
       </div>
     </div>
+    </TableApiContext.Provider>
   );
 };
 
@@ -270,7 +284,7 @@ const [canUndo, setCanUndo] = useState(false);
     tableRef.current = table;
     const { rowCount, columnCount, hasBorders } = getTableState(table);
 
-    setCanUndo(Table.canUndo());
+    setCanUndo(api.canUndo());
     setCanRemoveRow(rowCount > 1);
     setCanRemoveColumn(columnCount > 1);
     setShowBorders(hasBorders);

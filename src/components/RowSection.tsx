@@ -1,6 +1,5 @@
 import React from "react";
-import * as Table from "../";
-import { BloomTable } from "../";
+import { useTableApi } from "./TableApiContext";
 import addRowAboveIcon from "./icons/row-add-before.svg";
 import addRowBelowIcon from "./icons/row-add-after.svg";
 import deleteRowIcon from "./icons/row-delete.svg";
@@ -28,14 +27,15 @@ export const RowSection: React.FC<Props> = ({
   onInsertBelow,
   onDelete,
 }) => {
+  const api = useTableApi();
   // Determine current row height and map to radio value
   let selectedSize: "grow" | "hug" | "fixed" = "hug";
   let fixedLabel = "mm";
   try {
     if (table && currentCell) {
       const activeAttr = table.getAttribute("data-ui-active-row-index");
-      const rowIndex = activeAttr ? parseInt(activeAttr, 10) : Table.getRowIndex(currentCell);
-      const controller = new BloomTable(table);
+      const rowIndex = activeAttr ? parseInt(activeAttr, 10) : api.getRowIndex(currentCell);
+      const controller = new api.BloomTable(table);
       const raw = controller.getRowHeight(rowIndex) || "hug";
       const h = typeof raw === "string" ? raw.trim() : raw;
       if (h === "hug") selectedSize = "hug";
@@ -56,8 +56,8 @@ export const RowSection: React.FC<Props> = ({
 
   const onChangeSize = (id: string) => {
     if (!table || !currentCell) return;
-    const rowIndex = Table.getRowIndex(currentCell);
-    const controller = new BloomTable(table);
+    const rowIndex = api.getRowIndex(currentCell);
+    const controller = new api.BloomTable(table);
     if (id === "grow") controller.setRowHeight(rowIndex, "fill");
     else if (id === "hug") controller.setRowHeight(rowIndex, "hug");
     else if (id === "fixed") {
