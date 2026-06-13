@@ -17,6 +17,70 @@ function addCell(table: HTMLElement, spanX = 1, spanY = 1): HTMLElement {
 }
 
 describe("table-renderer", () => {
+  it("applies data-gap-x / data-gap-y as visual grid gaps", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "50px,50px");
+    table.setAttribute("data-row-heights", "50px,50px");
+    table.setAttribute("data-gap-x", "12px");
+    table.setAttribute("data-gap-y", "18px");
+    for (let i = 0; i < 4; i++) addCell(table);
+    render(table);
+    expect(table.style.columnGap).toBe("12px");
+    expect(table.style.rowGap).toBe("18px");
+  });
+
+  it("leaves grid gap to CSS (--gap) when no gap attributes are set", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "50px,50px");
+    table.setAttribute("data-row-heights", "50px");
+    addCell(table);
+    addCell(table);
+    render(table);
+    expect(table.style.columnGap).toBe("");
+    expect(table.style.rowGap).toBe("");
+  });
+
+  it("applies per-cell padding from data-pad", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "50px,50px");
+    table.setAttribute("data-row-heights", "50px");
+    const padded = addCell(table);
+    padded.setAttribute("data-pad", "6px 16px");
+    const plain = addCell(table);
+    render(table);
+    expect(padded.style.padding).toBe("6px 16px");
+    expect(plain.style.padding).toBe("");
+  });
+
+  it("applies per-cell text alignment from data-align", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "50px,50px,50px");
+    table.setAttribute("data-row-heights", "50px");
+    const left = addCell(table);
+    left.setAttribute("data-align", "start");
+    const center = addCell(table); // no attribute => default centering
+    const right = addCell(table);
+    right.setAttribute("data-align", "end");
+    render(table);
+    expect(left.style.justifyContent).toBe("flex-start");
+    expect(left.style.textAlign).toBe("left");
+    expect(center.style.justifyContent).toBe(""); // default, untouched
+    expect(right.style.justifyContent).toBe("flex-end");
+    expect(right.style.textAlign).toBe("right");
+  });
+
+  it("applies per-cell corner radius from data-corners", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "50px,50px");
+    table.setAttribute("data-row-heights", "50px");
+    const rounded = addCell(table);
+    rounded.setAttribute("data-corners", JSON.stringify({ radius: 8 }));
+    addCell(table);
+    render(table);
+    expect(rounded.style.borderTopLeftRadius).toBe("8px");
+    expect(rounded.style.borderBottomRightRadius).toBe("8px");
+  });
+
   it("nested table defaults to no outer perimeter; explicit perimeters are allowed", () => {
     // Parent table: 1 row x 2 cols; left cell will contain a nested table
     const parent = document.createElement("div");

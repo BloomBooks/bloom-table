@@ -33,6 +33,7 @@
     "clean": "rm -rf dist",
     "//will run and exit": "",
     "test": "vp test run",
+    "capture": "node tests/samples/capture.mjs",
     "e2e": "npx playwright test",
     "e2e:ui": "npx playwright test --ui",
     "preview": "vp preview"

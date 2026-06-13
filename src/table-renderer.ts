@@ -4,6 +4,7 @@ import {
   getEdgesV,
   getEdgeDefault,
   getTableCorners,
+  getCellCorners,
   getGapX,
   getGapY,
   type BorderSpec,
@@ -481,6 +482,25 @@ export function render(table: HTMLElement): void {
     table.style.setProperty("--table-row-count", String(model.rowHeights.length));
   }
 
+  // Apply visual grid gaps from the gap model. The CSS `gap` shorthand defaults to
+  // `var(--gap, 0)`; here we set the per-axis longhands from data-gap-x / data-gap-y so
+  // authored gaps actually produce spacing (previously they only influenced border
+  // sided-painting). CSS grid gap is uniform per axis, so we use the first specified
+  // value; per-boundary variation is still only honored by the border logic.
+  const firstGap = (tokens: string[]): string | null => {
+    for (const t of tokens) {
+      const s = (t || "").trim();
+      if (s && s !== "0" && s !== "0px") return s;
+    }
+    return null;
+  };
+  const colGap = firstGap(getGapX(table));
+  const rowGap = firstGap(getGapY(table));
+  if (colGap) table.style.columnGap = colGap;
+  else table.style.removeProperty("column-gap");
+  if (rowGap) table.style.rowGap = rowGap;
+  else table.style.removeProperty("row-gap");
+
   // Apply spans via CSS variables (maintains compatibility with existing CSS)
   const cells = getCells(table);
   model.spans.forEach((s) => {
@@ -525,6 +545,33 @@ export function render(table: HTMLElement): void {
     cell.style.removeProperty("--hint-left-color");
   });
 
+  // Apply per-cell horizontal text alignment from data-align. Cells are flex containers
+  // centered by default; this sets the main-axis position (justify-content) and text-align
+  // (for multi-line content). Absent attribute => default centering (properties cleared).
+  const ALIGN_JUSTIFY: Record<string, string> = {
+    start: "flex-start",
+    center: "center",
+    end: "flex-end",
+  };
+  const ALIGN_TEXT: Record<string, string> = { start: "left", center: "center", end: "right" };
+  cells.forEach((cell) => {
+    const a = cell.getAttribute("data-align") || "";
+    if (ALIGN_JUSTIFY[a]) {
+      cell.style.justifyContent = ALIGN_JUSTIFY[a];
+      cell.style.textAlign = ALIGN_TEXT[a];
+    } else {
+      cell.style.removeProperty("justify-content");
+      cell.style.removeProperty("text-align");
+    }
+  });
+
+  // Apply per-cell padding override from data-pad (absent => stylesheet default).
+  cells.forEach((cell) => {
+    const pad = cell.getAttribute("data-pad");
+    if (pad && pad.trim()) cell.style.padding = pad.trim();
+    else cell.style.removeProperty("padding");
+  });
+
   // Apply outer corner radii
   const corners = getTableCorners(table) ?? { radius: 0 };
   if (Number.isFinite(corners.radius)) {
@@ -562,6 +609,20 @@ export function render(table: HTMLElement): void {
     setCorner(Math.max(0, rows - 1), 0, "borderBottomLeftRadius");
     setCorner(Math.max(0, rows - 1), Math.max(0, cols - 1), "borderBottomRightRadius");
   }
+
+  // Per-cell corners: honor data-corners on individual cells. The model already exposes
+  // get/setCellCorners; previously only table corners were rendered. A per-cell radius
+  // rounds that cell's four corners (useful for standalone rounded boxes within a grid).
+  getCells(table).forEach((cell) => {
+    const cc = getCellCorners(cell);
+    if (cc && Number.isFinite(cc.radius)) {
+      const r = `${cc.radius}px`;
+      (cell.style as any).borderTopLeftRadius = r;
+      (cell.style as any).borderTopRightRadius = r;
+      (cell.style as any).borderBottomLeftRadius = r;
+      (cell.style as any).borderBottomRightRadius = r;
+    }
+  });
 
   // Nested tables: perimeters suppressed in buildRenderModel to avoid double borders with parent.
 

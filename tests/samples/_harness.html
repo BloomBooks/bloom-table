@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sample render harness</title>
+    <!-- Structural CSS only: we want a clean, read-state render (no edit overlays). -->
+    <link rel="stylesheet" href="/src/bloom-table.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #f0f0f0;
+      }
+      /* #page wraps tightly around the design so element screenshots have no
+         stray whitespace. White background + a neutral primer-ish sans-serif. */
+      #page {
+        display: inline-block;
+        background: white;
+        padding: 24px;
+        font-family: "Andika", "Segoe UI", Arial, sans-serif;
+        color: #222;
+      }
+      #page img {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="page"></div>
+
+    <script type="module">
+      import { attachTable } from "/src/attach.js";
+
+      const params = new URLSearchParams(location.search);
+      const name = params.get("name");
+      const page = document.getElementById("page");
+
+      async function render() {
+        if (!name) {
+          page.textContent = "Missing ?name= query parameter.";
+          return;
+        }
+        const res = await fetch(`/tests/samples/${name}.html`);
+        if (!res.ok) {
+          page.textContent = `Could not load ${name}.html (${res.status}).`;
+          return;
+        }
+        page.innerHTML = await res.text();
+
+        // Attach every table in a clean read state.
+        page.querySelectorAll(".table").forEach((table) => attachTable(table));
+
+        // Wait for any images to settle so the screenshot is complete.
+        const imgs = Array.from(page.querySelectorAll("img"));
+        await Promise.all(
+          imgs.map((img) =>
+            img.complete
+              ? Promise.resolve()
+              : new Promise((r) => {
+                  img.addEventListener("load", r, { once: true });
+                  img.addEventListener("error", r, { once: true });
+                })
+          )
+        );
+
+        // Signal to the capture script that the render is complete.
+        page.setAttribute("data-ready", "1");
+      }
+
+      render();
+    </script>
+  </body>
+</html>

@@ -147,6 +147,36 @@ export function setEdgeDefault(table: HTMLElement, border: EdgeDefaultSpec): voi
 
 // (Deprecated table/cell border APIs removed; use unified edge model via get/setEdgesH/V and get/setEdgeDefault.)
 
+// Horizontal text alignment within a cell. Default (no attribute) is center, matching the
+// structural CSS. "start"/"end" are writing-direction aware (left/right in LTR).
+export type CellAlign = "start" | "center" | "end";
+
+export function getCellAlign(cell: HTMLElement): CellAlign | null {
+  assert(cell.classList.contains("cell"), "getCellAlign: not a cell");
+  const v = cell.getAttribute("data-align");
+  return v === "start" || v === "center" || v === "end" ? v : null;
+}
+
+export function setCellAlign(cell: HTMLElement, align: CellAlign | null): void {
+  assert(cell.classList.contains("cell"), "setCellAlign: not a cell");
+  if (!align) cell.removeAttribute("data-align");
+  else cell.setAttribute("data-align", align);
+}
+
+// Per-cell padding override (CSS padding shorthand string, e.g. "6px 16px"). Absent => the
+// stylesheet default (--cell-padding). Rendered as inline padding so it wins over the default.
+export function getCellPadding(cell: HTMLElement): string | null {
+  assert(cell.classList.contains("cell"), "getCellPadding: not a cell");
+  const v = cell.getAttribute("data-pad");
+  return v && v.trim() ? v.trim() : null;
+}
+
+export function setCellPadding(cell: HTMLElement, padding: string | null): void {
+  assert(cell.classList.contains("cell"), "setCellPadding: not a cell");
+  if (!padding || !padding.trim()) cell.removeAttribute("data-pad");
+  else cell.setAttribute("data-pad", padding.trim());
+}
+
 // Corners
 export function getTableCorners(table: HTMLElement): CornersSpec | null {
   assert(table.classList.contains("table"), "getTableCorners: not a table");

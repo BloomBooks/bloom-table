@@ -9,3 +9,5 @@ playwright-report/trace/
 playwright-report/
 
 test-results/
+
+tests/samples/output/

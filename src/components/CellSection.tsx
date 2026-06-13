@@ -8,6 +8,7 @@ import type { BorderStyle, BorderValueMap } from "./BorderControl/logic/types";
 import { applyCellPerimeter, ensureEdgesArrays } from "../edge-utils";
 import { getCellPerimeterValueMap } from "../border-state";
 import { render } from "../table-renderer";
+import { getCellAlign, setCellAlign, type CellAlign } from "../table-model";
 // icons
 // icons are now owned by CellContentType; no direct imports here
 // (leftover icons removed)
@@ -100,6 +101,39 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
             onChange={(next) => applyBorderMapToCell(currentCell, next)}
           />
         )}
+      </div>
+
+      {/* Text alignment */}
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+        <div className="text-sm opacity-80 mb-2">Text alignment</div>
+        <div className="flex items-center gap-2 ml-2">
+          {(
+            [
+              { id: "start", label: "Left" },
+              { id: "center", label: "Center" },
+              { id: "end", label: "Right" },
+            ] as { id: CellAlign; label: string }[]
+          ).map(({ id, label }) => {
+            const active = currentCell ? (getCellAlign(currentCell) ?? "center") === id : false;
+            return (
+              <button
+                key={id}
+                type="button"
+                disabled={!currentCell}
+                onClick={() => {
+                  if (!currentCell) return;
+                  setCellAlign(currentCell, id);
+                  const table = currentCell.closest(".table") as HTMLElement | null;
+                  if (table) render(table);
+                }}
+                className="px-2 py-1 border border-gray-600 rounded text-sm"
+                style={{ fontWeight: active ? 700 : 400, opacity: currentCell ? 1 : 0.5 }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Merge / Split */}
