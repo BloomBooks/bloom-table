@@ -8,6 +8,7 @@ import type { CellAlign } from "../table-model";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 import type { CornerRadius } from "./BorderControl/logic/types";
 import { TableApi, useTableApi } from "./TableApiContext";
+import { clearPulse, pulseCell, pulseCellBorders } from "../pulse-highlight";
 // icons
 // icons are now owned by CellContentType; no direct imports here
 // (leftover icons removed)
@@ -57,6 +58,17 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
   const api = useTableApi();
   const currentType = currentCell ? api.getCurrentContentTypeId(currentCell) : undefined;
 
+  // Hover pulse: most cell controls affect the cell's content area; the
+  // Borders and Corners controls affect its edges.
+  const fillHover = {
+    onMouseEnter: () => pulseCell(currentCell),
+    onMouseLeave: () => clearPulse(currentCell),
+  };
+  const borderHover = {
+    onMouseEnter: () => pulseCellBorders(currentCell),
+    onMouseLeave: () => clearPulse(currentCell),
+  };
+
   const borderValueMap: BorderValueMap | undefined = useMemo(() => {
     if (!currentCell) return undefined;
     return buildBorderMapFromCell(api, currentCell);
@@ -77,7 +89,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
   return (
     <Section label="Cell">
       {/* Content type selector */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...fillHover}>
         <div className="text-sm opacity-80 mb-2">Content</div>
         {currentCell && currentType && (
           <RadioGroup
@@ -94,7 +106,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Borders */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...borderHover}>
         <div className="text-sm opacity-80 mb-2">Borders</div>
         {currentCell && borderValueMap && (
           <BorderControl
@@ -107,7 +119,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Text alignment */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...fillHover}>
         <div className="text-sm opacity-80 mb-2">Text alignment</div>
         {currentCell && (
           <RadioGroup
@@ -130,7 +142,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Corners (per-cell) */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...borderHover}>
         <div className="text-sm opacity-80 mb-2">Corners</div>
         {currentCell && (
           <CornerMenu
@@ -146,7 +158,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Padding */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...fillHover}>
         <div className="text-sm opacity-80 mb-2">Padding</div>
         {currentCell && (
           <input
@@ -167,7 +179,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Merge / Split */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...fillHover}>
         <div className="text-sm opacity-80 mb-2">Merge / Split</div>
         <div className="flex items-center gap-3 ml-2">
           <IconButton alt="Merge" title="Merge" icon={mergeIcon} onClick={onExtend} />

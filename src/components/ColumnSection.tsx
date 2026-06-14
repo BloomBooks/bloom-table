@@ -9,6 +9,7 @@ import columnHugIcon from "./icons/column-hug.svg";
 import RadioGroup, { RadioOption } from "./RadioGroup";
 import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
+import { clearPulse, pulseColumn } from "../pulse-highlight";
 
 type Props = {
   table?: HTMLElement;
@@ -82,7 +83,11 @@ export const ColumnSection: React.FC<Props> = ({
   } catch {}
 
   return (
-    <Section label="Column">
+    <Section
+      label="Column"
+      onMouseEnter={() => pulseColumn(table, currentCell)}
+      onMouseLeave={() => clearPulse(table)}
+    >
       <div className={subTitleStyle}>Add / Remove</div>
       <div
         className="px-4 pb-1 flex items-center justify-between gap-3"

@@ -9,6 +9,7 @@ import rowHugIcon from "./icons/row-hug.svg";
 import RadioGroup, { RadioOption } from "./RadioGroup";
 import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
+import { clearPulse, pulseRow } from "../pulse-highlight";
 
 type Props = {
   table?: HTMLElement;
@@ -81,7 +82,11 @@ export const RowSection: React.FC<Props> = ({
   } catch {}
 
   return (
-    <Section label="Row">
+    <Section
+      label="Row"
+      onMouseEnter={() => pulseRow(table, currentCell)}
+      onMouseLeave={() => clearPulse(table)}
+    >
       <div className={subTitleStyle}>Add / Remove</div>
       <div
         className="px-4 pb-1 flex items-center justify-between gap-3"

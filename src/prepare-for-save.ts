@@ -32,7 +32,7 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
   // and the selection highlighter.
   root.querySelectorAll<HTMLElement>(".bloom-cell").forEach((cell) => {
     kHintColorProps.forEach((p) => cell.style.removeProperty(p));
-    cell.classList.remove("cell--selected");
+    cell.classList.remove("cell--selected", "bloom-pulse-fill", "bloom-pulse-border");
   });
   root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
     table.classList.remove("table--selected");

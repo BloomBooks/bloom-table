@@ -5,6 +5,7 @@ import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 // no table-model reads here; we derive current state via border-state/renderer
 import { TableApi, useTableApi } from "./TableApiContext";
+import { clearPulse, pulseTableBorders } from "../pulse-highlight";
 
 type Props = {
   table?: HTMLElement;
@@ -127,7 +128,11 @@ export const TableSection: React.FC<Props> = ({ table }) => {
   }, [table]);
 
   return (
-    <Section label="Table">
+    <Section
+      label="Table"
+      onMouseEnter={() => pulseTableBorders(table)}
+      onMouseLeave={() => clearPulse(table)}
+    >
       {table && (
         <>
           {(() => {

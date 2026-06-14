@@ -83,6 +83,64 @@
     /* bottom */ 0 0; /* left */
 }
 
+/* --- Toolbar hover pulse ---------------------------------------------------
+   When the user mouses into a toolbar section, the panel adds one of these
+   classes to the table parts that section's controls would change, so the user
+   can see what will be affected before acting. Two flavors:
+     .bloom-pulse-fill   - tints the cell's content area (cell / row / column)
+     .bloom-pulse-border - glows the cell's edges (table borders, cell borders,
+                            cell corners)
+   These are edit-only and transient (added on mouseenter, removed on
+   mouseleave); prepare-for-save also strips them defensively. */
+:root {
+  --bloom-pulse-color: #3d8295;
+  --bloom-pulse-duration: 1.1s;
+  --bloom-pulse-fill-opacity: 0.45; /* peak tint over the cell content */
+  --bloom-pulse-border-width: 2px;
+  --bloom-pulse-border-offset: -1px; /* hug the cell's edge so it reads as the border */
+}
+
+@keyframes bloom-pulse-fill-kf {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: var(--bloom-pulse-fill-opacity);
+  }
+}
+
+.bloom-cell.bloom-pulse-fill {
+  position: relative; /* establish containing block for the overlay */
+}
+/* Use ::before so it never collides with cell--selected's ::after overlay. */
+.bloom-cell.bloom-pulse-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--bloom-pulse-color);
+  border-radius: inherit;
+  pointer-events: none; /* don't block editing/clicks */
+  z-index: 2;
+  animation: bloom-pulse-fill-kf var(--bloom-pulse-duration) ease-in-out infinite;
+}
+
+@keyframes bloom-pulse-border-kf {
+  0%,
+  100% {
+    outline-color: transparent;
+  }
+  50% {
+    outline-color: var(--bloom-pulse-color);
+  }
+}
+.bloom-cell.bloom-pulse-border {
+  outline-style: solid;
+  outline-width: var(--bloom-pulse-border-width);
+  outline-offset: var(--bloom-pulse-border-offset);
+  animation: bloom-pulse-border-kf var(--bloom-pulse-duration) ease-in-out infinite;
+}
+
 .bloom-cell > div[contenteditable="true"] {
   min-width: 2em; /* without a min-width, you can't click in an empty cell that was added dynamically*/
   text-align: center;

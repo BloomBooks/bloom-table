@@ -4,6 +4,7 @@ import ExampleBar, { Example } from "./components/ExampleBar";
 import MainContent from "./components/MainContent";
 import SaveButton from "./components/SaveButton";
 import Toolbar from "./Toolbar";
+import PulseTuner from "./components/PulseTuner";
 import ReactDOM from "react-dom/client";
 
 const Demo: React.FC = () => {
@@ -200,6 +201,8 @@ const Demo: React.FC = () => {
       <div id="controls-panel">
         <Toolbar />
       </div>
+      {/* TEMPORARY: hover-pulse tuning panel. Remove when the look is settled. */}
+      <PulseTuner />
     </div>
   );
 };
