@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import TableMenu from "../src/components/TableMenu";
 import { tableHistoryManager } from "../src";
+import DemoColorPicker from "./components/DemoColorPicker";
 
 const Toolbar: React.FC<{}> = () => {
   const [currentCell, setCurrentCell] = useState<HTMLDivElement | null>(null);
@@ -37,7 +38,7 @@ const Toolbar: React.FC<{}> = () => {
 
   return (
     <>
-      <TableMenu currentCell={currentCell} />
+      <TableMenu currentCell={currentCell} colorPicker={DemoColorPicker} />
       <div style={{ display: "flex", gap: "10px" }}>
         <button
           disabled={!isUndoable}

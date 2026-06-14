@@ -18,6 +18,13 @@ const MainContent: React.FC<MainContentProps> = ({ content, onChange, id, classN
 
   useEffect(() => {
     if (containerRef.current && content) {
+      // Skip re-injecting content that already matches what's in the container.
+      // The edit loop is: table mutates -> we serialize and call onChange ->
+      // parent stores it as `content` -> it flows back here. Re-setting innerHTML
+      // in that case would rebuild the DOM and detach the live nodes, orphaning
+      // the toolbar's reference to the selected cell (so further edits no-op).
+      // Only inject when `content` is genuinely external (load example, Start Over).
+      if (containerRef.current.innerHTML === content) return;
       isSettingRef.current = true;
       containerRef.current.innerHTML = content;
       attachTablesAfterContentLoad(containerRef.current);

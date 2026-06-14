@@ -5,6 +5,11 @@ import RowSection from "./RowSection";
 import ColumnSection from "./ColumnSection";
 import CellSection from "./CellSection";
 import { TableApi, TableApiContext, defaultTableApi } from "./TableApiContext";
+import {
+  ColorPickerComponent,
+  ColorPickerContext,
+  DefaultColorPicker,
+} from "./ColorPickerContext";
 
 const TableMenu: React.FC<{
   currentCell: HTMLElement | null | undefined;
@@ -13,6 +18,10 @@ const TableMenu: React.FC<{
   // built in the page frame so operations run there. Defaults to this module's
   // own functions, so the demo and same-realm hosts pass nothing.
   tableApi?: TableApi;
+  // Host-supplied background-color picker for the Table/Cell "Background"
+  // controls. Bloom injects its own; the demo passes its own. Falls back to a
+  // plain <input type="color"> when omitted.
+  colorPicker?: ColorPickerComponent;
 }> = (props) => {
   // Resolve the api at the host (provider) level. We read props directly rather
   // than useTableApi() because TableMenu sits *outside* the provider it renders.
@@ -157,59 +166,62 @@ const TableMenu: React.FC<{
   const table = currentCell ? getTargetTableFromSelection() : undefined;
   const parentCell = table?.parentElement?.closest(".bloom-cell");
 
-  // no-op placeholder removed: variable was unused
-  // If there's no current context (no selected cell or not within a table),
-  // show an instructional message instead of the full menu.
+  // When there's no selected cell (or it isn't inside a table), there's nothing
+  // for the cell/row/column/table controls to act on. We still render them, but
+  // visibly disabled, with a hint to click a cell.
   const hasContext = !!currentCell && !!currentCell.closest(".bloom-table");
-  if (!hasContext) {
-    return (
-      <div
-        className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
-        style={{ backgroundColor: "#2E2E2E", color: "rgba(255,255,255,0.95)" }}
-      >
-        Click in any table cell.
-      </div>
-    );
-  }
+
+  const ColorPicker = props.colorPicker ?? DefaultColorPicker;
 
   return (
     <TableApiContext.Provider value={api}>
+    <ColorPickerContext.Provider value={ColorPicker}>
     <div
       className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
-      /* if haveSelectedCell is false, dim/disable the menu */
       style={{
         backgroundColor: "#2E2E2E",
         color: "rgba(255,255,255,0.95)",
-        opacity: !!currentCell ? 1 : 0.5,
-        pointerEvents: !!currentCell ? "auto" : "none",
       }}
-
-      // onMouseDown, store the current document selection in a react state. Then onMouseUp, restore the selection.
-      // TODO
     >
-      {/* Table section */}
-      <TableSection table={table} />
-      <RowSection
-        table={table}
-        currentCell={currentCell}
-        onInsertAbove={handleInsertRowAbove}
-        onInsertBelow={handleInsertRowBelow}
-        onDelete={handleDeleteRow}
-      />
+      {!hasContext && (
+        <div className="px-2 pb-2 text-sm" style={{ opacity: 0.85 }}>
+          Click in a table cell to edit it.
+        </div>
+      )}
+      {/* The per-cell/row/column/table controls only make sense with a selected
+          cell; dim and disable them when there's nothing to act on. */}
+      <div
+        aria-disabled={!hasContext}
+        style={{
+          opacity: hasContext ? 1 : 0.4,
+          pointerEvents: hasContext ? "auto" : "none",
+          filter: hasContext ? "none" : "grayscale(40%)",
+        }}
+      >
+        {/* Table section */}
+        <TableSection table={table} />
+        <RowSection
+          table={table}
+          currentCell={currentCell}
+          onInsertAbove={handleInsertRowAbove}
+          onInsertBelow={handleInsertRowBelow}
+          onDelete={handleDeleteRow}
+        />
 
-      <ColumnSection
-        table={table}
-        currentCell={currentCell}
-        onInsertLeft={handleInsertColumnLeft}
-        onInsertRight={handleInsertColumnRight}
-        onDelete={handleDeleteColumn}
-      />
-      <CellSection
-        currentCell={currentCell}
-        onSetContentType={handleSetCellContentType}
-        onExtend={handleExtendCell}
-        onContract={handleContractCell}
-      />
+        <ColumnSection
+          table={table}
+          currentCell={currentCell}
+          onInsertLeft={handleInsertColumnLeft}
+          onInsertRight={handleInsertColumnRight}
+          onDelete={handleDeleteColumn}
+        />
+        <CellSection
+          currentCell={currentCell}
+          onSetContentType={handleSetCellContentType}
+          onExtend={handleExtendCell}
+          onContract={handleContractCell}
+        />
+      </div>
 
       {/* Top actions: Undo + Select Parent */}
       <div className="flex items-center gap-2 px-2 pb-2 border-gray-200 mb-2">
@@ -242,6 +254,7 @@ const TableMenu: React.FC<{
         </button>
       </div>
     </div>
+    </ColorPickerContext.Provider>
     </TableApiContext.Provider>
   );
 };

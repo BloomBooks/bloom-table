@@ -43,3 +43,13 @@ export { default as TableMenu } from "./components/TableMenu";
 // every operation runs in the realm whose history manager owns the table.
 export { defaultTableApi, useTableApi, TableApiContext } from "./components/TableApiContext";
 export type { TableApi } from "./components/TableApiContext";
+
+// Injectable background-color picker. A host (e.g. Bloom) implements
+// ColorPickerProps with its own control and passes it as TableMenu's
+// `colorPicker` prop; otherwise DefaultColorPicker (a plain color input) is used.
+export {
+  ColorPickerContext,
+  DefaultColorPicker,
+  useColorPicker,
+} from "./components/ColorPickerContext";
+export type { ColorPickerProps, ColorPickerComponent } from "./components/ColorPickerContext";

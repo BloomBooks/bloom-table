@@ -5,7 +5,10 @@ import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 // no table-model reads here; we derive current state via border-state/renderer
 import { TableApi, useTableApi } from "./TableApiContext";
+import { useColorPicker } from "./ColorPickerContext";
+import Slider from "./Slider";
 import { clearPulse, pulseTableBorders } from "../pulse-highlight";
+import { representativeBorderColorHex } from "../color-utils";
 
 type Props = {
   table?: HTMLElement;
@@ -37,10 +40,19 @@ const buildBorderMapFromTable = (api: TableApi, g: HTMLElement): BorderValueMap 
   };
 };
 
-const applyBorderMapToTable = (api: TableApi, g: HTMLElement, map: BorderValueMap) => {
+const applyBorderMapToTable = (
+  api: TableApi,
+  g: HTMLElement,
+  map: BorderValueMap,
+  color?: string,
+) => {
   const cs = getComputedStyle(g);
-  const outerColor = (cs.color || "black").trim();
-  const innerColor = (cs.color || "#444").trim();
+  // Default to the table's current border color so weight/style edits preserve a
+  // previously chosen color; fall back to the text color for brand-new tables.
+  const firstCell = g.querySelector(".bloom-cell") as HTMLElement | null;
+  const current = firstCell ? representativeBorderColorHex(firstCell) : (cs.color || "#000").trim();
+  const outerColor = (color ?? current).trim();
+  const innerColor = (color ?? current).trim();
 
   // Write outer edges individually for each side based on the UI map
   api.applyOuterBorders(
@@ -104,8 +116,16 @@ const applyBorderMapToTable = (api: TableApi, g: HTMLElement, map: BorderValueMa
 
 const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
 
+// Direct-child cells of a table (DOM order). Avoids ":scope >" which the test DOM
+// doesn't support reliably.
+const tableCells = (g: HTMLElement): HTMLElement[] =>
+  Array.from(g.children).filter(
+    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+  );
+
 export const TableSection: React.FC<Props> = ({ table }) => {
   const api = useTableApi();
+  const ColorPicker = useColorPicker();
   // Corner menu value state, derived from the table and updated on change
   const getCornerValue = (g: HTMLElement | undefined | null): CornerRadius | "mixed" => {
     if (!g) return 0;
@@ -147,6 +167,29 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                     onChange={(next) => applyBorderMapToTable(api, table, next)}
                   />
                 </div>
+                <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+                  <div className="text-sm opacity-80 mb-2">Border color</div>
+                  {/* Suppress the border pulse while picking a color. */}
+                  <div
+                    onMouseEnter={() => clearPulse(table)}
+                    onMouseLeave={() => pulseTableBorders(table)}
+                  >
+                    <ColorPicker
+                      label="Table border color"
+                      value={
+                        (table.querySelector(".bloom-cell") as HTMLElement | null)
+                          ? representativeBorderColorHex(
+                              table.querySelector(".bloom-cell") as HTMLElement,
+                            )
+                          : "#000000"
+                      }
+                      onChange={(color) => {
+                        if (!color) return; // border color can't be "none"; ignore Clear
+                        applyBorderMapToTable(api, table, buildBorderMapFromTable(api, table), color);
+                      }}
+                    />
+                  </div>
+                </div>
                 <div className={menuItemStyle} style={{ cursor: "default" }}>
                   <CornerMenu
                     value={cornerValue}
@@ -161,32 +204,60 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                 </div>
                 <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
                   <div className="text-sm opacity-80 mb-2">Gap (X / Y)</div>
-                  <div className="flex items-center gap-2 ml-2">
-                    <input
-                      key={`gapx:${api.getGapX(table)[0] ?? ""}`}
+                  <div className="flex flex-col gap-2 ml-2">
+                    <Slider
                       aria-label="Gap X"
-                      type="text"
-                      defaultValue={api.getGapX(table)[0] ?? ""}
-                      placeholder="x"
-                      onChange={(e) => {
-                        api.setGapX(table, e.target.value);
+                      label="X"
+                      min={0}
+                      max={40}
+                      unit="px"
+                      value={parsePx(api.getGapX(table)[0])}
+                      onChange={(v) => {
+                        api.setGapX(table, `${v}px`);
                         api.render(table);
                       }}
-                      className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
-                      style={{ width: 70 }}
                     />
-                    <input
-                      key={`gapy:${api.getGapY(table)[0] ?? ""}`}
+                    <Slider
                       aria-label="Gap Y"
-                      type="text"
-                      defaultValue={api.getGapY(table)[0] ?? ""}
-                      placeholder="y"
-                      onChange={(e) => {
-                        api.setGapY(table, e.target.value);
+                      label="Y"
+                      min={0}
+                      max={40}
+                      unit="px"
+                      value={parsePx(api.getGapY(table)[0])}
+                      onChange={(v) => {
+                        api.setGapY(table, `${v}px`);
                         api.render(table);
                       }}
-                      className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
-                      style={{ width: 70 }}
+                    />
+                  </div>
+                </div>
+                <div className={menuItemStyle} style={{ cursor: "default", display: "block" }}>
+                  <div className="text-sm opacity-80 mb-2">Fill</div>
+                  {/* Stop the border pulse while choosing a color; restore it
+                      when the pointer moves back into the section body. */}
+                  <div
+                    onMouseEnter={() => clearPulse(table)}
+                    onMouseLeave={() => pulseTableBorders(table)}
+                  >
+                    <ColorPicker
+                      label="Table fill"
+                      // Reflect the cells' background (the visible surface),
+                      // falling back to the container color.
+                      value={
+                        (tableCells(table)[0] && api.getCellBackground(tableCells(table)[0])) ??
+                        api.getTableBackground(table) ??
+                        ""
+                      }
+                      onChange={(color) => {
+                        const next = color || null;
+                        // "Table background" colors every cell only. We do NOT
+                        // color the container div: it's sized larger than the
+                        // cells (width/height 100%), so its color would bleed
+                        // outside the table. Clear any container color too.
+                        api.setTableBackground(table, null);
+                        tableCells(table).forEach((cell) => api.setCellBackground(cell, next));
+                        api.render(table);
+                      }}
                     />
                   </div>
                 </div>

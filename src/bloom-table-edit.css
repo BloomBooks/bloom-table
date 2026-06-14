@@ -152,3 +152,9 @@
 [contenteditable]:focus {
   outline: none;
 }
+
+/* Cells can receive focus directly (e.g. clicking an image/table cell selects
+   it). The selection is shown via .cell--selected, so suppress the default ring. */
+.bloom-cell:focus {
+  outline: none;
+}

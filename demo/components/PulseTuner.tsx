@@ -4,7 +4,7 @@
 // ready-to-paste :root {} block. Delete this component (and its use in
 // demo/index.tsx) once the look is dialed in.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 type Settings = {
   color: string; // hex
@@ -52,6 +52,18 @@ const numStyle: React.CSSProperties = {
 const PulseTuner: React.FC = () => {
   const [s, setS] = useState<Settings>(DEFAULTS);
   const [copied, setCopied] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // While the pointer is in the tuner, pulse the whole table (both flavors on
+  // every cell) so the user can see the effect of the settings on real cells.
+  // Skip the tuner's own preview cells.
+  const setWholeTablePulse = (on: boolean) => {
+    document.querySelectorAll<HTMLElement>(".bloom-cell").forEach((c) => {
+      if (panelRef.current?.contains(c)) return;
+      if (on) c.classList.add("bloom-pulse-fill", "bloom-pulse-border");
+      else c.classList.remove("bloom-pulse-fill", "bloom-pulse-border");
+    });
+  };
 
   // Push the live values onto :root so both the preview and the real toolbar
   // hover-pulses pick them up immediately.
@@ -87,9 +99,14 @@ const PulseTuner: React.FC = () => {
 
   return (
     <div
+      ref={panelRef}
+      onMouseEnter={() => setWholeTablePulse(true)}
+      onMouseLeave={() => setWholeTablePulse(false)}
       style={{
+        // Bottom-left so it doesn't overlay the right-side toolbar (whose
+        // controls would otherwise sit under this fixed panel and not get clicks).
         position: "fixed",
-        right: 12,
+        left: 12,
         bottom: 12,
         zIndex: 9999,
         width: 280,

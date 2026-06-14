@@ -36,6 +36,10 @@ import {
   setCellCorners,
   getCellPadding,
   setCellPadding,
+  getCellBackground,
+  setCellBackground,
+  getTableBackground,
+  setTableBackground,
   getGapX,
   setGapX,
   getGapY,
@@ -76,6 +80,11 @@ export interface TableApi {
   setCellCorners: typeof setCellCorners;
   getCellPadding: typeof getCellPadding;
   setCellPadding: typeof setCellPadding;
+  // backgrounds
+  getCellBackground: typeof getCellBackground;
+  setCellBackground: typeof setCellBackground;
+  getTableBackground: typeof getTableBackground;
+  setTableBackground: typeof setTableBackground;
   // per-table gaps
   getGapX: typeof getGapX;
   setGapX: typeof setGapX;
@@ -108,6 +117,10 @@ export const defaultTableApi: TableApi = {
   setCellCorners,
   getCellPadding,
   setCellPadding,
+  getCellBackground,
+  setCellBackground,
+  getTableBackground,
+  setTableBackground,
   getGapX,
   setGapX,
   getGapY,

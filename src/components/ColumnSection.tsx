@@ -9,6 +9,7 @@ import columnHugIcon from "./icons/column-hug.svg";
 import RadioGroup, { RadioOption } from "./RadioGroup";
 import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
+// import Slider from "./Slider"; // disabled: columns are sized by dragging dividers
 import { clearPulse, pulseColumn } from "../pulse-highlight";
 
 type Props = {
@@ -71,17 +72,6 @@ export const ColumnSection: React.FC<Props> = ({
     }
   };
 
-  // Current fixed value (for the editable field below).
-  let colIdx = -1;
-  let fixedValue = "";
-  try {
-    if (table && currentCell) {
-      colIdx = api.getRowAndColumn(table, currentCell).column;
-      const w = (new api.BloomTable(table).getColumnWidth(colIdx) || "").trim();
-      if (/(px|mm)$/i.test(w)) fixedValue = w;
-    }
-  } catch {}
-
   return (
     <Section
       label="Column"
@@ -107,23 +97,30 @@ export const ColumnSection: React.FC<Props> = ({
         value={selectedSize}
         onChange={onChangeSize}
       />
+      {/* Fixed-width slider disabled: users now size columns by dragging the
+          divider between columns directly. Kept here (commented out) in case we
+          want to restore a numeric control later.
       <div className="px-4 pt-1 flex items-center gap-2">
-        <span className="text-sm opacity-80">Fixed</span>
-        <input
-          key={`cw:${colIdx}:${fixedValue}`}
+        <span className="text-sm opacity-80" style={{ minWidth: 36 }}>
+          Fixed
+        </span>
+        <Slider
+          className="flex-1"
           aria-label="Column width"
-          type="text"
-          defaultValue={fixedValue}
-          placeholder="e.g. 120px"
-          onChange={(e) => {
+          min={40}
+          max={400}
+          unit="px"
+          value={firstPx(fixedValue) || 80}
+          onChange={(v) => {
             if (!table || !currentCell) return;
             const { column } = api.getRowAndColumn(table, currentCell);
-            new api.BloomTable(table).setColumnWidth(column, e.target.value);
+            // Dragging the slider sets a fixed (px) width, switching the column
+            // out of hug/grow.
+            new api.BloomTable(table).setColumnWidth(column, `${v}px`);
           }}
-          className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
-          style={{ width: 90 }}
         />
       </div>
+      */}
     </Section>
   );
 };

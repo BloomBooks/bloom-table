@@ -197,3 +197,32 @@ export function setCellCorners(cell: HTMLElement, corners: CornersSpec | null): 
   assert(cell.classList.contains("bloom-cell"), "setCellCorners: not a cell");
   setJSONAttr(cell, "data-corners", corners);
 }
+
+// Background color (any CSS color string, e.g. "#ffcc00" or "transparent").
+// Stored in data-bg; the renderer applies it as the cell's --this-bg (which the
+// stylesheet uses for the cell background). Absent => stylesheet default (white).
+export function getCellBackground(cell: HTMLElement): string | null {
+  assert(cell.classList.contains("bloom-cell"), "getCellBackground: not a cell");
+  const v = cell.getAttribute("data-bg");
+  return v && v.trim() ? v.trim() : null;
+}
+
+export function setCellBackground(cell: HTMLElement, color: string | null): void {
+  assert(cell.classList.contains("bloom-cell"), "setCellBackground: not a cell");
+  if (!color || !color.trim()) cell.removeAttribute("data-bg");
+  else cell.setAttribute("data-bg", color.trim());
+}
+
+// Table background color. Stored in data-bg on the table; applied as the table's
+// --bg (used by the stylesheet). Absent => transparent.
+export function getTableBackground(table: HTMLElement): string | null {
+  assert(table.classList.contains("bloom-table"), "getTableBackground: not a table");
+  const v = table.getAttribute("data-bg");
+  return v && v.trim() ? v.trim() : null;
+}
+
+export function setTableBackground(table: HTMLElement, color: string | null): void {
+  assert(table.classList.contains("bloom-table"), "setTableBackground: not a table");
+  if (!color || !color.trim()) table.removeAttribute("data-bg");
+  else table.setAttribute("data-bg", color.trim());
+}

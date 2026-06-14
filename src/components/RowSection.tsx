@@ -9,6 +9,7 @@ import rowHugIcon from "./icons/row-hug.svg";
 import RadioGroup, { RadioOption } from "./RadioGroup";
 import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
+// import Slider from "./Slider"; // disabled: rows are sized by dragging dividers
 import { clearPulse, pulseRow } from "../pulse-highlight";
 
 type Props = {
@@ -69,18 +70,6 @@ export const RowSection: React.FC<Props> = ({
     }
   };
 
-  // Current fixed value (for the editable field below).
-  let rowIdx = -1;
-  let fixedValue = "";
-  try {
-    if (table && currentCell) {
-      const activeAttr = table.getAttribute("data-ui-active-row-index");
-      rowIdx = activeAttr ? parseInt(activeAttr, 10) : api.getRowIndex(currentCell);
-      const h = (new api.BloomTable(table).getRowHeight(rowIdx) || "").trim();
-      if (/(px|mm)$/i.test(h)) fixedValue = h;
-    }
-  } catch {}
-
   return (
     <Section
       label="Row"
@@ -106,24 +95,31 @@ export const RowSection: React.FC<Props> = ({
         value={selectedSize}
         onChange={onChangeSize}
       />
+      {/* Fixed-height slider disabled: users now size rows by dragging the
+          divider between rows directly. Kept here (commented out) in case we
+          want to restore a numeric control later.
       <div className="px-4 pt-1 flex items-center gap-2">
-        <span className="text-sm opacity-80">Fixed</span>
-        <input
-          key={`rh:${rowIdx}:${fixedValue}`}
+        <span className="text-sm opacity-80" style={{ minWidth: 36 }}>
+          Fixed
+        </span>
+        <Slider
+          className="flex-1"
           aria-label="Row height"
-          type="text"
-          defaultValue={fixedValue}
-          placeholder="e.g. 60px"
-          onChange={(e) => {
+          min={20}
+          max={300}
+          unit="px"
+          value={firstPx(fixedValue) || 40}
+          onChange={(v) => {
             if (!table || !currentCell) return;
             const activeAttr = table.getAttribute("data-ui-active-row-index");
             const rowIndex = activeAttr ? parseInt(activeAttr, 10) : api.getRowIndex(currentCell);
-            new api.BloomTable(table).setRowHeight(rowIndex, e.target.value);
+            // Dragging the slider sets a fixed (px) height, switching the row out
+            // of hug/grow.
+            new api.BloomTable(table).setRowHeight(rowIndex, `${v}px`);
           }}
-          className="px-2 py-1 border border-gray-600 rounded text-sm text-black"
-          style={{ width: 90 }}
         />
       </div>
+      */}
     </Section>
   );
 };

@@ -572,6 +572,18 @@ export function render(table: HTMLElement): void {
     else cell.style.removeProperty("padding");
   });
 
+  // Apply per-cell background from data-bg (absent => stylesheet default via --cell-bg).
+  cells.forEach((cell) => {
+    const bg = cell.getAttribute("data-bg");
+    if (bg && bg.trim()) cell.style.setProperty("--this-bg", bg.trim());
+    else cell.style.removeProperty("--this-bg");
+  });
+
+  // Apply table background from data-bg (absent => transparent via the stylesheet).
+  const tableBg = table.getAttribute("data-bg");
+  if (tableBg && tableBg.trim()) table.style.setProperty("--bg", tableBg.trim());
+  else table.style.removeProperty("--bg");
+
   // Apply outer corner radii
   const corners = getTableCorners(table) ?? { radius: 0 };
   if (Number.isFinite(corners.radius)) {
