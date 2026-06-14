@@ -17,13 +17,6 @@
   --table-hint-color: rgba(0, 0, 0, 0.08);
 }
 
-#page {
-  /* horizontally center children (demo/editor host) */
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-}
-
 /* Selected outlines (non-intrusive, no layout shift) */
 .bloom-cell.cell--selected {
   position: relative; /* establish containing block for overlay */

@@ -7,6 +7,15 @@ body {
   overflow: hidden;
 }
 
+/* Center the table in the demo/editor host. This is host-specific chrome, so it
+   lives here rather than in the reusable bloom-table-edit.css (a host like Bloom
+   has its own page layout and must not have it overridden). */
+#page {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
 .demo-layout {
   display: grid;
   grid-template-columns: 300px 500px auto 350px;
