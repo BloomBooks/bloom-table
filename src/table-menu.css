@@ -27,6 +27,30 @@
   padding: 0.625rem;
 }
 
+/* Heading reset. The section titles (<h2>) rely on Tailwind's preflight (which
+   zeroes the default user-agent heading margins) in the demo. A host without
+   preflight gets the browser's large default margins (~0.83em top & bottom),
+   which shows up as excessive space between a section heading and its content.
+   Zero them here; the section's own flex gap provides the intended spacing. */
+.table-menu h1,
+.table-menu h2,
+.table-menu h3,
+.table-menu h4 {
+  margin: 0;
+}
+
+/* Let any horizontal control group wrap to a new line rather than overflow the
+   panel width (the panel's design width, and especially a narrow host column,
+   can't fit every row of tiles). row-gap only applies between wrapped rows, so
+   single-row groups are unaffected; it also gives the vertical (flex-col)
+   sections consistent spacing between their stacked items. */
+.table-menu .flex,
+.table-menu .px-4,
+.table-menu .ml-2 {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
 /* --- Layout --- */
 .table-menu .flex {
   display: flex;

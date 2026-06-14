@@ -25,7 +25,13 @@ const RadioGroup: React.FC<Props> = ({ options, value, onChange, className }) =>
         position: "relative",
         display: "flex",
         alignItems: "center",
-        gap: 0,
+        // Horizontal spacing between tiles is supplied by the connector segments
+        // below, so the column gap is 0. When the group is too wide for its
+        // container (e.g. the cell Content options in a narrow toolbox column),
+        // it wraps; give those wrapped rows a 10px gap so they don't collide.
+        flexWrap: "wrap",
+        columnGap: 0,
+        rowGap: 10,
       }}
     >
       {options.map((opt, idx) => {

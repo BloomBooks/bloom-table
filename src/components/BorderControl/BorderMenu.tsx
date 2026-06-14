@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type BorderMenuOption<T> = {
   value: T;
@@ -19,6 +19,30 @@ export const BorderMenu = <T,>(props: {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
+  // Viewport coordinates for the popup. We position it with `position: fixed`
+  // (see below) so that no ancestor's `overflow: hidden` can clip it — this is
+  // what was happening when a host (e.g. Bloom's narrow toolbox column) clips
+  // horizontal overflow: the right-aligned popup ran off the left edge and its
+  // choices were unreadable.
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // Once the popup is open and measured, place it just below the button and
+  // clamp it horizontally so it stays fully inside the viewport.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const btn = btnRef.current;
+    const pop = popRef.current;
+    if (!btn || !pop) return;
+    const b = btn.getBoundingClientRect();
+    const popWidth = pop.offsetWidth;
+    const margin = 8;
+    // Prefer right-aligning the popup with the button, then clamp into view.
+    let left = b.right - popWidth;
+    const maxLeft = window.innerWidth - popWidth - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+    setPos({ top: b.bottom + 4, left });
+  }, [open]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -74,10 +98,10 @@ export const BorderMenu = <T,>(props: {
           ref={popRef}
           role="menu"
           style={{
-            position: "absolute",
+            position: "fixed",
             zIndex: 1000,
-            top: "calc(100% + 4px)",
-            right: 0,
+            top: pos.top,
+            left: pos.left,
             background: "#ffffff",
             color: "#1f3a40",
             border: "1px solid #ccc",
