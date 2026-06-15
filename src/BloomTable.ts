@@ -8,6 +8,8 @@ import {
   addColumnAt as structAddColumnAt,
   removeRowAt as structRemoveRowAt,
   removeColumnAt as structRemoveColumnAt,
+  moveRowAt as structMoveRowAt,
+  moveColumnAt as structMoveColumnAt,
 } from "./structure";
 import {
   getColumnWidths,
@@ -39,17 +41,19 @@ export class BloomTable {
 
   // Structure ops (already history-wrapped in structure.ts)
   addRow(): void {
-    // Capture selected column (if any) before insertion
+    // Capture selected column and source row (if any) before insertion
     const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
+    let sourceRow: number | undefined;
     if (sel) {
       const widths = getColumnWidths(this.table);
       // Compute column by index of selected cell
       const cellIndex = Array.from(this.table.children).indexOf(sel);
       const col = widths.length > 0 ? cellIndex % widths.length : 0;
       targetCol = Math.max(0, Math.min(col, Math.max(0, widths.length - 1)));
+      sourceRow = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
     }
-    structAddRow(this.table);
+    structAddRow(this.table, false, sourceRow);
     render(this.table);
     const rowIndex = Math.max(0, getRowHeights(this.table).length - 1);
     this.focusEditableInCell(getCell(this.table, rowIndex, targetCol));
@@ -77,17 +81,19 @@ export class BloomTable {
   }
 
   addColumn(): void {
-    // Capture selected row (if any) before insertion
+    // Capture selected row and source column (if any) before insertion
     const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
+    let sourceCol: number | undefined;
     if (sel) {
       const heights = getRowHeights(this.table);
       const widths = getColumnWidths(this.table);
       const cellIndex = Array.from(this.table.children).indexOf(sel);
       const row = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
       targetRow = Math.max(0, Math.min(row, Math.max(0, heights.length - 1)));
+      sourceCol = widths.length > 0 ? cellIndex % widths.length : 0;
     }
-    structAddColumn(this.table);
+    structAddColumn(this.table, false, sourceCol);
     render(this.table);
     const colIndex = Math.max(0, getColumnWidths(this.table).length - 1);
     this.focusEditableInCell(getCell(this.table, targetRow, colIndex));
@@ -116,32 +122,36 @@ export class BloomTable {
 
   // Positioned structure ops
   addRowAt(index: number): void {
-    // Capture selected column (if any) before insertion
+    // Capture selected column and source row (if any) before insertion
     const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
+    let sourceRow: number | undefined;
     if (sel) {
       const widths = getColumnWidths(this.table);
       const cellIndex = Array.from(this.table.children).indexOf(sel);
       const col = widths.length > 0 ? cellIndex % widths.length : 0;
       targetCol = Math.max(0, Math.min(col, Math.max(0, widths.length - 1)));
+      sourceRow = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
     }
-    structAddRowAt(this.table, index);
+    structAddRowAt(this.table, index, false, sourceRow);
     render(this.table);
     this.focusEditableInCell(getCell(this.table, index, targetCol));
   }
 
   addColumnAt(index: number): void {
-    // Capture selected row (if any) before insertion
+    // Capture selected row and source column (if any) before insertion
     const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
+    let sourceCol: number | undefined;
     if (sel) {
       const heights = getRowHeights(this.table);
       const widths = getColumnWidths(this.table);
       const cellIndex = Array.from(this.table.children).indexOf(sel);
       const row = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
       targetRow = Math.max(0, Math.min(row, Math.max(0, heights.length - 1)));
+      sourceCol = widths.length > 0 ? cellIndex % widths.length : 0;
     }
-    structAddColumnAt(this.table, index);
+    structAddColumnAt(this.table, index, false, sourceCol);
     render(this.table);
     this.focusEditableInCell(getCell(this.table, targetRow, index));
   }
@@ -182,6 +192,43 @@ export class BloomTable {
     if (widthsAfter.length > 0) {
       const targetCol = Math.min(index, widthsAfter.length - 1);
       this.focusEditableInCell(getCell(this.table, targetRow, targetCol));
+    }
+  }
+
+  // Move a row from one index to another, keeping focus on the moved row in
+  // the column the user had selected.
+  moveRowAt(from: number, to: number): void {
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    let targetCol = 0;
+    const widths = getColumnWidths(this.table);
+    if (sel && widths.length > 0) {
+      const cellIndex = Array.from(this.table.children).indexOf(sel);
+      targetCol = Math.max(0, Math.min(cellIndex % widths.length, widths.length - 1));
+    }
+    structMoveRowAt(this.table, from, to);
+    render(this.table);
+    const heights = getRowHeights(this.table);
+    if (heights.length > 0) {
+      this.focusEditableInCell(getCell(this.table, Math.min(to, heights.length - 1), targetCol));
+    }
+  }
+
+  // Move a column from one index to another, keeping focus on the moved column
+  // in the row the user had selected.
+  moveColumnAt(from: number, to: number): void {
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    let targetRow = 0;
+    const widths = getColumnWidths(this.table);
+    const heights = getRowHeights(this.table);
+    if (sel && widths.length > 0) {
+      const cellIndex = Array.from(this.table.children).indexOf(sel);
+      targetRow = Math.max(0, Math.min(Math.floor(cellIndex / widths.length), Math.max(0, heights.length - 1)));
+    }
+    structMoveColumnAt(this.table, from, to);
+    render(this.table);
+    const widthsAfter = getColumnWidths(this.table);
+    if (widthsAfter.length > 0) {
+      this.focusEditableInCell(getCell(this.table, targetRow, Math.min(to, widthsAfter.length - 1)));
     }
   }
 

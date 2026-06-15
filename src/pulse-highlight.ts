@@ -2,25 +2,21 @@
 // would change, so the user can see what will be affected before acting.
 //
 // Sections map to regions like this:
-//   Table section            -> the whole table            [border]
-//   Row section              -> the selected row            [fill]
-//   Column section           -> the selected column         [fill]
-//   Cell: content/align/...  -> the selected cell           [fill]
-//   Cell: borders / corners  -> the selected cell's edges   [border]
+//   Table section            -> the whole table
+//   Row section              -> the selected row
+//   Column section           -> the selected column
+//   Cell: content/align/...  -> the selected cell
+//   Cell: borders / corners  -> the selected cell
 //
 // We draw ONE overlay rectangle covering the region's bounding box (not a class
 // on every cell), so a multi-cell region (row/column/table) reads as a single
-// highlighted area rather than N separate boxes — important for the "marching
-// ants" / outline styles. The overlay is a transient, body-appended element
-// tagged data-table-overlay (so prepare-for-save strips it); its look is driven
-// by the same --bloom-pulse-* variables and [data-pulse-style] as before, via
-// .bloom-sel-overlay rules in bloom-table-edit.css.
+// highlighted area. The overlay is a transient, body-appended element tagged
+// data-table-overlay (so prepare-for-save strips it); its "marching ants" look
+// is defined by .bloom-sel-overlay in bloom-table-edit.css.
 
 import { getRowAndColumn, getTableCells } from "./structure";
 
 const OVERLAY_CLASS = "bloom-sel-overlay";
-
-type Kind = "fill" | "border";
 
 function docOf(ref?: HTMLElement | null): Document {
   return ref?.ownerDocument ?? document;
@@ -45,7 +41,7 @@ function spanY(cell: HTMLElement): number {
 }
 
 // Draw a single overlay covering the union bounding box of `cells`.
-function addRegionOverlay(cells: HTMLElement[], kind: Kind): void {
+function addRegionOverlay(cells: HTMLElement[]): void {
   if (!cells.length) return;
   const doc = cells[0].ownerDocument;
   const win = doc.defaultView ?? window;
@@ -64,7 +60,7 @@ function addRegionOverlay(cells: HTMLElement[], kind: Kind): void {
   if (!Number.isFinite(left)) return;
 
   const overlay = doc.createElement("div");
-  overlay.className = `${OVERLAY_CLASS} bloom-sel-${kind}`;
+  overlay.className = OVERLAY_CLASS;
   overlay.setAttribute("data-table-overlay", "");
   const s = overlay.style;
   s.position = "absolute";
@@ -77,11 +73,11 @@ function addRegionOverlay(cells: HTMLElement[], kind: Kind): void {
   doc.body.appendChild(overlay);
 }
 
-/** Highlight the whole table (border treatment). */
+/** Highlight the whole table. */
 export function pulseTableBorders(table?: HTMLElement | null): void {
   if (!table) return;
   clearPulse(table);
-  addRegionOverlay(activeCells(table), "border");
+  addRegionOverlay(activeCells(table));
 }
 
 /** Highlight the row that `currentCell` sits in (span-aware). */
@@ -98,7 +94,7 @@ export function pulseRow(table?: HTMLElement | null, currentCell?: HTMLElement |
     const { row } = getRowAndColumn(table, c);
     return target >= row && target < row + spanY(c);
   });
-  addRegionOverlay(cells, "fill");
+  addRegionOverlay(cells);
 }
 
 /** Highlight the column that `currentCell` sits in (span-aware). */
@@ -115,30 +111,17 @@ export function pulseColumn(table?: HTMLElement | null, currentCell?: HTMLElemen
     const { column } = getRowAndColumn(table, c);
     return target >= column && target < column + spanX(c);
   });
-  addRegionOverlay(cells, "fill");
+  addRegionOverlay(cells);
 }
 
-/** Highlight a single cell's content area. */
+/** Highlight a single cell. */
 export function pulseCell(cell?: HTMLElement | null): void {
   if (!cell) return;
   clearPulse(cell);
-  addRegionOverlay([cell], "fill");
+  addRegionOverlay([cell]);
 }
 
-/** Highlight a single cell's edges. */
+/** Highlight a single cell (alias kept for the borders/corners controls). */
 export function pulseCellBorders(cell?: HTMLElement | null): void {
-  if (!cell) return;
-  clearPulse(cell);
-  addRegionOverlay([cell], "border");
-}
-
-/** Demo helper: highlight every real table as a region (border treatment),
- *  skipping any inside an element marked [data-pulse-tuner] (the tuner preview). */
-export function pulseAllTables(ref?: HTMLElement | null): void {
-  const doc = docOf(ref);
-  clearPulse(ref);
-  doc.querySelectorAll<HTMLElement>(".bloom-table").forEach((t) => {
-    if (t.closest("[data-pulse-tuner]")) return;
-    addRegionOverlay(activeCells(t), "border");
-  });
+  pulseCell(cell);
 }

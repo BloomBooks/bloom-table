@@ -4,8 +4,19 @@ import ExampleBar, { Example } from "./components/ExampleBar";
 import MainContent from "./components/MainContent";
 import SaveButton from "./components/SaveButton";
 import Toolbar from "./Toolbar";
-import PulseTuner from "./components/PulseTuner";
 import ReactDOM from "react-dom/client";
+import { registerCellContentType, defaultCellContentsForEachType } from "../src/cell-contents";
+
+// In the demo, image cells use a local placeholder instead of the library's
+// default remote (Wikipedia) image. Reuse the built-in image type's icon and
+// detection regex, swapping only the template.
+const demoImageType = defaultCellContentsForEachType.find((c) => c.id === "image");
+if (demoImageType) {
+  registerCellContentType({
+    ...demoImageType,
+    templateHtml: `<img src="/demo/placeHolder.png" alt="Placeholder Image" style="max-width: 100%; max-height: 100%" />`,
+  });
+}
 
 const Demo: React.FC = () => {
   const [exampleHtmlContent, setExampleHtmlContent] = useState<string>("");
@@ -201,8 +212,6 @@ const Demo: React.FC = () => {
       <div id="controls-panel">
         <Toolbar />
       </div>
-      {/* TEMPORARY: hover-pulse tuning panel. Remove when the look is settled. */}
-      <PulseTuner />
     </div>
   );
 };

@@ -14,12 +14,54 @@ import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
 import { tableHistoryManager } from "./history";
 import { render } from "./table-renderer";
+import {
+  setupContentsOfCell,
+  contentTypeOptions,
+  getCurrentContentTypeId,
+} from "./cell-contents";
+import {
+  getCellAlign,
+  setCellAlign,
+  getSpan,
+  getGapX,
+  setGapX,
+  getGapY,
+  setGapY,
+  getCellBackground,
+  setCellBackground,
+  getTableBackground,
+  setTableBackground,
+  type CellAlign,
+} from "./table-model";
+import { representativeBorderColorHex } from "./color-utils";
+import { getTableOuterBorderValueMap } from "./border-state";
+import { applyOuterBorders, applyUniformInner, setDefaultBorder } from "./edge-utils";
+// Toolbar icons reused on the menu (imported as URLs).
+import columnDeleteIcon from "./components/icons/column-delete.svg";
+import cellMergeIcon from "./components/icons/cell-merge.svg";
+import cellSplitIcon from "./components/icons/cell-split.svg";
+import alignLeftIcon from "./components/icons/align-left.svg";
+import alignCenterIcon from "./components/icons/align-center.svg";
+import alignRightIcon from "./components/icons/align-right.svg";
+import cellContentTableIcon from "./components/icons/cell-content-table.svg";
+import resizeTableIcon from "./components/icons/resize-table.svg";
 
 // Inline SVG icons (MUI "Add" and "Delete" glyph paths) so the core attach
 // path stays free of React / MUI. fill:currentColor lets the button color
 // drive the glyph color.
 const kAddIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="width:18px;height:18px;display:block;fill:currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
-const kDeleteIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="width:18px;height:18px;display:block;fill:currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
+// Inline glyphs (16px, fill:currentColor) for menu items that have no toolbar
+// icon: directional move arrows, copy, and delete-table.
+const kIconAttr = `viewBox="0 0 24 24" width="16" height="16" style="width:16px;height:16px;display:block;fill:currentColor"`;
+const kAddItemIconSvg = `<svg ${kIconAttr}><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+const kMoveUpIconSvg = `<svg ${kIconAttr}><path d="M12 4l-7 7h4v7h6v-7h4z"/></svg>`;
+const kMoveDownIconSvg = `<svg ${kIconAttr}><path d="M12 20l7-7h-4V6H9v7H5z"/></svg>`;
+const kMoveLeftIconSvg = `<svg ${kIconAttr}><path d="M4 12l7-7v4h7v6h-7v4z"/></svg>`;
+const kMoveRightIconSvg = `<svg ${kIconAttr}><path d="M20 12l-7-7v4H6v6h7v4z"/></svg>`;
+const kCopyIconSvg = `<svg ${kIconAttr}><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>`;
+const kCutIconSvg = `<svg ${kIconAttr}><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z"/></svg>`;
+const kTrashIconSvg = `<svg ${kIconAttr}><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
+const kInfoIconSvg = `<svg ${kIconAttr}><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
 
 let installed = false;
 // Unique ID source for anchor names
@@ -32,25 +74,25 @@ export function resetTableSizeButtons(): void {
   proxCornerHandle = null;
   overlayTable = null;
 
-  // Reset other overlay elements
-  overlayRight = null;
-  overlayLeft = null;
-  overlayTop = null;
-  overlayBottom = null;
-  overlayRightDel = null;
-  overlayLeftDel = null;
-  overlayTopDel = null;
-  overlayBottomDel = null;
-
-  groupRight = null;
-  groupLeft = null;
-  groupTop = null;
-  groupBottom = null;
-
-  proxRightGroup = null;
-  proxLeftGroup = null;
-  proxTopGroup = null;
-  proxBottomGroup = null;
+  // Reset cluster elements
+  colAddBtn = null;
+  rowAddBtn = null;
+  colMenuPill = null;
+  rowMenuPill = null;
+  colCluster = null;
+  rowCluster = null;
+  proxColCluster = null;
+  proxRowCluster = null;
+  proxColAdd = null;
+  proxRowAdd = null;
+  tablePillTL = null;
+  tablePillBR = null;
+  proxTablePillTL = null;
+  proxTablePillBR = null;
+  if (menuPopup) {
+    menuPopup.remove();
+    menuPopup = null;
+  }
 
   if (repositionRaf) {
     cancelAnimationFrame(repositionRaf);
@@ -82,6 +124,27 @@ export function ensureTableSizeButtons(): void {
     true,
   );
 
+  // Right-click on a cell opens the combined Cell/Row/Column/Table menu.
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      const target = event.target as HTMLElement | null;
+      const cell = target?.closest(".bloom-cell") as HTMLElement | null;
+      if (!cell) return; // not on a table cell — leave the native menu alone
+      const table = cell.closest(".bloom-table") as HTMLElement | null;
+      if (!table) return;
+      event.preventDefault();
+      showEdgeOverlays(table);
+      openMenu(
+        ["cell"],
+        { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY },
+        "context",
+        cell,
+      );
+    },
+    true,
+  );
+
   window.addEventListener("resize", scheduleOverlayReposition, {
     passive: true,
   });
@@ -91,29 +154,41 @@ export function ensureTableSizeButtons(): void {
   document.addEventListener("tableHistoryUpdated", scheduleOverlayReposition as EventListener);
 }
 
-// --- Small "+" overlays on four sides ---
-// Add buttons
-let overlayRight: HTMLButtonElement | null = null; // add column right
-let overlayLeft: HTMLButtonElement | null = null; // add column left
-let overlayTop: HTMLButtonElement | null = null; // add row above
-let overlayBottom: HTMLButtonElement | null = null; // add row below
-// Delete buttons
-let overlayRightDel: HTMLButtonElement | null = null; // delete column
-let overlayLeftDel: HTMLButtonElement | null = null; // delete column
-let overlayTopDel: HTMLButtonElement | null = null; // delete row
-let overlayBottomDel: HTMLButtonElement | null = null; // delete row
+// --- Contextual control clusters ---
+// Each cluster pairs an "add" ("+") button with the "..." menu pill and tracks
+// the current selection: the column cluster sits above the current column (a
+// vertical stack — same horizontal position); the row cluster sits to the left
+// of the current row (a horizontal pair — same vertical position).
+let colAddBtn: HTMLButtonElement | null = null; // add column (to the right of current)
+let rowAddBtn: HTMLButtonElement | null = null; // add row (below current)
+let colMenuPill: HTMLButtonElement | null = null;
+let rowMenuPill: HTMLButtonElement | null = null;
 
-// Group containers (per side)
-let groupRight: HTMLDivElement | null = null;
-let groupLeft: HTMLDivElement | null = null;
-let groupTop: HTMLDivElement | null = null;
-let groupBottom: HTMLDivElement | null = null;
+// Cluster containers + their proximity wrappers
+let colCluster: HTMLDivElement | null = null;
+let rowCluster: HTMLDivElement | null = null;
+let proxColCluster: ProximityDiv | null = null;
+let proxRowCluster: ProximityDiv | null = null;
 
-// Proximity wrappers for groups
-let proxRightGroup: ProximityDiv | null = null;
-let proxLeftGroup: ProximityDiv | null = null;
-let proxTopGroup: ProximityDiv | null = null;
-let proxBottomGroup: ProximityDiv | null = null;
+// The "+" add buttons are table-level (not tied to the selected row/column):
+// the row "+" sits below the table, the column "+" to its right.
+let proxColAdd: ProximityDiv | null = null;
+let proxRowAdd: ProximityDiv | null = null;
+
+// Table-level menu pills (table icon + "..."), shown at the table's top-left
+// and bottom-right corners. Both open the same "Table" menu.
+let tablePillTL: HTMLButtonElement | null = null;
+let tablePillBR: HTMLButtonElement | null = null;
+let proxTablePillTL: ProximityDiv | null = null;
+let proxTablePillBR: ProximityDiv | null = null;
+
+// The open popup menu; null when closed. menuOpenId identifies which trigger
+// opened it (so clicking the same pill toggles it closed). menuTargetCell is the
+// cell the menu acts on (the right-clicked cell, or the selected cell for pills).
+let menuPopup: HTMLDivElement | null = null;
+let menuOpenId: string | null = null;
+let menuTargetCell: HTMLElement | null = null;
+
 let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
 
@@ -153,18 +228,14 @@ function ensureCornerHandle() {
   const el = document.createElement("div");
   el.setAttribute("data-btable-corner-handle", "");
   Object.assign(el.style, {
-    width: "16px",
-    height: "16px",
+    width: "14px",
+    height: "14px",
     position: "static",
-    border: "1px solid rgba(0,0,0,0.3)",
-    borderRadius: "4px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.6) 0 30%, rgba(0,0,0,0.15) 30% 60%, rgba(255,255,255,0.6) 60% 100%)",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
     cursor: "nwse-resize",
     display: "none",
     zIndex: "2147483647",
   } as CSSStyleDeclaration);
+  el.innerHTML = `<img src="${resizeTableIcon}" alt="" draggable="false" style="width:14px;height:14px;display:block;pointer-events:none" />`;
 
   // Mouse interactions
   const onMouseDown = (e: MouseEvent) => {
@@ -559,8 +630,15 @@ html { anchor-scope: all; }
   overlayStylesInstalled = true;
 }
 
-type OverlayKind = "add" | "delete";
+type OverlayKind = "add";
 type OverlaySide = "right" | "left" | "top" | "bottom";
+
+const kAddOverlayLabel: Record<OverlaySide, string> = {
+  right: "Insert Column Right",
+  left: "Insert Column Left",
+  top: "Insert Row Above",
+  bottom: "Insert Row Below",
+};
 
 function makeOverlay(
   onClick: () => void,
@@ -570,6 +648,9 @@ function makeOverlay(
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
+  const label = kAddOverlayLabel[side];
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
   Object.assign(btn.style, {
     position: "absolute",
     // base size; will be overridden per kind/side below
@@ -588,24 +669,18 @@ function makeOverlay(
     boxSizing: "border-box",
   } as CSSStyleDeclaration);
 
-  // Shape adjustments: Add buttons are bigger targets; Delete stays circular 24px.
-  if (kind === "add") {
-    if (side === "right" || side === "left") {
-      // Tall rounded rectangle for columns
-      btn.style.width = "24px";
-      btn.style.height = `${kAddButtonLength}px`;
-      btn.style.borderRadius = "12px"; // pill-like vertically
-    } else {
-      // Wide rounded rectangle for rows
-      btn.style.width = `${kAddButtonLength}px`;
-      btn.style.height = "24px";
-      btn.style.borderRadius = "12px"; // pill-like horizontally
-    }
-  } else {
-    // delete: keep compact circle
+  // Add buttons are bigger targets: a pill along the edge they insert on.
+  void kind;
+  if (side === "right" || side === "left") {
+    // Tall rounded rectangle for columns
     btn.style.width = "24px";
+    btn.style.height = `${kAddButtonLength}px`;
+    btn.style.borderRadius = "12px"; // pill-like vertically
+  } else {
+    // Wide rounded rectangle for rows
+    btn.style.width = `${kAddButtonLength}px`;
     btn.style.height = "24px";
-    btn.style.borderRadius = "12px";
+    btn.style.borderRadius = "12px"; // pill-like horizontally
   }
   // Inject the icon as inline SVG for crisp rendering
   btn.innerHTML = iconSvg;
@@ -614,21 +689,14 @@ function makeOverlay(
   return btn;
 }
 
-function ensureGroupContainer(side: OverlaySide): HTMLDivElement {
-  const existing =
-    side === "right"
-      ? groupRight
-      : side === "left"
-        ? groupLeft
-        : side === "top"
-          ? groupTop
-          : groupBottom;
-  if (existing) return existing;
-
+// Build a cluster container (a flex box) wrapped by anchor positioning. The
+// column cluster lays out horizontally ("+" then "..." to its right, above the
+// column); the row cluster stacks vertically ("+" then "..." below it, left of
+// the row).
+function makeClusterContainer(kind: MenuKind): HTMLDivElement {
   const div = document.createElement("div");
-  div.setAttribute("data-overlay-group", side);
+  div.setAttribute("data-overlay-cluster", kind);
   Object.assign(div.style, {
-    // Positioned by the ProximityDiv wrapper via anchor positioning
     position: "static",
     zIndex: "2147483647",
     display: "none",
@@ -636,79 +704,65 @@ function ensureGroupContainer(side: OverlaySide): HTMLDivElement {
     alignItems: "center",
     justifyContent: "center",
     boxSizing: "border-box",
-    // No transform here; centering handled on wrapper element
   } as any);
-  // flex direction depends on side and we'll toggle display when showing
-  div.style.flexDirection = side === "right" || side === "left" ? "column" : "row";
-  (div.style as any).display = "none";
+  div.style.flexDirection = kind === "column" ? "row" : "column";
   document.body.appendChild(div);
-
-  if (side === "right") groupRight = div;
-  else if (side === "left") groupLeft = div;
-  else if (side === "top") groupTop = div;
-  else groupBottom = div;
-
-  // Attach proximity to group
-  const prox = new ProximityDiv(document.body, div);
-  if (side === "right") proxRightGroup = prox;
-  else if (side === "left") proxLeftGroup = prox;
-  else if (side === "top") proxTopGroup = prox;
-  else proxBottomGroup = prox;
-
   return div;
 }
 
 function ensureEdgeOverlays() {
   ensureOverlayStyles();
-  // Use MUI Add/Delete icons. Placement conveys direction.
-  if (!overlayRight)
-    overlayRight = makeOverlay(tryInsertColumnRight, kAddIconSvg, "add", "right");
-  if (!overlayLeft) overlayLeft = makeOverlay(tryInsertColumnLeft, kAddIconSvg, "add", "left");
-  if (!overlayTop) overlayTop = makeOverlay(tryInsertRowAbove, kAddIconSvg, "add", "top");
-  if (!overlayBottom)
-    overlayBottom = makeOverlay(tryInsertRowBelow, kAddIconSvg, "add", "bottom");
-  // Delete buttons
-  if (!overlayRightDel)
-    overlayRightDel = makeOverlay(tryRemoveColumn, kDeleteIconSvg, "delete", "right");
-  if (!overlayLeftDel)
-    overlayLeftDel = makeOverlay(tryRemoveColumn, kDeleteIconSvg, "delete", "left");
-  if (!overlayTopDel) overlayTopDel = makeOverlay(tryRemoveRow, kDeleteIconSvg, "delete", "top");
-  if (!overlayBottomDel)
-    overlayBottomDel = makeOverlay(tryRemoveRow, kDeleteIconSvg, "delete", "bottom");
-  // Create group containers and place buttons inside
-  const rightGroup = ensureGroupContainer("right");
-  const leftGroup = ensureGroupContainer("left");
-  const topGroup = ensureGroupContainer("top");
-  const bottomGroup = ensureGroupContainer("bottom");
+  // One "+" per axis; reshaped to a small pill so it pairs neatly with the menu.
+  if (!colAddBtn) colAddBtn = makeOverlay(tryInsertColumnRight, kAddIconSvg, "add", "right");
+  if (!rowAddBtn) rowAddBtn = makeOverlay(tryInsertRowBelow, kAddIconSvg, "add", "bottom");
+  for (const b of [colAddBtn, rowAddBtn]) {
+    if (!b) continue;
+    b.style.width = "";
+    b.style.minWidth = "30px";
+    b.style.height = "20px";
+    b.style.borderRadius = "10px";
+    b.style.padding = "0 8px";
+  }
+  // The "..." menu pills (row/column) and the table-level pills.
+  ensureMenuPills();
+  ensureTablePills();
 
-  const addToGroup = (group: HTMLDivElement, ...buttons: (HTMLButtonElement | null)[]) => {
-    for (const btn of buttons) {
-      if (!btn) continue;
-      // Make button participate in flex layout vs absolute
-      btn.style.position = "static";
-      btn.style.display = "flex";
-      if (!group.contains(btn)) group.appendChild(btn);
+  // Assemble each cluster as [ + ][ ... ] (add button nearest the table edge).
+  // Double the resting opacity of the row/column menu affordances (ProximityDiv
+  // defaults to 0.08) so the "..." pills are easier to spot at rest.
+  if (!colCluster) {
+    colCluster = makeClusterContainer("column");
+    proxColCluster = new ProximityDiv(document.body, colCluster, { minOpacity: 0.16 });
+  }
+  if (!rowCluster) {
+    rowCluster = makeClusterContainer("row");
+    proxRowCluster = new ProximityDiv(document.body, rowCluster, { minOpacity: 0.16 });
+  }
+  const addToCluster = (cluster: HTMLDivElement, ...els: (HTMLElement | null)[]) => {
+    for (const el of els) {
+      if (!el) continue;
+      el.style.position = "static";
+      el.style.display = "flex";
+      if (!cluster.contains(el)) cluster.appendChild(el);
     }
   };
-  addToGroup(rightGroup, overlayRight, overlayRightDel);
-  addToGroup(leftGroup, overlayLeft, overlayLeftDel);
-  addToGroup(topGroup, overlayTop, overlayTopDel);
-  addToGroup(bottomGroup, overlayBottom, overlayBottomDel);
+  // The clusters now hold only the "..." menu pill (anchored to the selected
+  // row/column). The "+" buttons are positioned table-relative below.
+  addToCluster(colCluster, colMenuPill);
+  addToCluster(rowCluster, rowMenuPill);
 
-  // Attach hover handlers once for delete previews
-  const ensureHover = (btn: HTMLButtonElement | null, kind: PreviewKind) => {
-    if (!btn) return;
-    if ((btn as any)._hasPreviewHandlers) return;
-    (btn as any)._hasPreviewHandlers = true;
-    btn.addEventListener("mouseenter", () => showDeletePreview(kind));
-    btn.addEventListener("mouseleave", hideDeletePreview);
-  };
-  ensureHover(overlayRightDel, "column");
-  ensureHover(overlayLeftDel, "column");
-  ensureHover(overlayTopDel, "row");
-  ensureHover(overlayBottomDel, "row");
+  // Each "+" gets its own proximity wrapper so it can be placed at a table edge,
+  // independent of the selection-anchored clusters.
+  if (colAddBtn) {
+    colAddBtn.style.position = "static";
+    if (!proxColAdd) proxColAdd = new ProximityDiv(document.body, colAddBtn);
+  }
+  if (rowAddBtn) {
+    rowAddBtn.style.position = "static";
+    if (!proxRowAdd) proxRowAdd = new ProximityDiv(document.body, rowAddBtn);
+  }
 
-  // Attach hover handlers for ADD previews (show where the insertion will occur)
+  // Hover previews: the "+" shows where the new line will land.
   const ensureAddHover = (
     btn: HTMLButtonElement | null,
     kind: PreviewKind,
@@ -720,30 +774,877 @@ function ensureEdgeOverlays() {
     btn.addEventListener("mouseenter", () => showAddPreview(kind, position));
     btn.addEventListener("mouseleave", hideAddPreview);
   };
-  ensureAddHover(overlayTop, "row", "above");
-  ensureAddHover(overlayBottom, "row", "below");
-  ensureAddHover(overlayLeft, "column", "left");
-  ensureAddHover(overlayRight, "column", "right");
+  ensureAddHover(colAddBtn, "column", "right");
+  ensureAddHover(rowAddBtn, "row", "below");
+}
+
+// ===== "..." pill menus =====
+// A menu is composed of one or more of these sections. Pills open a single
+// section; right-clicking a cell opens all four (Cell, Row, Column, Table).
+type SectionName = "cell" | "row" | "column" | "table";
+// Pills are triggered for the row/column/table sections only.
+type MenuKind = "row" | "column" | "table";
+
+// Context the section builders compute against (the cell the menu acts on).
+type MenuCtx = {
+  table: HTMLElement | null;
+  cell: HTMLElement | null;
+  row: number;
+  col: number;
+  rowCount: number;
+  colCount: number;
+};
+
+const kIconSlotPx = 22; // reserved left gutter so labels align with/without icons
+
+// Base pill styling shared by the row/column "..." pills and the table pill.
+function stylePill(btn: HTMLButtonElement): void {
+  Object.assign(btn.style, {
+    position: "static",
+    height: "20px",
+    minWidth: "30px",
+    padding: "0 8px",
+    borderRadius: "10px",
+    border: "1px solid rgba(0,0,0,0.3)",
+    backgroundColor: "#2D8294",
+    color: "#fff",
+    fontSize: "16px",
+    fontWeight: "700",
+    lineHeight: "1",
+    letterSpacing: "1px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+    cursor: "pointer",
+    display: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "5px",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  btn.setAttribute("aria-haspopup", "menu");
+  // Don't steal selection/focus from the current cell when opening the menu.
+  btn.addEventListener("mousedown", (e) => e.preventDefault());
+}
+
+function makePill(label: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "⋯"; // horizontal ellipsis "⋯"
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  stylePill(btn);
+  return btn;
+}
+
+// A wider pill showing a 2x2 table glyph followed by the "..." affordance.
+function makeTablePill(label: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  btn.innerHTML = `<img src="${cellContentTableIcon}" width="16" height="16" alt="" style="display:block" /><span style="font-size:16px;line-height:1">⋯</span>`;
+  stylePill(btn);
+  return btn;
+}
+
+function ensureMenuPills(): void {
+  if (!colMenuPill) {
+    colMenuPill = makePill("Column menu");
+    colMenuPill.setAttribute("data-btable-menu-pill", "column");
+    colMenuPill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePillMenu("column", colMenuPill!, "pill:column");
+    });
+  }
+  if (!rowMenuPill) {
+    rowMenuPill = makePill("Row menu");
+    rowMenuPill.setAttribute("data-btable-menu-pill", "row");
+    rowMenuPill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePillMenu("row", rowMenuPill!, "pill:row");
+    });
+  }
+}
+
+function ensureTablePills(): void {
+  const make = (id: string) => {
+    const pill = makeTablePill("Table menu");
+    pill.setAttribute("data-btable-menu-pill", "table");
+    pill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      togglePillMenu("table", pill, id);
+    });
+    return pill;
+  };
+  // The table pills are the menu entry points and live at the table corners,
+  // far from where the cursor usually is — keep them clearly visible at rest
+  // (rather than fading to near-invisible) so they're discoverable.
+  if (!tablePillTL) {
+    tablePillTL = make("pill:table:tl");
+    proxTablePillTL = new ProximityDiv(document.body, tablePillTL, { minOpacity: 0.6 });
+  }
+  if (!tablePillBR) {
+    tablePillBR = make("pill:table:br");
+    proxTablePillBR = new ProximityDiv(document.body, tablePillBR, { minOpacity: 0.6 });
+  }
+}
+
+// Bold, no-op section header. Indented to align with item labels (past gutter).
+function makeMenuHeader(text: string): HTMLDivElement {
+  const h = document.createElement("div");
+  h.textContent = text;
+  Object.assign(h.style, {
+    padding: `8px 14px 3px ${14 + kIconSlotPx}px`,
+    fontSize: "11px",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    color: "#888",
+  } as CSSStyleDeclaration);
+  return h;
+}
+
+// A thin horizontal divider between sections.
+function makeDivider(): HTMLDivElement {
+  const d = document.createElement("div");
+  Object.assign(d.style, {
+    height: "1px",
+    background: "rgba(0,0,0,0.1)",
+    margin: "4px 0",
+  } as CSSStyleDeclaration);
+  return d;
+}
+
+// Color for the black line icons in the left gutter of menu items.
+const kItemIconColor = "#333";
+
+// Fill an element with an icon recolored to `color`. Accepts inline SVG markup
+// (uses currentColor) or a URL (recolored via CSS mask, since the toolbar SVGs
+// are white and would otherwise be invisible on the white menu).
+function setIconSlot(el: HTMLElement, icon: string | undefined, color: string): void {
+  el.innerHTML = "";
+  if (!icon) return;
+  if (icon.trim().startsWith("<svg")) {
+    el.style.color = color;
+    el.innerHTML = icon;
+    return;
+  }
+  const m = document.createElement("span");
+  Object.assign(m.style, {
+    display: "block",
+    width: "16px",
+    height: "16px",
+    backgroundColor: color,
+  } as CSSStyleDeclaration);
+  m.style.setProperty("mask-image", `url("${icon}")`);
+  m.style.setProperty("-webkit-mask-image", `url("${icon}")`);
+  for (const prop of ["mask-size", "-webkit-mask-size"]) m.style.setProperty(prop, "contain");
+  for (const prop of ["mask-repeat", "-webkit-mask-repeat"]) m.style.setProperty(prop, "no-repeat");
+  for (const prop of ["mask-position", "-webkit-mask-position"]) m.style.setProperty(prop, "center");
+  el.appendChild(m);
+}
+
+function makeMenuItem(
+  label: string,
+  fn: () => void,
+  previewKind?: PreviewKind,
+  disabled = false,
+  icon?: string,
+): HTMLButtonElement {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.setAttribute("aria-label", label);
+  item.setAttribute("role", "menuitem");
+  item.disabled = disabled;
+  if (disabled) item.setAttribute("aria-disabled", "true");
+  Object.assign(item.style, {
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+    textAlign: "left",
+    padding: "6px 14px",
+    background: "transparent",
+    border: "none",
+    color: disabled ? "#bbb" : "#222",
+    fontSize: "13px",
+    cursor: disabled ? "default" : "pointer",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+
+  const slot = document.createElement("span");
+  Object.assign(slot.style, {
+    flex: `0 0 ${kIconSlotPx}px`,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: disabled ? "0.4" : "1",
+  } as CSSStyleDeclaration);
+  setIconSlot(slot, icon, kItemIconColor);
+  const text = document.createElement("span");
+  text.textContent = label;
+  text.style.flex = "1 1 auto";
+  item.appendChild(slot);
+  item.appendChild(text);
+
+  item.addEventListener("mousedown", (e) => e.preventDefault());
+  if (!disabled) {
+    item.addEventListener("mouseenter", () => {
+      item.style.background = "#eef6f8";
+      if (previewKind) showDeletePreview(previewKind);
+    });
+    item.addEventListener("mouseleave", () => {
+      item.style.background = "transparent";
+      if (previewKind) hideDeletePreview();
+    });
+    item.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (previewKind) hideDeletePreview();
+      closeMenuPopup();
+      fn();
+    });
+  }
+  return item;
+}
+
+// A non-interactive hint row: a Bloom-blue info icon followed by muted text.
+// Does nothing on click (it's a plain div, not a menuitem button).
+function makeInfoNote(text: string): HTMLDivElement {
+  const row = document.createElement("div");
+  Object.assign(row.style, {
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+    padding: "6px 14px",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  const slot = document.createElement("span");
+  Object.assign(slot.style, {
+    flex: `0 0 ${kIconSlotPx}px`,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  } as CSSStyleDeclaration);
+  setIconSlot(slot, kInfoIconSvg, kBloomBlue);
+  const label = document.createElement("span");
+  label.textContent = text;
+  Object.assign(label.style, {
+    flex: "1 1 auto",
+    fontSize: "12px",
+    color: "#666",
+  } as CSSStyleDeclaration);
+  row.appendChild(slot);
+  row.appendChild(label);
+  return row;
+}
+
+// A control group: the command label on one line, then its chooser buttons on
+// the line below (indented to align under the label text).
+function makeControlRow(label: string, controls: HTMLElement[]): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.padding = "4px 14px";
+  wrap.style.boxSizing = "border-box";
+
+  const labelLine = document.createElement("div");
+  Object.assign(labelLine.style, { display: "flex", alignItems: "center" } as CSSStyleDeclaration);
+  const slot = document.createElement("span");
+  slot.style.flex = `0 0 ${kIconSlotPx}px`;
+  const text = document.createElement("span");
+  text.textContent = label;
+  Object.assign(text.style, { fontSize: "13px", color: "#222" } as CSSStyleDeclaration);
+  labelLine.appendChild(slot);
+  labelLine.appendChild(text);
+
+  const controlsLine = document.createElement("div");
+  Object.assign(controlsLine.style, {
+    display: "flex",
+    gap: "4px",
+    paddingLeft: `${kIconSlotPx}px`,
+    marginTop: "2px",
+  } as CSSStyleDeclaration);
+  controls.forEach((c) => controlsLine.appendChild(c));
+
+  wrap.appendChild(labelLine);
+  wrap.appendChild(controlsLine);
+  return wrap;
+}
+
+function setToggleActive(btn: HTMLButtonElement, active: boolean): void {
+  btn.style.background = active ? "#d7ecf1" : "transparent";
+  btn.style.borderColor = active ? "#2D8294" : "transparent";
+  btn.setAttribute("aria-pressed", active ? "true" : "false");
+}
+
+// A small icon button used inside control rows (content type, alignment).
+function makeIconToggle(icon: string, title: string, active: boolean, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  Object.assign(b.style, {
+    width: "28px",
+    height: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid transparent",
+    borderRadius: "5px",
+    background: "transparent",
+    cursor: "pointer",
+    padding: "0",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  setIconSlot(b, icon, kBloomBlue);
+  setToggleActive(b, active);
+  b.addEventListener("mousedown", (e) => e.preventDefault());
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// Parse the leading number from a CSS length (e.g. "6px" -> 6). 0 if absent.
+function firstPx(s: string | null | undefined): number {
+  const n = parseFloat((s ?? "").trim());
+  return isNaN(n) ? 0 : n;
+}
+
+// Direct-child cells of a table (DOM order).
+function tableCells(table: HTMLElement): HTMLElement[] {
+  return Array.from(table.children).filter(
+    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+  );
+}
+
+// A labeled range slider on its own row. Interacting with it does not close the
+// menu (the slider lives inside the popup, which the outside-click guard skips).
+function makeSliderRow(
+  label: string,
+  min: number,
+  max: number,
+  value: number,
+  unit: string,
+  onInput: (v: number) => void,
+): HTMLDivElement {
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = String(min);
+  input.max = String(max);
+  input.value = String(value);
+  input.setAttribute("aria-label", label);
+  input.style.flex = "1 1 auto";
+
+  const readout = document.createElement("span");
+  readout.textContent = `${value}${unit}`;
+  Object.assign(readout.style, {
+    fontSize: "12px",
+    color: "#555",
+    minWidth: "34px",
+    textAlign: "right",
+  } as CSSStyleDeclaration);
+
+  input.addEventListener("input", () => {
+    const v = Number(input.value);
+    readout.textContent = `${v}${unit}`;
+    onInput(v);
+  });
+  return makeControlRow(label, [input, readout]);
+}
+
+// A labeled native color picker on its own row. Does not close the menu.
+function makeColorRow(
+  label: string,
+  value: string,
+  onInput: (v: string) => void,
+): HTMLDivElement {
+  const input = document.createElement("input");
+  input.type = "color";
+  // The native picker only accepts #rrggbb; ignore non-hex values (shows black).
+  input.value = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
+  input.setAttribute("aria-label", label);
+  Object.assign(input.style, {
+    width: "40px",
+    height: "24px",
+    padding: "0",
+    border: "1px solid rgba(0,0,0,0.2)",
+    borderRadius: "4px",
+    cursor: "pointer",
+    background: "transparent",
+  } as CSSStyleDeclaration);
+  input.addEventListener("input", () => onInput(input.value));
+  return makeControlRow(label, [input]);
+}
+
+// Re-color every border of the table while preserving the current weights and
+// styles (mirrors the React panel's table border-color behavior).
+function applyTableBorderColor(table: HTMLElement, color: string): void {
+  const base = getTableOuterBorderValueMap(table);
+  applyOuterBorders(
+    table,
+    {
+      top: { weight: base.top.weight, style: base.top.style, color },
+      right: { weight: base.right.weight, style: base.right.style, color },
+      bottom: { weight: base.bottom.weight, style: base.bottom.style, color },
+      left: { weight: base.left.weight, style: base.left.style, color },
+    },
+    color,
+  );
+  applyUniformInner(
+    table,
+    "innerH",
+    { weight: base.innerH.weight, style: base.innerH.style, color } as any,
+    color,
+  );
+  applyUniformInner(
+    table,
+    "innerV",
+    { weight: base.innerV.weight, style: base.innerV.style, color } as any,
+    color,
+  );
+  setDefaultBorder(
+    table,
+    { weight: base.innerH.weight, style: base.innerH.style, color } as any,
+    color,
+  );
+  render(table);
+}
+
+// Color the table's surface by filling every cell. We never color the container
+// div (it's sized larger than the cells, so its color would bleed outside).
+function applyTableFill(table: HTMLElement, color: string | null): void {
+  setTableBackground(table, null);
+  tableCells(table).forEach((cell) => setCellBackground(cell, color || null));
+  render(table);
+}
+
+// ----- Section builders -----
+function buildMenuCtx(cell: HTMLElement | null): MenuCtx {
+  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  let row = 0,
+    col = 0,
+    rowCount = 1,
+    colCount = 1;
+  if (table) {
+    try {
+      const info = getTableInfo(table);
+      rowCount = info.rowCount;
+      colCount = info.columnCount;
+    } catch {}
+  }
+  if (cell && table) {
+    try {
+      const pos = getRowAndColumn(table, cell);
+      row = pos.row;
+      col = pos.column;
+    } catch {}
+  }
+  return { table, cell, row, col, rowCount, colCount };
+}
+
+function buildCellSection(ctx: MenuCtx): HTMLElement[] {
+  const els: HTMLElement[] = [makeMenuHeader("Cell")];
+  const cell = ctx.cell;
+
+  // Content type: label followed by an icon toggle per registered type.
+  const ctButtons: HTMLButtonElement[] = [];
+  const refreshContent = () => {
+    const cur = cell ? getCurrentContentTypeId(cell) : undefined;
+    ctButtons.forEach((b) => setToggleActive(b, b.dataset.ctId === cur));
+  };
+  for (const opt of contentTypeOptions()) {
+    const cur = cell ? getCurrentContentTypeId(cell) : undefined;
+    const b = makeIconToggle(opt.icon, opt.englishName, cur === opt.id, () => {
+      if (!cell) return;
+      setupContentsOfCell(cell, opt.id, true);
+      if (ctx.table) render(ctx.table);
+      refreshContent();
+    });
+    b.dataset.ctId = opt.id;
+    ctButtons.push(b);
+  }
+  els.push(makeControlRow("Content", ctButtons));
+
+  // Text alignment: label followed by left/center/right toggles.
+  const aligns: { id: CellAlign; icon: string; title: string }[] = [
+    { id: "start", icon: alignLeftIcon, title: "Left" },
+    { id: "center", icon: alignCenterIcon, title: "Center" },
+    { id: "end", icon: alignRightIcon, title: "Right" },
+  ];
+  const alignButtons: HTMLButtonElement[] = [];
+  const refreshAlign = () => {
+    const cur = cell ? getCellAlign(cell) || "center" : "center";
+    alignButtons.forEach((b) => setToggleActive(b, b.dataset.align === cur));
+  };
+  for (const a of aligns) {
+    const cur = cell ? getCellAlign(cell) || "center" : "center";
+    const b = makeIconToggle(a.icon, a.title, cur === a.id, () => {
+      if (!cell) return;
+      setCellAlign(cell, a.id);
+      if (ctx.table) render(ctx.table);
+      refreshAlign();
+    });
+    b.dataset.align = a.id;
+    alignButtons.push(b);
+  }
+  els.push(makeControlRow("Alignment", alignButtons));
+
+  // Merge / Split (cell span). Merge needs a column to the right to absorb;
+  // Split needs an existing horizontal span to reduce.
+  const spanX = cell ? getSpan(cell).x || 1 : 1;
+  const canMerge = !!cell && ctx.col + spanX < ctx.colCount;
+  const canSplit = spanX > 1;
+  els.push(makeMenuItem("Merge", () => menuMergeCell(), undefined, !canMerge, cellMergeIcon));
+  els.push(makeMenuItem("Split", () => menuSplitCell(), undefined, !canSplit, cellSplitIcon));
+  return els;
+}
+
+function buildRowSection(ctx: MenuCtx): HTMLElement[] {
+  return [
+    makeMenuHeader("Row"),
+    // 1) adds
+    makeMenuItem("Add Row Above", () => menuAddRow(0), undefined, false, kAddItemIconSvg),
+    makeMenuItem("Add Row Below", () => menuAddRow(1), undefined, false, kAddItemIconSvg),
+    // 2) moves
+    makeMenuItem("Move Row Up", () => menuMoveRow(-1), undefined, ctx.row <= 0, kMoveUpIconSvg),
+    makeMenuItem(
+      "Move Row Down",
+      () => menuMoveRow(1),
+      undefined,
+      ctx.row >= ctx.rowCount - 1,
+      kMoveDownIconSvg,
+    ),
+    // 3) divider, 4) delete
+    makeDivider(),
+    makeMenuItem("Delete Row", tryRemoveRow, "row", false, kTrashIconSvg),
+    // 5) hint
+    makeInfoNote("Right click on a cell for Cell menu"),
+  ];
+}
+
+function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
+  return [
+    makeMenuHeader("Column"),
+    // 1) adds
+    makeMenuItem("Add Column Left", () => menuAddColumn(0), undefined, false, kAddItemIconSvg),
+    makeMenuItem("Add Column Right", () => menuAddColumn(1), undefined, false, kAddItemIconSvg),
+    // 2) moves
+    makeMenuItem("Move Left", () => menuMoveColumn(-1), undefined, ctx.col <= 0, kMoveLeftIconSvg),
+    makeMenuItem(
+      "Move Right",
+      () => menuMoveColumn(1),
+      undefined,
+      ctx.col >= ctx.colCount - 1,
+      kMoveRightIconSvg,
+    ),
+    // 3) divider, 4) delete
+    makeDivider(),
+    makeMenuItem("Delete Column", tryRemoveColumn, "column", false, columnDeleteIcon),
+    // 5) hint
+    makeInfoNote("Right click on a cell for Cell menu"),
+  ];
+}
+
+function buildTableSection(ctx: MenuCtx): HTMLElement[] {
+  const els: HTMLElement[] = [makeMenuHeader("Table")];
+  const table = ctx.table;
+  if (table) {
+    els.push(
+      makeSliderRow(
+        "Horizontal space between cells",
+        0,
+        40,
+        firstPx(getGapX(table)[0]),
+        "px",
+        (v) => {
+          setGapX(table, `${v}px`);
+          render(table);
+        },
+      ),
+    );
+    els.push(
+      makeSliderRow(
+        "Vertical space between cells",
+        0,
+        40,
+        firstPx(getGapY(table)[0]),
+        "px",
+        (v) => {
+          setGapY(table, `${v}px`);
+          render(table);
+        },
+      ),
+    );
+
+    const firstCell = tableCells(table)[0];
+    const borderColor = firstCell ? representativeBorderColorHex(firstCell) : "#000000";
+    els.push(
+      makeColorRow("Border color", borderColor, (color) => applyTableBorderColor(table, color)),
+    );
+
+    const fillValue = (firstCell && getCellBackground(firstCell)) ?? getTableBackground(table) ?? "";
+    els.push(makeColorRow("Fill", fillValue, (color) => applyTableFill(table, color)));
+  }
+  els.push(makeDivider());
+  els.push(makeMenuItem("Copy Table", menuCopyTable, undefined, false, kCopyIconSvg));
+  els.push(makeMenuItem("Cut Table", menuCutTable, undefined, false, kCutIconSvg));
+  els.push(makeDivider());
+  els.push(makeMenuItem("Delete Table", menuDeleteTable, undefined, false, kTrashIconSvg));
+  return els;
+}
+
+const sectionBuilders: Record<SectionName, (ctx: MenuCtx) => HTMLElement[]> = {
+  cell: buildCellSection,
+  row: buildRowSection,
+  column: buildColumnSection,
+  table: buildTableSection,
+};
+
+// ----- Popup lifecycle -----
+function onDocMouseDownForMenu(e: MouseEvent): void {
+  const t = e.target as Node | null;
+  if (!t) return;
+  if (
+    (menuPopup && menuPopup.contains(t)) ||
+    (colMenuPill && colMenuPill.contains(t)) ||
+    (rowMenuPill && rowMenuPill.contains(t)) ||
+    (tablePillTL && tablePillTL.contains(t)) ||
+    (tablePillBR && tablePillBR.contains(t))
+  ) {
+    return;
+  }
+  closeMenuPopup();
+}
+
+function onKeyDownForMenu(e: KeyboardEvent): void {
+  if (e.key === "Escape") closeMenuPopup();
+}
+
+function closeMenuPopup(): void {
+  if (menuPopup) {
+    menuPopup.remove();
+    menuPopup = null;
+  }
+  menuOpenId = null;
+  menuTargetCell = null;
+  document.removeEventListener("mousedown", onDocMouseDownForMenu, true);
+  document.removeEventListener("keydown", onKeyDownForMenu, true);
+}
+
+// Open a pill's single-section menu (toggling closed if already open).
+function togglePillMenu(kind: MenuKind, pill: HTMLButtonElement, id: string): void {
+  if (menuPopup && menuOpenId === id) {
+    closeMenuPopup();
+    return;
+  }
+  const sel = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  openMenu([kind], { pill, kind }, id, sel);
+}
+
+type MenuAnchor =
+  | { pill: HTMLButtonElement; kind: MenuKind }
+  | { x: number; y: number };
+
+function openMenu(
+  sections: SectionName[],
+  anchor: MenuAnchor,
+  id: string,
+  targetCell: HTMLElement | null,
+): void {
+  closeMenuPopup();
+  menuTargetCell = targetCell;
+  const ctx = buildMenuCtx(targetCell);
+
+  const popup = document.createElement("div");
+  popup.setAttribute("data-btable-menu", sections.join("+"));
+  popup.setAttribute("role", "menu");
+  Object.assign(popup.style, {
+    position: "fixed",
+    zIndex: "2147483647",
+    minWidth: "200px",
+    background: "#fff",
+    color: "#222",
+    border: "1px solid rgba(0,0,0,0.15)",
+    borderRadius: "8px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+    padding: "4px 0",
+    fontSize: "13px",
+    fontFamily: "system-ui, sans-serif",
+    userSelect: "none",
+  } as CSSStyleDeclaration);
+
+  sections.forEach((name, i) => {
+    if (i > 0) popup.appendChild(makeDivider());
+    for (const el of sectionBuilders[name](ctx)) popup.appendChild(el);
+  });
+
+  document.body.appendChild(popup);
+  menuPopup = popup;
+  menuOpenId = id;
+  if ("pill" in anchor) positionMenuAtPill(popup, anchor.pill, anchor.kind);
+  else positionMenuAtPoint(popup, anchor.x, anchor.y);
+
+  document.addEventListener("mousedown", onDocMouseDownForMenu, true);
+  document.addEventListener("keydown", onKeyDownForMenu, true);
+}
+
+function positionMenuAtPill(popup: HTMLDivElement, pill: HTMLButtonElement, kind: MenuKind): void {
+  const r = pill.getBoundingClientRect();
+  // The row pill sits left of its row; open to its right. Column/table pills sit
+  // above/at a corner; drop the menu down from them.
+  positionMenuAtPoint(popup, kind === "row" ? r.right + 4 : r.left, kind === "row" ? r.top : r.bottom + 4);
+}
+
+function positionMenuAtPoint(popup: HTMLDivElement, x: number, y: number): void {
+  const pw = popup.offsetWidth || 200;
+  const ph = popup.offsetHeight || 0;
+  const left = Math.max(4, Math.min(x, window.innerWidth - pw - 4));
+  const top = Math.max(4, Math.min(y, window.innerHeight - ph - 4));
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+}
+
+// --- Menu operation handlers (operate on the menu's target cell / table) ---
+function getMenuCell(): HTMLElement | null {
+  return menuTargetCell ?? document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+}
+function getMenuTable(): HTMLElement | null {
+  const cell = getMenuCell();
+  return (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+}
+
+// Insert a column relative to the current cell. offset 0 = left (before),
+// offset 1 = right (after). With no selection, falls back to the table edge.
+function menuAddColumn(offset: number): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table) return;
+  try {
+    const controller = new BloomTable(table);
+    if (cell) controller.addColumnAt(getRowAndColumn(table, cell).column + offset);
+    else controller.addColumnAt(offset === 0 ? 0 : getTableInfo(table).columnCount);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+// Insert a row relative to the current cell. offset 0 = above (before),
+// offset 1 = below (after). With no selection, falls back to the table edge.
+function menuAddRow(offset: number): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table) return;
+  try {
+    const controller = new BloomTable(table);
+    if (cell) controller.addRowAt(getRowAndColumn(table, cell).row + offset);
+    else controller.addRowAt(offset === 0 ? 0 : getTableInfo(table).rowCount);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+function menuMoveRow(delta: number): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const { row } = getRowAndColumn(table, cell);
+    const to = row + delta;
+    if (to < 0 || to >= getTableInfo(table).rowCount) return;
+    new BloomTable(table).moveRowAt(row, to);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+function menuMoveColumn(delta: number): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const { column } = getRowAndColumn(table, cell);
+    const to = column + delta;
+    if (to < 0 || to >= getTableInfo(table).columnCount) return;
+    new BloomTable(table).moveColumnAt(column, to);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+function menuMergeCell(): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const controller = new BloomTable(table);
+    const s = controller.getSpan(cell);
+    controller.setSpan(cell, (s.x || 1) + 1, s.y || 1);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+function menuSplitCell(): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const controller = new BloomTable(table);
+    const s = controller.getSpan(cell);
+    controller.setSpan(cell, Math.max(1, (s.x || 1) - 1), s.y || 1);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+function menuCopyTable(): void {
+  const table = getMenuTable();
+  if (!table) return;
+  try {
+    void navigator.clipboard?.writeText(table.outerHTML);
+  } catch {}
+}
+
+function menuCutTable(): void {
+  const table = getMenuTable();
+  if (!table) return;
+  try {
+    void navigator.clipboard?.writeText(table.outerHTML);
+  } catch {}
+  removeTable(table);
+}
+
+function menuDeleteTable(): void {
+  const table = getMenuTable();
+  if (!table) return;
+  removeTable(table);
+}
+
+function removeTable(table: HTMLElement): void {
+  hideEdgeOverlays();
+  table.remove();
 }
 
 function showEdgeOverlays(table: HTMLElement) {
   overlayTable = table;
   ensureEdgeOverlays();
-  if (groupRight) groupRight.style.display = "flex";
-  if (groupLeft) groupLeft.style.display = "flex";
-  if (groupTop) groupTop.style.display = "flex";
-  if (groupBottom) groupBottom.style.display = "flex";
+  // The clusters target the current row/column, so they only make sense when a
+  // cell is selected.
+  const hasSelection = !!table.querySelector(".bloom-cell.cell--selected");
+  if (colCluster) colCluster.style.display = hasSelection ? "flex" : "none";
+  if (rowCluster) rowCluster.style.display = hasSelection ? "flex" : "none";
+  // Table pills and the "+" add buttons are table-level, so they show whenever
+  // the table is active (regardless of whether a cell is selected).
+  if (tablePillTL) tablePillTL.style.display = "flex";
+  if (tablePillBR) tablePillBR.style.display = "flex";
+  if (colAddBtn) colAddBtn.style.display = "flex";
+  if (rowAddBtn) rowAddBtn.style.display = "flex";
   if (cornerHandle) cornerHandle.style.display = "block";
   // Apply anchor-based positioning
   applyAnchorPositioning(table);
 }
 
 function hideEdgeOverlays() {
-  if (groupRight) groupRight.style.display = "none";
-  if (groupLeft) groupLeft.style.display = "none";
-  if (groupTop) groupTop.style.display = "none";
-  if (groupBottom) groupBottom.style.display = "none";
+  if (colCluster) colCluster.style.display = "none";
+  if (rowCluster) rowCluster.style.display = "none";
+  if (tablePillTL) tablePillTL.style.display = "none";
+  if (tablePillBR) tablePillBR.style.display = "none";
+  if (colAddBtn) colAddBtn.style.display = "none";
+  if (rowAddBtn) rowAddBtn.style.display = "none";
   if (cornerHandle) cornerHandle.style.display = "none";
+  closeMenuPopup();
   overlayTable = null;
   hideDeletePreview();
   hideAddPreview();
@@ -826,7 +1727,9 @@ function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HT
   return null;
 }
 
-// Apply anchor-based placement to all overlay wrappers relative to the table
+// Anchor the two contextual clusters (and the corner handle) to the current
+// selection. The column cluster sits above the selected column; the row cluster
+// sits to the left of the selected row.
 function applyAnchorPositioning(table: HTMLElement) {
   const gap = 8; // px
   let rows = 0,
@@ -837,118 +1740,136 @@ function applyAnchorPositioning(table: HTMLElement) {
     cols = info.columnCount;
   } catch {}
 
-  const midRow = Math.max(0, Math.floor((rows - 1) / 2));
-  const midCol = Math.max(0, Math.floor((cols - 1) / 2));
+  // Resolve the selected cell's row/column; clusters anchor to the edge cell of
+  // that line (top cell for the column, first cell for the row).
+  const selected = table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  let selRow = 0,
+    selCol = 0;
+  if (selected) {
+    try {
+      const pos = getRowAndColumn(table, selected);
+      selRow = pos.row;
+      selCol = pos.column;
+    } catch {}
+  }
+  const colAnchorCell = selected && rows && cols ? getCellAt(table, 0, selCol) : null;
+  const rowAnchorCell = selected && rows && cols ? getCellAt(table, selRow, 0) : null;
 
-  // Resolve anchor cells for each overlay
-  const rightCell = rows && cols ? getCellAt(table, midRow, cols - 1) : null; // middle row, last col
-  const leftCell = rows && cols ? getCellAt(table, midRow, 0) : null; // middle row, first col
-  const topCell = rows && cols ? getCellAt(table, 0, midCol) : null; // first row, middle col
-  const bottomCell = rows && cols ? getCellAt(table, rows - 1, midCol) : null; // last row, middle col
-  const cornerCell = rows && cols ? getCellAt(table, rows - 1, cols - 1) : null; // last cell
-
-  const setWrapperToCell = (
+  const anchorTo = (
     prox: ProximityDiv | null,
     cell: HTMLElement | null,
-    side: OverlaySide,
+    side: "top" | "left",
   ) => {
     if (!prox || !cell) return;
     const el = prox.element;
     el.style.position = "fixed";
-    const cellAnchor = getElementAnchorName(cell, "btableAnchorName", "btable-cell");
-    (el.style as any).positionAnchor = cellAnchor;
-    el.style.setProperty("position-anchor", cellAnchor);
-    // Clear inline offsets first
+    const a = getElementAnchorName(cell, "btableAnchorName", "btable-cell");
+    (el.style as any).positionAnchor = a;
+    el.style.setProperty("position-anchor", a);
     el.style.left = "";
     el.style.top = "";
     el.style.right = "";
     el.style.bottom = "";
-    el.style.transform = "";
-
-    if (side === "right") {
-      (el.style as any).left = `calc(anchor(right) + ${gap}px)`;
-      (el.style as any).top = `anchor(center)`;
-      el.style.transform = "translateY(-50%)";
-    } else if (side === "left") {
-      (el.style as any).left = `calc(anchor(left) - ${gap}px)`;
-      (el.style as any).top = `anchor(center)`;
-      el.style.transform = "translate(-100%, -50%)";
-    } else if (side === "top") {
+    if (side === "top") {
+      // Above the column, centered on its horizontal midline.
       (el.style as any).top = `calc(anchor(top) - ${gap}px)`;
       (el.style as any).left = `anchor(center)`;
       el.style.transform = "translate(-50%, -100%)";
-    } else if (side === "bottom") {
-      (el.style as any).top = `calc(anchor(bottom) + ${gap}px)`;
-      (el.style as any).left = `anchor(center)`;
-      el.style.transform = "translateX(-50%)";
+    } else {
+      // Left of the row, centered on its vertical midline.
+      (el.style as any).left = `calc(anchor(left) - ${gap}px)`;
+      (el.style as any).top = `anchor(center)`;
+      el.style.transform = "translate(-100%, -50%)";
     }
   };
 
-  setWrapperToCell(proxRightGroup, rightCell, "right");
-  setWrapperToCell(proxLeftGroup, leftCell, "left");
-  setWrapperToCell(proxTopGroup, topCell, "top");
-  setWrapperToCell(proxBottomGroup, bottomCell, "bottom");
+  // Clusters only make sense anchored to a selected row/column. Re-evaluate
+  // their visibility on EVERY reposition (not just showEdgeOverlays): an
+  // operation that clears the selection or removes the anchored cell must hide
+  // the "..." pill, otherwise anchorTo() early-returns and leaves it stranded
+  // mid-table (the "phantom" affordance).
+  if (colCluster) colCluster.style.display = colAnchorCell ? "flex" : "none";
+  if (rowCluster) rowCluster.style.display = rowAnchorCell ? "flex" : "none";
+  anchorTo(proxColCluster, colAnchorCell, "top");
+  anchorTo(proxRowCluster, rowAnchorCell, "left");
 
-  // Corner handle at bottom-right cell
-  if (proxCornerHandle && cornerCell) {
+  // Table pills sit diagonally outside the corners of the table's *cell content*
+  // (not the layout box, which can be much larger than hugging cells). Compute
+  // the union rect of the visible cells; a spanning cell's rect covers the area
+  // its skipped neighbours would, so this is robust to spans too.
+  const cornerGap = 14; // px outward from the corner
+  let minL = Infinity,
+    minT = Infinity,
+    maxR = -Infinity,
+    maxB = -Infinity;
+  for (const child of Array.from(table.children)) {
+    if (!(child instanceof HTMLElement) || !child.classList.contains("bloom-cell")) continue;
+    const r = child.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    if (r.left < minL) minL = r.left;
+    if (r.top < minT) minT = r.top;
+    if (r.right > maxR) maxR = r.right;
+    if (r.bottom > maxB) maxB = r.bottom;
+  }
+  const haveBounds = isFinite(minL) && isFinite(maxR);
+  const placePill = (prox: ProximityDiv | null, left: number, top: number, transform: string) => {
+    if (!prox) return;
+    const el = prox.element;
+    el.style.position = "fixed";
+    el.style.removeProperty("position-anchor");
+    (el.style as any).positionAnchor = "";
+    el.style.right = "";
+    el.style.bottom = "";
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+    el.style.transform = transform;
+  };
+  // The table-level affordances (corner pills, "+" buttons, resize handle) are
+  // only meaningful when the table has rendered cells. Hide them when bounds are
+  // degenerate so they don't strand mid-viewport during a transient relayout.
+  if (tablePillTL) tablePillTL.style.display = haveBounds ? "flex" : "none";
+  if (tablePillBR) tablePillBR.style.display = haveBounds ? "flex" : "none";
+  if (colAddBtn) colAddBtn.style.display = haveBounds ? "flex" : "none";
+  if (rowAddBtn) rowAddBtn.style.display = haveBounds ? "flex" : "none";
+  if (haveBounds) {
+    placePill(proxTablePillTL, minL - cornerGap, minT - cornerGap, "translate(-100%, -100%)");
+    placePill(proxTablePillBR, maxR + cornerGap, maxB + cornerGap, "translate(0, 0)");
+
+    // "+" add buttons hug the table edges, centered on the table's content box.
+    const midX = (minL + maxR) / 2;
+    const midY = (minT + maxB) / 2;
+    // Row "+" below the table, horizontally centered.
+    placePill(proxRowAdd, midX, maxB + gap, "translate(-50%, 0)");
+    // Column "+" to the right of the table, vertically centered.
+    placePill(proxColAdd, maxR + gap, midY, "translate(0, -50%)");
+  }
+
+  // Corner (resize) handle straddles the bottom-right corner of the cell content.
+  if (proxCornerHandle && haveBounds) {
     const el = proxCornerHandle.element;
     el.style.position = "fixed";
-    const cellAnchor = getElementAnchorName(cornerCell, "btableAnchorName", "btable-cell");
-    (el.style as any).positionAnchor = cellAnchor;
-    el.style.setProperty("position-anchor", cellAnchor);
-    el.style.left = `calc(anchor(right) - 8px)`;
-    el.style.top = `calc(anchor(bottom) - 8px)`;
+    el.style.removeProperty("position-anchor");
+    (el.style as any).positionAnchor = "";
+    el.style.right = "";
+    el.style.bottom = "";
+    el.style.left = `${Math.round(maxR - 8)}px`;
+    el.style.top = `${Math.round(maxB - 8)}px`;
     el.style.transform = "translate(0, 0)";
   }
 }
 
+// The table-edge "+" buttons always append at the far edge of the table,
+// regardless of which cell is selected. (Use the row/column menus to insert
+// relative to the current cell.)
 function tryInsertColumnRight() {
   const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
   const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
-    const controller = new BloomTable(table);
-    if (cell) {
-      const { column } = getRowAndColumn(table, cell);
-      controller.addColumnAt(column + 1);
-    } else {
-      const widths = (table.getAttribute("data-column-widths") || "")
-        .split(",")
-        .filter((x) => x.length > 0);
-      controller.addColumnAt(widths.length);
-    }
-    scheduleOverlayReposition();
-  } catch {}
-}
-
-function tryInsertColumnLeft() {
-  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
-  if (!table) return;
-  try {
-    const controller = new BloomTable(table);
-    if (cell) {
-      const { column } = getRowAndColumn(table, cell);
-      controller.addColumnAt(column);
-    } else {
-      controller.addColumnAt(0);
-    }
-    scheduleOverlayReposition();
-  } catch {}
-}
-
-function tryInsertRowAbove() {
-  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
-  if (!table) return;
-  try {
-    const controller = new BloomTable(table);
-    if (cell) {
-      const { row } = getRowAndColumn(table, cell);
-      controller.addRowAt(row);
-    } else {
-      controller.addRowAt(0);
-    }
+    const widths = (table.getAttribute("data-column-widths") || "")
+      .split(",")
+      .filter((x) => x.length > 0);
+    new BloomTable(table).addColumnAt(widths.length);
     scheduleOverlayReposition();
   } catch {}
 }
@@ -958,23 +1879,17 @@ function tryInsertRowBelow() {
   const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
-    const controller = new BloomTable(table);
-    if (cell) {
-      const { row } = getRowAndColumn(table, cell);
-      controller.addRowAt(row + 1);
-    } else {
-      const heights = (table.getAttribute("data-row-heights") || "")
-        .split(",")
-        .filter((x) => x.length > 0);
-      controller.addRowAt(heights.length);
-    }
+    const heights = (table.getAttribute("data-row-heights") || "")
+      .split(",")
+      .filter((x) => x.length > 0);
+    new BloomTable(table).addRowAt(heights.length);
     scheduleOverlayReposition();
   } catch {}
 }
 
 function tryRemoveColumn() {
-  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  const cell = getMenuCell();
+  const table = getMenuTable();
   if (!table) return;
   try {
     const controller = new BloomTable(table);
@@ -987,8 +1902,8 @@ function tryRemoveColumn() {
 }
 
 function tryRemoveRow() {
-  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  const cell = getMenuCell();
+  const table = getMenuTable();
   if (!table) return;
   try {
     const controller = new BloomTable(table);

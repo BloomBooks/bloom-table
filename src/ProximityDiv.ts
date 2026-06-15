@@ -33,10 +33,12 @@ function ensureMouseListener() {
 export class ProximityDiv {
   public readonly element: HTMLDivElement;
   private child: HTMLElement;
+  private minOpacity: number;
   // Position is applied directly to wrapper styles; no need to store numeric values.
 
-  constructor(parent: HTMLElement, child: HTMLElement) {
+  constructor(parent: HTMLElement, child: HTMLElement, options?: { minOpacity?: number }) {
     this.child = child;
+    this.minOpacity = options?.minOpacity ?? MIN_OPACITY;
     ensureMouseListener();
 
     const wrapper = document.createElement("div");
@@ -96,13 +98,14 @@ export class ProximityDiv {
 
     // Dead-zone: keep initial/min opacity until within activationDistance
     const dead = Math.max(0, ACTIVATION_DISTANCE);
+    const min = this.minOpacity;
     let opacity: number;
     if (distance >= dead) {
-      opacity = MIN_OPACITY;
+      opacity = min;
     } else {
       // Ramp from minOpacity at distance=dead to 1 at distance=0
       const t = 1 - distance / (dead || 1);
-      const lerp = MIN_OPACITY + t * (1 - MIN_OPACITY);
+      const lerp = min + t * (1 - min);
       opacity = clamp01(lerp);
     }
 

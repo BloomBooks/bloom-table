@@ -9,6 +9,8 @@ import {
   getCell,
   getTableCells,
   getTableInfo,
+  moveColumnAt,
+  moveRowAt,
   removeColumnAt,
   removeLastColumn,
   removeLastRow,
@@ -704,5 +706,185 @@ describe("Edge cases for add/remove operations", () => {
     const startRemove = getTableInfo(table);
     removeRowAt(table, 0);
     expect(getTableInfo(table).rowCount).toBe(startRemove.rowCount - 1);
+  });
+});
+describe("inserted rows/columns inherit the source's settings", () => {
+  function build(cols: string[], rows: string[]): HTMLDivElement {
+    const table = document.createElement("div");
+    table.className = "bloom-table";
+    table.setAttribute("data-column-widths", cols.join(","));
+    table.setAttribute("data-row-heights", rows.join(","));
+    for (let r = 0; r < rows.length; r++) {
+      for (let c = 0; c < cols.length; c++) {
+        const cell = document.createElement("div");
+        cell.className = "bloom-cell";
+        table.appendChild(cell);
+      }
+    }
+    document.body.appendChild(table);
+    attachTable(table);
+    return table;
+  }
+
+  it("addRowAt copies the source row's height and cell fill/align/pad/corners", () => {
+    const table = build(["100px", "fill"], ["20px", "30px"]);
+    // Decorate source row 0
+    const c00 = getCell(table, 0, 0);
+    const c01 = getCell(table, 0, 1);
+    c00.setAttribute("data-bg", "#ff0000");
+    c00.setAttribute("data-align", "end");
+    c01.setAttribute("data-pad", "8px");
+    c01.setAttribute("data-corners", '{"radius":4}');
+
+    // Insert a new row below row 0 (at index 1), sourced from row 0
+    addRowAt(table, 1, false, 0);
+
+    expect(table.getAttribute("data-row-heights")).toBe("20px,20px,30px");
+    const n0 = getCell(table, 1, 0);
+    const n1 = getCell(table, 1, 1);
+    expect(n0.getAttribute("data-bg")).toBe("#ff0000");
+    expect(n0.getAttribute("data-align")).toBe("end");
+    expect(n1.getAttribute("data-pad")).toBe("8px");
+    expect(n1.getAttribute("data-corners")).toBe('{"radius":4}');
+  });
+
+  it("addColumnAt copies the source column's width and cell settings", () => {
+    const table = build(["100px", "fill"], ["20px", "30px"]);
+    const c01 = getCell(table, 0, 1);
+    const c11 = getCell(table, 1, 1);
+    c01.setAttribute("data-bg", "#00ff00");
+    c11.setAttribute("data-align", "start");
+
+    // Insert a new column left of column 1, sourced from column 1
+    addColumnAt(table, 1, false, 1);
+
+    expect(table.getAttribute("data-column-widths")).toBe("100px,fill,fill");
+    expect(getCell(table, 0, 1).getAttribute("data-bg")).toBe("#00ff00");
+    expect(getCell(table, 1, 1).getAttribute("data-align")).toBe("start");
+  });
+
+  it("does not copy settings when no source index is given", () => {
+    const table = build(["100px", "fill"], ["20px", "30px"]);
+    getCell(table, 0, 0).setAttribute("data-bg", "#ff0000");
+    addRowAt(table, 1);
+    expect(getCell(table, 1, 0).getAttribute("data-bg")).toBe(null);
+    expect(table.getAttribute("data-row-heights")).toBe(`20px,${defaultRowHeight},30px`);
+  });
+
+  it("inserted row inherits the source row's borders and keeps neighbours aligned", () => {
+    const table = build(["100px", "fill"], ["20px", "30px"]);
+    // Vertical edges R x (C+1): give source row 0 a left perimeter border
+    const left = { weight: 2, style: "solid", color: "#123456" };
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [left, {}, {}],
+        [{}, {}, {}],
+      ]),
+    );
+    // Horizontal edges (R+1) x C, all empty
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([
+        [{}, {}],
+        [{}, {}],
+        [{}, {}],
+      ]),
+    );
+
+    addRowAt(table, 1, false, 0);
+
+    const v = JSON.parse(table.getAttribute("data-edges-v")!);
+    expect(v).lengthOf(3); // one row added
+    expect(v[0][0]).toEqual(left); // original source row preserved
+    expect(v[1][0]).toEqual(left); // new row inherited the left border
+    const h = JSON.parse(table.getAttribute("data-edges-h")!);
+    expect(h).lengthOf(4); // one boundary added (R+1 -> R+2)
+  });
+});
+
+describe("moveRowAt / moveColumnAt", () => {
+  // Build a table whose cells carry their "r,c" coordinates as text so we can
+  // assert the DOM order after a move.
+  function buildLabeled(cols: string[], rows: string[]): HTMLDivElement {
+    const table = document.createElement("div");
+    table.className = "bloom-table";
+    table.setAttribute("data-column-widths", cols.join(","));
+    table.setAttribute("data-row-heights", rows.join(","));
+    for (let r = 0; r < rows.length; r++) {
+      for (let c = 0; c < cols.length; c++) {
+        const cell = document.createElement("div");
+        cell.className = "bloom-cell";
+        cell.textContent = `${r},${c}`;
+        table.appendChild(cell);
+      }
+    }
+    document.body.appendChild(table);
+    attachTable(table);
+    return table;
+  }
+
+  it("moveRowAt reorders cells, heights, and vertical edges", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px", "30px"]);
+    // Tag each row's vertical edges so we can follow them.
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [{ id: "r0" }, {}, {}],
+        [{ id: "r1" }, {}, {}],
+        [{ id: "r2" }, {}, {}],
+      ]),
+    );
+
+    moveRowAt(table, 0, 2); // move first row to the bottom
+
+    expect(table.getAttribute("data-row-heights")).toBe("20px,30px,10px");
+    expect(getCell(table, 0, 0).textContent).toBe("1,0");
+    expect(getCell(table, 2, 1).textContent).toBe("0,1");
+    const v = JSON.parse(table.getAttribute("data-edges-v")!);
+    expect(v.map((row: { id?: string }[]) => row[0].id)).toEqual(["r1", "r2", "r0"]);
+  });
+
+  it("moveRowAt keeps the table's bottom horizontal boundary fixed", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([[{ id: "top" }, {}], [{ id: "mid" }, {}], [{ id: "bottom" }, {}]]),
+    );
+    moveRowAt(table, 0, 1); // swap the two rows
+    const h = JSON.parse(table.getAttribute("data-edges-h")!);
+    // Row-top boundaries swap; the final (table-bottom) boundary stays put.
+    expect(h.map((row: { id?: string }[]) => row[0].id)).toEqual(["mid", "top", "bottom"]);
+  });
+
+  it("moveColumnAt reorders cells and widths", () => {
+    const table = buildLabeled(["100px", "200px", "fill"], ["10px", "20px"]);
+    moveColumnAt(table, 2, 0); // move last column to the front
+
+    expect(table.getAttribute("data-column-widths")).toBe("fill,100px,200px");
+    expect(getCell(table, 0, 0).textContent).toBe("0,2");
+    expect(getCell(table, 1, 2).textContent).toBe("1,1");
+  });
+
+  it("moveColumnAt keeps the table's right vertical boundary fixed", () => {
+    const table = buildLabeled(["100px", "200px"], ["10px", "20px"]);
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [{ id: "left" }, { id: "mid" }, { id: "right" }],
+        [{ id: "left" }, { id: "mid" }, { id: "right" }],
+      ]),
+    );
+    moveColumnAt(table, 0, 1); // swap the two columns
+    const v = JSON.parse(table.getAttribute("data-edges-v")!);
+    // Column-left boundaries swap; the final (table-right) boundary stays put.
+    expect(v[0].map((e: { id?: string }) => e.id)).toEqual(["mid", "left", "right"]);
+  });
+
+  it("moveRowAt is a no-op when from === to", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    moveRowAt(table, 1, 1);
+    expect(table.getAttribute("data-row-heights")).toBe("10px,20px");
+    expect(getCell(table, 0, 0).textContent).toBe("0,0");
   });
 });

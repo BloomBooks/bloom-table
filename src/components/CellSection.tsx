@@ -75,6 +75,17 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
   const ColorPicker = useColorPicker();
   const currentType = currentCell ? api.getCurrentContentTypeId(currentCell) : undefined;
 
+  // The alignment RadioGroup is fully controlled by `value`. Setting data-align
+  // on the cell doesn't trigger a menu re-render (it's neither a table attribute
+  // nor history-tracked), so we mirror the choice in local state to reflect it
+  // immediately, re-syncing whenever the selected cell changes.
+  const [align, setAlign] = React.useState<CellAlign>(
+    () => (currentCell && api.getCellAlign(currentCell)) || "center",
+  );
+  React.useEffect(() => {
+    setAlign((currentCell && api.getCellAlign(currentCell)) || "center");
+  }, [currentCell, api]);
+
   // Hover pulse: most cell controls affect the cell's content area; the
   // Borders and Corners controls affect its edges.
   const fillHover = {
@@ -160,9 +171,10 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
         {currentCell && (
           <RadioGroup
             className="ml-2"
-            value={api.getCellAlign(currentCell) ?? "center"}
+            value={align}
             onChange={(id) => {
               api.setCellAlign(currentCell, id as CellAlign);
+              setAlign(id as CellAlign);
               const table = currentCell.closest(".bloom-table") as HTMLElement | null;
               if (table) api.render(table);
             }}

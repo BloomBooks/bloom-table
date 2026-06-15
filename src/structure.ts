@@ -60,6 +60,135 @@
 
 import { tableHistoryManager } from "./history";
 import { setupContentsOfCell } from "./cell-contents";
+import { getEdgesH, setEdgesH, getEdgesV, setEdgesV } from "./table-model";
+
+/**
+ * Per-cell appearance settings that a newly inserted row/column should inherit
+ * from the selected (source) row/column. These are the formatting attributes
+ * (fill, alignment, padding, corners) — NOT span (which is positional) or
+ * content-type/content (a new cell starts empty). Borders are handled
+ * separately via the edge arrays.
+ */
+const CELL_SETTING_ATTRS = ["data-bg", "data-align", "data-pad", "data-corners"] as const;
+
+type CellSettings = Partial<Record<(typeof CELL_SETTING_ATTRS)[number], string | null>>;
+
+function snapshotCellSettings(cell: HTMLElement): CellSettings {
+  const snap: CellSettings = {};
+  for (const attr of CELL_SETTING_ATTRS) snap[attr] = cell.getAttribute(attr);
+  return snap;
+}
+
+function applyCellSettings(cell: HTMLElement, snap: CellSettings): void {
+  for (const attr of CELL_SETTING_ATTRS) {
+    const v = snap[attr];
+    if (v != null) cell.setAttribute(attr, v);
+    else cell.removeAttribute(attr);
+  }
+}
+
+// Clamp a caller-supplied source index to a valid row/column, or null when no
+// source was given (or the table is empty) — in which case nothing is copied.
+function resolveSourceIndex(sourceIndex: number | undefined, count: number): number | null {
+  if (sourceIndex == null || count <= 0) return null;
+  return Math.max(0, Math.min(sourceIndex, count - 1));
+}
+
+// Snapshot each cell's settings across a source row (one entry per column).
+function captureRowCellSettings(
+  table: HTMLElement,
+  sourceRow: number,
+  numColumns: number,
+): CellSettings[] {
+  const settings: CellSettings[] = [];
+  for (let c = 0; c < numColumns; c++) {
+    settings.push(snapshotCellSettings(getCell(table, sourceRow, c)));
+  }
+  return settings;
+}
+
+// Snapshot each cell's settings down a source column (one entry per row).
+function captureColumnCellSettings(
+  table: HTMLElement,
+  sourceColumn: number,
+  numRows: number,
+): CellSettings[] {
+  const settings: CellSettings[] = [];
+  for (let r = 0; r < numRows; r++) {
+    settings.push(snapshotCellSettings(getCell(table, r, sourceColumn)));
+  }
+  return settings;
+}
+
+// Deep-clone an edge entry (BorderSpec, sided object, or null) so the inserted
+// row/column gets independent copies of the source's border specs.
+function cloneEdge<T>(entry: T | undefined): T | Record<string, never> {
+  if (entry === undefined) return {};
+  if (entry === null) return null as unknown as T;
+  return JSON.parse(JSON.stringify(entry)) as T;
+}
+
+/**
+ * When a row is inserted, splice the table's edge arrays so existing borders
+ * stay aligned and the new row inherits the source row's borders.
+ *  - V edges (rows x cols+1): the new row copies the source row's vertical lines.
+ *  - H edges (rows+1 x cols): a new horizontal boundary is inserted at the
+ *    insertion index, copied from the boundary it splits (which is the source
+ *    row's adjacent top/bottom line), preserving neighbouring rows' borders.
+ * Only runs when the arrays exist and are full-sized for the current dimensions.
+ */
+function copyEdgesForInsertedRow(
+  table: HTMLElement,
+  insertIndex: number,
+  sourceRow: number,
+  rows: number,
+  cols: number,
+): void {
+  const v = getEdgesV(table);
+  if (v && v.length === rows && v.every((r) => Array.isArray(r) && r.length === cols + 1)) {
+    const srcRow = v[sourceRow] ? v[sourceRow].map((e) => cloneEdge(e)) : new Array(cols + 1).fill({});
+    v.splice(insertIndex, 0, srcRow as (typeof v)[number]);
+    setEdgesV(table, v);
+  }
+
+  const h = getEdgesH(table);
+  if (h && h.length === rows + 1 && h.every((r) => Array.isArray(r) && r.length === cols)) {
+    const base = h[insertIndex] ? h[insertIndex].map((e) => cloneEdge(e)) : new Array(cols).fill({});
+    h.splice(insertIndex, 0, base as (typeof h)[number]);
+    setEdgesH(table, h);
+  }
+}
+
+/**
+ * Column counterpart of copyEdgesForInsertedRow.
+ *  - H edges (rows+1 x cols): the new column copies the source column's
+ *    horizontal lines (top/bottom of its cells) at each boundary row.
+ *  - V edges (rows x cols+1): a new vertical boundary is inserted at the
+ *    insertion index, copied from the boundary it splits, preserving neighbours.
+ */
+function copyEdgesForInsertedColumn(
+  table: HTMLElement,
+  insertIndex: number,
+  sourceColumn: number,
+  rows: number,
+  cols: number,
+): void {
+  const h = getEdgesH(table);
+  if (h && h.length === rows + 1 && h.every((r) => Array.isArray(r) && r.length === cols)) {
+    for (let b = 0; b <= rows; b++) {
+      h[b].splice(insertIndex, 0, cloneEdge(h[b][sourceColumn]) as (typeof h)[number][number]);
+    }
+    setEdgesH(table, h);
+  }
+
+  const v = getEdgesV(table);
+  if (v && v.length === rows && v.every((r) => Array.isArray(r) && r.length === cols + 1)) {
+    for (let r = 0; r < rows; r++) {
+      v[r].splice(insertIndex, 0, cloneEdge(v[r][insertIndex]) as (typeof v)[number][number]);
+    }
+    setEdgesV(table, v);
+  }
+}
 
 /**
  * Runtime assertion function that throws an error if the condition is false.
@@ -138,7 +267,7 @@ export const getTargetTable = (): HTMLElement | null => {
   return currentElement.closest<HTMLElement>(".bloom-table") || null;
 };
 
-export const addRow = (table: HTMLElement, skipHistory = false): void => {
+export const addRow = (table: HTMLElement, skipHistory = false, sourceIndex?: number): void => {
   //assert(table instanceof HTMLElement, "table parameter must be an HTMLElement");
   assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
 
@@ -149,14 +278,30 @@ export const addRow = (table: HTMLElement, skipHistory = false): void => {
 
     assert(numColumns > 0, "Table must have at least one column");
 
-    const currentRowHeights = table.getAttribute("data-row-heights") || "";
-    const newRowHeights = currentRowHeights
-      ? `${currentRowHeights},${defaultRowHeight}`
-      : defaultRowHeight;
+    const rowHeights = (table.getAttribute("data-row-heights") || "")
+      .split(",")
+      .filter((h) => h.trim() !== "");
+    const numRows = rowHeights.length;
+
+    // Capture the selected (source) row's settings before mutating the table.
+    const src = resolveSourceIndex(sourceIndex, numRows);
+    const sourceCellSettings =
+      src != null ? captureRowCellSettings(table, src, numColumns) : null;
+    const newHeight = src != null ? rowHeights[src] : defaultRowHeight;
+
+    const newRowHeights = numRows > 0 ? `${rowHeights.join(",")},${newHeight}` : newHeight;
     table.setAttribute("data-row-heights", newRowHeights);
+
+    const newCells: HTMLElement[] = [];
     for (let i = 0; i < numColumns; i++) {
       const newCell = createCell();
       table.appendChild(newCell);
+      newCells.push(newCell);
+    }
+
+    if (src != null && sourceCellSettings) {
+      newCells.forEach((cell, c) => applyCellSettings(cell, sourceCellSettings[c]));
+      copyEdgesForInsertedRow(table, numRows, src, numRows, numColumns);
     }
   };
 
@@ -193,22 +338,31 @@ export const removeLastRow = (table: HTMLElement): void => {
   tableHistoryManager.addHistoryEntry(table, description, performOperation);
 };
 
-export const addColumn = (table: HTMLElement, skipHistory = false): void => {
+export const addColumn = (table: HTMLElement, skipHistory = false, sourceIndex?: number): void => {
   if (!table) return;
 
   const description = "Add Column";
   const performOperation = () => {
-    const currentColumnWidths = table.getAttribute("data-column-widths") || "";
-    const numColumns = currentColumnWidths ? currentColumnWidths.split(",").length : 0;
-    const newColumnWidths = currentColumnWidths
-      ? `${currentColumnWidths},${defaultColumnWidth}`
-      : defaultColumnWidth;
-    table.setAttribute("data-column-widths", newColumnWidths);
+    const columnWidths = (table.getAttribute("data-column-widths") || "")
+      .split(",")
+      .filter((w) => w.trim() !== "");
+    const numColumns = columnWidths.length;
 
     const rowHeightsAttr = table.getAttribute("data-row-heights") || "";
     const numRows = rowHeightsAttr ? rowHeightsAttr.split(",").length : 0;
+
+    // Capture the selected (source) column's settings before mutating the table.
+    const src = numRows > 0 ? resolveSourceIndex(sourceIndex, numColumns) : null;
+    const sourceCellSettings =
+      src != null ? captureColumnCellSettings(table, src, numRows) : null;
+    const newWidth = src != null ? columnWidths[src] : defaultColumnWidth;
+
+    const newColumnWidths = numColumns > 0 ? `${columnWidths.join(",")},${newWidth}` : newWidth;
+    table.setAttribute("data-column-widths", newColumnWidths);
+
     if (numRows === 0) return;
     const cells = getTableCells(table);
+    const newCells: HTMLElement[] = [];
     for (let i = 0; i < numRows; i++) {
       const newCell = createCell();
 
@@ -217,6 +371,12 @@ export const addColumn = (table: HTMLElement, skipHistory = false): void => {
       const insertPosition = i * numColumns + numColumns;
       const referenceNode = cells[insertPosition] || null;
       table.insertBefore(newCell, referenceNode);
+      newCells.push(newCell);
+    }
+
+    if (src != null && sourceCellSettings) {
+      newCells.forEach((cell, r) => applyCellSettings(cell, sourceCellSettings[r]));
+      copyEdgesForInsertedColumn(table, numColumns, src, numRows, numColumns);
     }
   };
 
@@ -477,7 +637,12 @@ export function getCell(table: HTMLElement, row: number, column: number): HTMLEl
  * @param index The position to insert the column (0-based). If not provided, adds at the end.
  * @param skipHistory Whether to skip adding this operation to history
  */
-export const addColumnAt = (table: HTMLElement, index?: number, skipHistory = false): void => {
+export const addColumnAt = (
+  table: HTMLElement,
+  index?: number,
+  skipHistory = false,
+  sourceIndex?: number,
+): void => {
   if (!table) return;
 
   const tableInfo = getTableInfo(table);
@@ -491,6 +656,11 @@ export const addColumnAt = (table: HTMLElement, index?: number, skipHistory = fa
   const performOperation = () => {
     const numRows = tableInfo.rowCount;
     if (numRows === 0) return;
+
+    // Capture the selected (source) column's settings before mutating the table.
+    const src = resolveSourceIndex(sourceIndex, tableInfo.columnCount);
+    const sourceCellSettings =
+      src != null ? captureColumnCellSettings(table, src, numRows) : null;
 
     // Collect reference nodes BEFORE changing the table structure
     const referenceNodes: (HTMLElement | null)[] = [];
@@ -506,13 +676,21 @@ export const addColumnAt = (table: HTMLElement, index?: number, skipHistory = fa
     const currentColumnWidths = table.getAttribute("data-column-widths") || "";
     const columnWidths = currentColumnWidths ? currentColumnWidths.split(",") : [];
 
-    // Insert new column width at the specified index
-    columnWidths.splice(actualIndex, 0, defaultColumnWidth);
+    // Insert new column width at the specified index (inherit the source column's width)
+    const newWidth = src != null ? columnWidths[src] ?? defaultColumnWidth : defaultColumnWidth;
+    columnWidths.splice(actualIndex, 0, newWidth);
     table.setAttribute("data-column-widths", columnWidths.join(",")); // Insert new cells at the appropriate positions
+    const newCells: HTMLElement[] = [];
     for (let rowIndex = 0; rowIndex < numRows; rowIndex++) {
       const newCell = createCell();
 
       table.insertBefore(newCell, referenceNodes[rowIndex]);
+      newCells.push(newCell);
+    }
+
+    if (src != null && sourceCellSettings) {
+      newCells.forEach((cell, r) => applyCellSettings(cell, sourceCellSettings[r]));
+      copyEdgesForInsertedColumn(table, actualIndex, src, numRows, tableInfo.columnCount);
     }
   };
 
@@ -529,7 +707,12 @@ export const addColumnAt = (table: HTMLElement, index?: number, skipHistory = fa
  * @param index The position to insert the row (0-based). If not provided, adds at the end.
  * @param skipHistory Whether to skip adding this operation to history
  */
-export const addRowAt = (table: HTMLElement, index?: number, skipHistory = false): void => {
+export const addRowAt = (
+  table: HTMLElement,
+  index?: number,
+  skipHistory = false,
+  sourceIndex?: number,
+): void => {
   if (!table) return;
 
   const tableInfo = getTableInfo(table);
@@ -544,6 +727,11 @@ export const addRowAt = (table: HTMLElement, index?: number, skipHistory = false
     const numColumns = tableInfo.columnCount;
     if (numColumns === 0) return;
 
+    // Capture the selected (source) row's settings before mutating the table.
+    const src = resolveSourceIndex(sourceIndex, tableInfo.rowCount);
+    const sourceCellSettings =
+      src != null ? captureRowCellSettings(table, src, numColumns) : null;
+
     // Find the reference node for insertion BEFORE changing the table structure
     // If adding at the end, referenceNode is null.
     // Otherwise, it's the first cell of the row at the insertion index.
@@ -553,12 +741,20 @@ export const addRowAt = (table: HTMLElement, index?: number, skipHistory = false
     const currentRowHeights = table.getAttribute("data-row-heights") || "";
     const rowHeights = currentRowHeights ? currentRowHeights.split(",") : [];
 
-    // Insert new row height at the specified index
-    rowHeights.splice(actualIndex, 0, defaultRowHeight);
+    // Insert new row height at the specified index (inherit the source row's height)
+    const newHeight = src != null ? rowHeights[src] ?? defaultRowHeight : defaultRowHeight;
+    rowHeights.splice(actualIndex, 0, newHeight);
     table.setAttribute("data-row-heights", rowHeights.join(",")); // Insert new cells for the entire row
+    const newCells: HTMLElement[] = [];
     for (let colIndex = 0; colIndex < numColumns; colIndex++) {
       const newCell = createCell();
       table.insertBefore(newCell, referenceNode);
+      newCells.push(newCell);
+    }
+
+    if (src != null && sourceCellSettings) {
+      newCells.forEach((cell, c) => applyCellSettings(cell, sourceCellSettings[c]));
+      copyEdgesForInsertedRow(table, actualIndex, src, tableInfo.rowCount, numColumns);
     }
   };
 
@@ -662,6 +858,133 @@ export const removeRowAt = (table: HTMLElement, index: number, skipHistory = fal
 
     // Remove the collected cells
     cellsToRemove.forEach((cell) => table.removeChild(cell));
+  };
+
+  if (skipHistory) {
+    performOperation();
+  } else {
+    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+  }
+};
+
+/**
+ * Moves the row at `from` to position `to`, carrying its cells, height, and
+ * borders. Borders model: each row "owns" its top horizontal boundary; the
+ * table's final bottom boundary stays fixed. Vertical edges (per-row) travel
+ * with the row. Spans that straddle the moved boundary are not specially
+ * handled (best-effort for simple grids).
+ * @param table The table container element
+ * @param from Source row index (0-based)
+ * @param to Destination row index (0-based)
+ */
+export const moveRowAt = (table: HTMLElement, from: number, to: number, skipHistory = false): void => {
+  if (!table) return;
+  const info = getTableInfo(table);
+  const R = info.rowCount;
+  const C = info.columnCount;
+  if (from === to) return;
+  assert(from >= 0 && from < R, `Row index ${from} is out of bounds`);
+  assert(to >= 0 && to < R, `Row index ${to} is out of bounds`);
+
+  const description = `Move Row ${from} to ${to}`;
+  const performOperation = () => {
+    // Row heights
+    const heights = (table.getAttribute("data-row-heights") || "").split(",");
+    const [movedHeight] = heights.splice(from, 1);
+    heights.splice(to, 0, movedHeight);
+    table.setAttribute("data-row-heights", heights.join(","));
+
+    // DOM cells: a full R*C grid in DOM order; reorder whole row blocks.
+    const cells = getTableCells(table);
+    const grid: HTMLElement[][] = [];
+    for (let r = 0; r < R; r++) grid.push(cells.slice(r * C, (r + 1) * C));
+    const [movedRowCells] = grid.splice(from, 1);
+    grid.splice(to, 0, movedRowCells);
+    grid.flat().forEach((cell) => table.appendChild(cell));
+
+    // Vertical edges (R x C+1): travel with their row.
+    const v = getEdgesV(table);
+    if (v && v.length === R) {
+      const [mv] = v.splice(from, 1);
+      v.splice(to, 0, mv);
+      setEdgesV(table, v);
+    }
+    // Horizontal edges (R+1 x C): move the row-top boundaries, keep table bottom fixed.
+    const h = getEdgesH(table);
+    if (h && h.length === R + 1) {
+      const tops = h.slice(0, R);
+      const bottom = h[R];
+      const [mt] = tops.splice(from, 1);
+      tops.splice(to, 0, mt);
+      setEdgesH(table, [...tops, bottom]);
+    }
+  };
+
+  if (skipHistory) {
+    performOperation();
+  } else {
+    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+  }
+};
+
+/**
+ * Moves the column at `from` to position `to`, carrying its cells, width, and
+ * borders. Borders model: each column "owns" its left vertical boundary; the
+ * table's final right boundary stays fixed. Horizontal edges (per-column)
+ * travel with the column.
+ * @param table The table container element
+ * @param from Source column index (0-based)
+ * @param to Destination column index (0-based)
+ */
+export const moveColumnAt = (table: HTMLElement, from: number, to: number, skipHistory = false): void => {
+  if (!table) return;
+  const info = getTableInfo(table);
+  const R = info.rowCount;
+  const C = info.columnCount;
+  if (from === to) return;
+  assert(from >= 0 && from < C, `Column index ${from} is out of bounds`);
+  assert(to >= 0 && to < C, `Column index ${to} is out of bounds`);
+
+  const description = `Move Column ${from} to ${to}`;
+  const performOperation = () => {
+    // Column widths
+    const widths = (table.getAttribute("data-column-widths") || "").split(",");
+    const [movedWidth] = widths.splice(from, 1);
+    widths.splice(to, 0, movedWidth);
+    table.setAttribute("data-column-widths", widths.join(","));
+
+    // DOM cells: reorder the cell at `from` to `to` within each row.
+    const cells = getTableCells(table);
+    const grid: HTMLElement[][] = [];
+    for (let r = 0; r < R; r++) {
+      const rowCells = cells.slice(r * C, (r + 1) * C);
+      const [mc] = rowCells.splice(from, 1);
+      rowCells.splice(to, 0, mc);
+      grid.push(rowCells);
+    }
+    grid.flat().forEach((cell) => table.appendChild(cell));
+
+    // Horizontal edges (R+1 x C): travel with their column.
+    const h = getEdgesH(table);
+    if (h && h.length === R + 1 && h.every((row) => Array.isArray(row) && row.length === C)) {
+      for (const row of h) {
+        const [m] = row.splice(from, 1);
+        row.splice(to, 0, m);
+      }
+      setEdgesH(table, h);
+    }
+    // Vertical edges (R x C+1): move the column-left boundaries, keep table right fixed.
+    const v = getEdgesV(table);
+    if (v && v.length === R && v.every((row) => Array.isArray(row) && row.length === C + 1)) {
+      const next = v.map((row) => {
+        const lefts = row.slice(0, C);
+        const right = row[C];
+        const [m] = lefts.splice(from, 1);
+        lefts.splice(to, 0, m);
+        return [...lefts, right];
+      });
+      setEdgesV(table, next as typeof v);
+    }
   };
 
   if (skipHistory) {
