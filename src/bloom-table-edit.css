@@ -141,6 +141,187 @@
   animation: bloom-pulse-border-kf var(--bloom-pulse-duration) ease-in-out infinite;
 }
 
+/* --- Alternative selection-display styles (experimental) -------------------
+   The default (no [data-pulse-style] or "pulse") is the oscillating pulse
+   above. The demo's tuner sets data-pulse-style on :root to preview other
+   treatments so we can choose one. Each style overrides the two markers. */
+
+/* STEADY: no animation — a constant tint / constant outline. */
+:root[data-pulse-style="steady"] .bloom-cell.bloom-pulse-fill::before {
+  animation: none;
+  opacity: var(--bloom-pulse-fill-opacity);
+}
+:root[data-pulse-style="steady"] .bloom-cell.bloom-pulse-border {
+  animation: none;
+  outline-color: var(--bloom-pulse-color);
+}
+
+/* BLINK: hard on/off (stepped), no fade. */
+@keyframes bloom-blink-fill-kf {
+  0%,
+  49% {
+    opacity: var(--bloom-pulse-fill-opacity);
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes bloom-blink-border-kf {
+  0%,
+  49% {
+    outline-color: var(--bloom-pulse-color);
+  }
+  50%,
+  100% {
+    outline-color: transparent;
+  }
+}
+:root[data-pulse-style="blink"] .bloom-cell.bloom-pulse-fill::before {
+  animation: bloom-blink-fill-kf var(--bloom-pulse-duration) steps(1, end) infinite;
+}
+:root[data-pulse-style="blink"] .bloom-cell.bloom-pulse-border {
+  animation: bloom-blink-border-kf var(--bloom-pulse-duration) steps(1, end) infinite;
+}
+
+/* GLOW: soft breathing box-shadow ring, no hard outline or fill tint. */
+@keyframes bloom-glow-kf {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 6px 2px var(--bloom-pulse-color);
+  }
+}
+:root[data-pulse-style="glow"] .bloom-cell.bloom-pulse-fill::before {
+  animation: none;
+  opacity: 0;
+}
+:root[data-pulse-style="glow"] .bloom-cell.bloom-pulse-fill,
+:root[data-pulse-style="glow"] .bloom-cell.bloom-pulse-border {
+  outline: none;
+  animation: bloom-glow-kf var(--bloom-pulse-duration) ease-in-out infinite;
+}
+
+/* MARCHING ANTS: classic moving dashed border, no fill tint. Built from four
+   gradient edges on the ::before overlay; background-position animates so the
+   dashes march. (When a cell has both markers — e.g. the tuner's whole-table
+   preview — they share this one ::before, which is fine.) */
+@keyframes bloom-ants-kf {
+  to {
+    background-position:
+      16px 0,
+      -16px 100%,
+      0 -16px,
+      100% 16px;
+  }
+}
+:root[data-pulse-style="ants"] .bloom-cell.bloom-pulse-fill,
+:root[data-pulse-style="ants"] .bloom-cell.bloom-pulse-border {
+  position: relative;
+  outline: none;
+  animation: none;
+}
+:root[data-pulse-style="ants"] .bloom-cell.bloom-pulse-fill::before,
+:root[data-pulse-style="ants"] .bloom-cell.bloom-pulse-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: transparent;
+  pointer-events: none;
+  z-index: 2;
+  background-image:
+    repeating-linear-gradient(90deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(90deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px);
+  background-size:
+    100% 2px,
+    100% 2px,
+    2px 100%,
+    2px 100%;
+  background-position:
+    0 0,
+    0 100%,
+    0 0,
+    100% 0;
+  background-repeat: no-repeat;
+  animation: bloom-ants-kf var(--bloom-pulse-duration) linear infinite;
+}
+
+/* --- Region highlight overlay ---------------------------------------------
+   A single absolutely-positioned box covering a whole region (table / row /
+   column / cell) so the highlight reads as one area instead of per-cell boxes.
+   Created by pulse-highlight.ts; reuses the same variables/keyframes and the
+   [data-pulse-style] selector as the per-cell markers above.
+     .bloom-sel-fill   - tints the region
+     .bloom-sel-border - outlines the region perimeter */
+.bloom-sel-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 40;
+  box-sizing: border-box;
+}
+.bloom-sel-overlay.bloom-sel-fill {
+  background: var(--bloom-pulse-color);
+  animation: bloom-pulse-fill-kf var(--bloom-pulse-duration) ease-in-out infinite;
+}
+.bloom-sel-overlay.bloom-sel-border {
+  outline-style: solid;
+  outline-width: var(--bloom-pulse-border-width);
+  outline-offset: var(--bloom-pulse-border-offset);
+  animation: bloom-pulse-border-kf var(--bloom-pulse-duration) ease-in-out infinite;
+}
+
+/* STEADY */
+:root[data-pulse-style="steady"] .bloom-sel-overlay.bloom-sel-fill {
+  animation: none;
+  opacity: var(--bloom-pulse-fill-opacity);
+}
+:root[data-pulse-style="steady"] .bloom-sel-overlay.bloom-sel-border {
+  animation: none;
+  outline-color: var(--bloom-pulse-color);
+}
+
+/* BLINK */
+:root[data-pulse-style="blink"] .bloom-sel-overlay.bloom-sel-fill {
+  animation: bloom-blink-fill-kf var(--bloom-pulse-duration) steps(1, end) infinite;
+}
+:root[data-pulse-style="blink"] .bloom-sel-overlay.bloom-sel-border {
+  animation: bloom-blink-border-kf var(--bloom-pulse-duration) steps(1, end) infinite;
+}
+
+/* GLOW (both kinds become a soft halo around the region) */
+:root[data-pulse-style="glow"] .bloom-sel-overlay {
+  background: transparent;
+  outline: none;
+  animation: bloom-glow-kf var(--bloom-pulse-duration) ease-in-out infinite;
+}
+
+/* MARCHING ANTS (both kinds become a moving dashed perimeter) */
+:root[data-pulse-style="ants"] .bloom-sel-overlay {
+  background-color: transparent;
+  outline: none;
+  background-image:
+    repeating-linear-gradient(90deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(90deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, var(--bloom-pulse-color) 0 8px, transparent 8px 16px);
+  background-size:
+    100% 2px,
+    100% 2px,
+    2px 100%,
+    2px 100%;
+  background-position:
+    0 0,
+    0 100%,
+    0 0,
+    100% 0;
+  background-repeat: no-repeat;
+  animation: bloom-ants-kf var(--bloom-pulse-duration) linear infinite;
+}
+
 .bloom-cell > div[contenteditable="true"] {
   min-width: 2em; /* without a min-width, you can't click in an empty cell that was added dynamically*/
   text-align: center;

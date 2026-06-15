@@ -14,6 +14,8 @@ import {
   setEdgesH,
   setEdgeDefault,
   getSpan,
+  getGapX,
+  getGapY,
 } from "./table-model";
 import { getTableCells } from "./structure";
 
@@ -30,6 +32,47 @@ const toSpec = (u?: UIBorder | null, fallbackColor = "#444"): BorderSpec | null 
   const color = u.color ?? fallbackColor;
   if (u.weight <= 0 || u.style === "none") return { weight: 0, style: "none", color };
   return { weight: u.weight, style: u.style, color } as BorderSpec;
+};
+
+// Is this edge entry a single shared BorderSpec (vs. a sided west/east|north/south object)?
+const isSpec = (e: unknown): e is BorderSpec => {
+  if (!e || typeof e !== "object") return false;
+  const o = e as Record<string, unknown>;
+  return (
+    typeof o.weight === "number" ||
+    Object.prototype.hasOwnProperty.call(o, "style") ||
+    Object.prototype.hasOwnProperty.call(o, "color")
+  );
+};
+
+// Decompose an edge entry into its two sides, mirroring the renderer: a single spec
+// applies to both sides; a sided object keeps each side; null/absent => both null.
+const splitV = (e: VEdgeEntry | undefined): HVVerticalEdgeCellSides => {
+  if (isSpec(e)) return { west: e, east: e };
+  if (e && typeof e === "object") {
+    const s = e as HVVerticalEdgeCellSides;
+    return { west: s.west ?? null, east: s.east ?? null };
+  }
+  return { west: null, east: null };
+};
+const splitH = (e: HEdgeEntry | undefined): HVHorizontalEdgeCellSides => {
+  if (isSpec(e)) return { north: e, south: e };
+  if (e && typeof e === "object") {
+    const s = e as HVHorizontalEdgeCellSides;
+    return { north: s.north ?? null, south: s.south ?? null };
+  }
+  return { north: null, south: null };
+};
+
+// Does the boundary at the given gap index have a positive gap? Mirrors the
+// renderer's hasPositiveGap logic so the writer and renderer agree.
+const gapPositive = (tokens: string[], i: number): boolean => {
+  const gi = Math.min(Math.max(0, i), Math.max(0, (tokens.length || 1) - 1));
+  const token = (tokens[gi] || "").trim();
+  if (!token) return false;
+  const n = parseFloat(token);
+  if (!isNaN(n)) return n > 0;
+  return token !== "0" && token !== "0px";
 };
 
 // Read current sizes
@@ -211,14 +254,27 @@ export function applyCellPerimeter(
   const v = (getEdgesV(table) ?? []) as Array<Array<HVVerticalEdgeCellSides | BorderSpec | null>>;
   const h = (getEdgesH(table) ?? []) as Array<Array<HVHorizontalEdgeCellSides | BorderSpec | null>>;
 
+  // Gap info: when a boundary has a positive gap, the two adjacent cells own
+  // independent border lines, so we must write only this cell's side and leave
+  // the neighbor's alone. With no gap there is one shared line; we overwrite the
+  // whole edge so the change lands on it (and the renderer collapses it).
+  const gapX = getGapX(table);
+  const gapY = getGapY(table);
+
   // Left
   if (map.left !== undefined) {
     const innerSpec = toSpec(map.left, innerColorFallback);
     const outerSpec = toSpec(map.left, outerColorFallback);
-    // Perimeter if c==0 else interior boundary at column c
+    // Perimeter if c==0 else interior boundary at column c. This cell sits east
+    // of an interior left boundary, so it owns that boundary's `east` side.
     for (let rr = r; rr < Math.min(r + sy, v.length); rr++) {
-      const boundary = c === 0 ? 0 : c;
-      v[rr][boundary] = c === 0 ? outerSpec : innerSpec;
+      if (c === 0) {
+        v[rr][0] = outerSpec;
+      } else if (gapPositive(gapX, c - 1)) {
+        v[rr][c] = { west: splitV(v[rr][c]).west, east: innerSpec };
+      } else {
+        v[rr][c] = innerSpec;
+      }
     }
   }
 
@@ -227,9 +283,15 @@ export function applyCellPerimeter(
     const innerSpec = toSpec(map.right, innerColorFallback);
     const outerSpec = toSpec(map.right, outerColorFallback);
     const rc = c + sx - 1;
+    // This cell sits west of an interior right boundary, so it owns `west`.
     for (let rr = r; rr < Math.min(r + sy, v.length); rr++) {
-      const boundary = rc === cols - 1 ? cols : rc + 1;
-      v[rr][boundary] = rc === cols - 1 ? outerSpec : innerSpec;
+      if (rc === cols - 1) {
+        v[rr][cols] = outerSpec;
+      } else if (gapPositive(gapX, rc)) {
+        v[rr][rc + 1] = { west: innerSpec, east: splitV(v[rr][rc + 1]).east };
+      } else {
+        v[rr][rc + 1] = innerSpec;
+      }
     }
   }
 
@@ -237,10 +299,17 @@ export function applyCellPerimeter(
   if (map.top !== undefined) {
     const innerSpec = toSpec(map.top, innerColorFallback);
     const outerSpec = toSpec(map.top, outerColorFallback);
-    // Perimeter if r==0 else interior boundary at row r
+    // Perimeter if r==0 else interior boundary at row r. This cell sits south of
+    // an interior top boundary, so it owns that boundary's `south` side.
     const boundaryRow = r === 0 ? 0 : r;
     for (let cc = c; cc < Math.min(c + sx, h[boundaryRow]?.length ?? 0); cc++) {
-      h[boundaryRow][cc] = r === 0 ? outerSpec : innerSpec;
+      if (r === 0) {
+        h[0][cc] = outerSpec;
+      } else if (gapPositive(gapY, r - 1)) {
+        h[boundaryRow][cc] = { north: splitH(h[boundaryRow][cc]).north, south: innerSpec };
+      } else {
+        h[boundaryRow][cc] = innerSpec;
+      }
     }
   }
 
@@ -250,8 +319,15 @@ export function applyCellPerimeter(
     const outerSpec = toSpec(map.bottom, outerColorFallback);
     const rrBottom = r + sy - 1;
     const boundaryRow = rrBottom === rows - 1 ? rows : rrBottom + 1;
+    // This cell sits north of an interior bottom boundary, so it owns `north`.
     for (let cc = c; cc < Math.min(c + sx, h[boundaryRow]?.length ?? 0); cc++) {
-      h[boundaryRow][cc] = rrBottom === rows - 1 ? outerSpec : innerSpec;
+      if (rrBottom === rows - 1) {
+        h[boundaryRow][cc] = outerSpec;
+      } else if (gapPositive(gapY, rrBottom)) {
+        h[boundaryRow][cc] = { north: innerSpec, south: splitH(h[boundaryRow][cc]).south };
+      } else {
+        h[boundaryRow][cc] = innerSpec;
+      }
     }
   }
 

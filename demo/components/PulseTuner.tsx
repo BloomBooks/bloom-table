@@ -5,6 +5,7 @@
 // demo/index.tsx) once the look is dialed in.
 
 import React, { useEffect, useRef, useState } from "react";
+import { clearPulse, pulseAllTables } from "../../src/pulse-highlight";
 
 type Settings = {
   color: string; // hex
@@ -30,10 +31,23 @@ const toCssVars = (s: Settings): Record<string, string> => ({
   "--bloom-pulse-border-offset": `${s.borderOffset}px`,
 });
 
-const toRootBlock = (s: Settings): string => {
+// Selection-display styles. "pulse" is the current default; the others are
+// experiments selected via :root[data-pulse-style]. Keep in sync with the CSS
+// in bloom-table-edit.css.
+const STYLES: Array<{ id: string; label: string }> = [
+  { id: "pulse", label: "Pulse (fade)" },
+  { id: "steady", label: "Steady (no animation)" },
+  { id: "blink", label: "Blink (on/off)" },
+  { id: "glow", label: "Glow (soft halo)" },
+  { id: "ants", label: "Marching ants" },
+];
+
+const toCopyText = (s: Settings, style: string): string => {
   const vars = toCssVars(s);
   const lines = Object.entries(vars).map(([k, v]) => `  ${k}: ${v};`);
-  return `:root {\n${lines.join("\n")}\n}`;
+  // The style is a :root attribute, not a variable; note it as a comment so it
+  // can be handed back.
+  return `/* selection style: ${style} */\n:root {\n${lines.join("\n")}\n}`;
 };
 
 const labelStyle: React.CSSProperties = {
@@ -51,18 +65,26 @@ const numStyle: React.CSSProperties = {
 
 const PulseTuner: React.FC = () => {
   const [s, setS] = useState<Settings>(DEFAULTS);
+  const [style, setStyle] = useState<string>("pulse");
   const [copied, setCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // While the pointer is in the tuner, pulse the whole table (both flavors on
-  // every cell) so the user can see the effect of the settings on real cells.
-  // Skip the tuner's own preview cells.
+  // Apply the chosen selection-display style to :root so the preview and the
+  // real toolbar hover markers both adopt it.
+  useEffect(() => {
+    if (style && style !== "pulse") document.documentElement.dataset.pulseStyle = style;
+    else delete document.documentElement.dataset.pulseStyle;
+    return () => {
+      delete document.documentElement.dataset.pulseStyle;
+    };
+  }, [style]);
+
+  // While the pointer is in the tuner, highlight every real table as a region so
+  // the user can see the settings/style on real tables (the tuner's own preview
+  // is skipped via the data-pulse-tuner marker on the panel).
   const setWholeTablePulse = (on: boolean) => {
-    document.querySelectorAll<HTMLElement>(".bloom-cell").forEach((c) => {
-      if (panelRef.current?.contains(c)) return;
-      if (on) c.classList.add("bloom-pulse-fill", "bloom-pulse-border");
-      else c.classList.remove("bloom-pulse-fill", "bloom-pulse-border");
-    });
+    if (on) pulseAllTables(document.body);
+    else clearPulse(document.body);
   };
 
   // Push the live values onto :root so both the preview and the real toolbar
@@ -80,7 +102,7 @@ const PulseTuner: React.FC = () => {
     setS((prev) => ({ ...prev, [k]: v }));
 
   const copy = async () => {
-    const text = toRootBlock(s);
+    const text = toCopyText(s, style);
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -100,6 +122,7 @@ const PulseTuner: React.FC = () => {
   return (
     <div
       ref={panelRef}
+      data-pulse-tuner=""
       onMouseEnter={() => setWholeTablePulse(true)}
       onMouseLeave={() => setWholeTablePulse(false)}
       style={{
@@ -122,7 +145,10 @@ const PulseTuner: React.FC = () => {
         <strong style={{ fontSize: 13 }}>Pulse Tuner</strong>
         <span style={{ fontSize: 10, opacity: 0.6 }}>(temporary)</span>
         <button
-          onClick={() => setS(DEFAULTS)}
+          onClick={() => {
+            setS(DEFAULTS);
+            setStyle("pulse");
+          }}
           style={{
             marginLeft: "auto",
             fontSize: 11,
@@ -135,6 +161,28 @@ const PulseTuner: React.FC = () => {
           Reset
         </button>
       </div>
+
+      <label style={{ ...labelStyle, marginBottom: 8 }}>
+        <span>Style</span>
+        <select
+          value={style}
+          onChange={(e) => setStyle(e.target.value)}
+          style={{
+            fontSize: 12,
+            padding: "2px 6px",
+            borderRadius: 4,
+            background: "#2b2b2b",
+            color: "#fff",
+            border: "1px solid #555",
+          }}
+        >
+          {STYLES.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {/* Live preview: top cells = border pulse, bottom cells = fill pulse */}
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
@@ -242,7 +290,7 @@ const PulseTuner: React.FC = () => {
 
       <textarea
         readOnly
-        value={toRootBlock(s)}
+        value={toCopyText(s, style)}
         onFocus={(e) => e.currentTarget.select()}
         style={{
           marginTop: 8,
