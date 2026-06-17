@@ -50,13 +50,34 @@
 }
 /* removed outline-based even-cell override */
 
-/* Ensure nested tables fill their parent cell */
+/* Remove padding when the cell contains a table */
+.bloom-cell[data-content-type="table"] {
+  --this-padding: 0;
+}
+
+/* Non-text content (image, video, nested table) conforms to its cell rather
+   than the other way around. The content element is taken out of normal flow so
+   its intrinsic size never drives the grid track size (which would otherwise
+   make the cell grow when switching content type); it is then stretched to fill
+   whatever size the cell already has. Switching a cell's content type therefore
+   never changes the cell's size. */
+.bloom-cell[data-content-type="image"],
+.bloom-cell[data-content-type="video"],
+.bloom-cell[data-content-type="table"] {
+  position: relative;
+  overflow: hidden;
+}
+.bloom-cell[data-content-type="image"] > img,
+.bloom-cell[data-content-type="video"] > video,
 .bloom-cell[data-content-type="table"] > .bloom-table {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
 }
 
-/* Remove padding when the cell contains a table */
-.bloom-cell[data-content-type="table"] {
-  --this-padding: 0;
+/* Replaced media is scaled to fit (preserving aspect ratio) inside that box. */
+.bloom-cell[data-content-type="image"] > img,
+.bloom-cell[data-content-type="video"] > video {
+  object-fit: contain;
 }
