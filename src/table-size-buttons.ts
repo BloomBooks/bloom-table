@@ -152,6 +152,8 @@ export function ensureTableSizeButtons(): void {
     passive: true,
   });
   document.addEventListener("tableHistoryUpdated", scheduleOverlayReposition as EventListener);
+
+  installProximityGate();
 }
 
 // --- Contextual control clusters ---
@@ -1702,6 +1704,110 @@ function repositionEdgeOverlays() {
   if (addPreviewVisible) {
     updateAddPreviewGeometry();
   }
+}
+
+// ===== Pointer-proximity visibility gate (expanded "active zone") =====
+// We want the affordances hidden whenever the cursor isn't at the table — but the
+// affordances themselves live in a gutter *outside* the table's cell content
+// (corner pills sit ~14px out and span ~50px, edge "+" buttons ~8px out, the
+// resize handle straddles the lower-right corner). Hiding on a literal table
+// `mouseleave` would fire the instant the cursor crossed into that gutter to reach
+// one — the classic "reach gap".
+//
+// Instead we gate on the cursor's position relative to an EXPANDED zone: the union
+// of the table's visible-cell rects grown by kActiveZonePadding. That padding is
+// comfortably larger than the farthest affordance offset (~64px at the corners),
+// so moving toward any affordance keeps the cursor inside the zone. It's pure
+// geometry evaluated on mousemove — there is no leave event and therefore no gap.
+const kActiveZonePadding = 70; // px beyond cell-content bounds; must exceed the farthest affordance offset
+
+let gateMouseX = 0;
+let gateMouseY = 0;
+let gateRaf = 0;
+let gateInstalled = false; // independent of `installed` so the listener is added exactly once
+
+// Union of the table's visible cell rects (viewport coords). Mirrors the bounds
+// math in applyAnchorPositioning; null when the table has no laid-out cells.
+function visibleCellBounds(
+  table: HTMLElement,
+): { minL: number; minT: number; maxR: number; maxB: number } | null {
+  let minL = Infinity,
+    minT = Infinity,
+    maxR = -Infinity,
+    maxB = -Infinity;
+  for (const child of Array.from(table.children)) {
+    if (!(child instanceof HTMLElement) || !child.classList.contains("bloom-cell")) continue;
+    const r = child.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    if (r.left < minL) minL = r.left;
+    if (r.top < minT) minT = r.top;
+    if (r.right > maxR) maxR = r.right;
+    if (r.bottom > maxB) maxB = r.bottom;
+  }
+  if (!isFinite(minL) || !isFinite(maxR)) return null;
+  return { minL, minT, maxR, maxB };
+}
+
+function pointerInActiveZone(table: HTMLElement, x: number, y: number): boolean {
+  const b = visibleCellBounds(table);
+  if (!b) return false;
+  const pad = kActiveZonePadding;
+  return x >= b.minL - pad && x <= b.maxR + pad && y >= b.minT - pad && y <= b.maxB + pad;
+}
+
+function updateProximityGate(): void {
+  // Don't fight an in-progress corner drag, and keep the affordances up while a
+  // menu is open — the popup commonly extends past the active zone, so the cursor
+  // would read as "outside" while the user is still interacting with it.
+  if (cornerDragging || menuPopup) return;
+
+  // Prefer the table already targeted (cheap, and avoids re-running showEdgeOverlays
+  // every frame while hovering). Otherwise scan all tables so a first hover — before
+  // any cell is focused — can reveal the table-level affordances too.
+  let near: HTMLElement | null = null;
+  if (
+    overlayTable &&
+    document.body.contains(overlayTable) &&
+    pointerInActiveZone(overlayTable, gateMouseX, gateMouseY)
+  ) {
+    near = overlayTable;
+  } else {
+    for (const t of Array.from(document.querySelectorAll<HTMLElement>(".bloom-table"))) {
+      if (pointerInActiveZone(t, gateMouseX, gateMouseY)) {
+        near = t;
+        break;
+      }
+    }
+  }
+
+  if (near) {
+    if (near !== overlayTable) showEdgeOverlays(near);
+  } else if (overlayTable) {
+    hideEdgeOverlays();
+  }
+}
+
+function installProximityGate(): void {
+  if (gateInstalled) return;
+  gateInstalled = true;
+  document.addEventListener(
+    "mousemove",
+    (e) => {
+      gateMouseX = e.clientX;
+      gateMouseY = e.clientY;
+      // Coalesce bursts of mousemove into one evaluation per frame.
+      if (typeof requestAnimationFrame !== "function") {
+        updateProximityGate();
+        return;
+      }
+      if (gateRaf) return;
+      gateRaf = requestAnimationFrame(() => {
+        gateRaf = 0;
+        updateProximityGate();
+      });
+    },
+    { passive: true },
+  );
 }
 
 // Create or retrieve a unique anchor-name for an element
