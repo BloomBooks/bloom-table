@@ -29,6 +29,8 @@ import {
   setGapY,
   getCellBackground,
   setCellBackground,
+  getCellPadding,
+  setCellPadding,
   getTableBackground,
   setTableBackground,
   type CellAlign,
@@ -44,6 +46,12 @@ import alignLeftIcon from "./components/icons/align-left.svg";
 import alignCenterIcon from "./components/icons/align-center.svg";
 import alignRightIcon from "./components/icons/align-right.svg";
 import cellContentTableIcon from "./components/icons/cell-content-table.svg";
+import menuRowIcon from "./components/icons/menu-row.svg";
+import menuColumnIcon from "./components/icons/menu-column.svg";
+import columnGrowIcon from "./components/icons/column-grow.svg";
+import columnHugIcon from "./components/icons/column-hug.svg";
+import rowGrowIcon from "./components/icons/row-grow.svg";
+import rowHugIcon from "./components/icons/row-hug.svg";
 import resizeTableIcon from "./components/icons/resize-table.svg";
 
 // Inline SVG icons (MUI "Add" and "Delete" glyph paths) so the core attach
@@ -53,7 +61,12 @@ const kAddIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="widt
 // Inline glyphs (16px, fill:currentColor) for menu items that have no toolbar
 // icon: directional move arrows, copy, and delete-table.
 const kIconAttr = `viewBox="0 0 24 24" width="16" height="16" style="width:16px;height:16px;display:block;fill:currentColor"`;
-const kAddItemIconSvg = `<svg ${kIconAttr}><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+// Directional "add" glyphs: a "+" paired with the edge line the new row/column
+// lands against. The "+" sits on the side the line is being added.
+const kAddRowAboveIconSvg = `<svg ${kIconAttr}><rect x="10.5" y="2" width="3" height="11" rx="0.5"/><rect x="6" y="6" width="12" height="3" rx="0.5"/><rect x="3" y="19" width="18" height="2.5" rx="1"/></svg>`;
+const kAddRowBelowIconSvg = `<svg ${kIconAttr}><rect x="3" y="2.5" width="18" height="2.5" rx="1"/><rect x="10.5" y="11" width="3" height="11" rx="0.5"/><rect x="6" y="15" width="12" height="3" rx="0.5"/></svg>`;
+const kAddColumnLeftIconSvg = `<svg ${kIconAttr}><rect x="6" y="6" width="3" height="12" rx="0.5"/><rect x="1.5" y="10.5" width="12" height="3" rx="0.5"/><rect x="19" y="3" width="2.5" height="18" rx="1"/></svg>`;
+const kAddColumnRightIconSvg = `<svg ${kIconAttr}><rect x="2.5" y="3" width="2.5" height="18" rx="1"/><rect x="15" y="6" width="3" height="12" rx="0.5"/><rect x="10.5" y="10.5" width="12" height="3" rx="0.5"/></svg>`;
 const kMoveUpIconSvg = `<svg ${kIconAttr}><path d="M12 4l-7 7h4v7h6v-7h4z"/></svg>`;
 const kMoveDownIconSvg = `<svg ${kIconAttr}><path d="M12 20l7-7h-4V6H9v7H5z"/></svg>`;
 const kMoveLeftIconSvg = `<svg ${kIconAttr}><path d="M4 12l7-7v4h7v6h-7v4z"/></svg>`;
@@ -823,30 +836,22 @@ function stylePill(btn: HTMLButtonElement): void {
   btn.addEventListener("mousedown", (e) => e.preventDefault());
 }
 
-function makePill(label: string): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.textContent = "⋯"; // horizontal ellipsis "⋯"
-  btn.setAttribute("aria-label", label);
-  btn.title = label;
-  stylePill(btn);
-  return btn;
-}
-
-// A wider pill showing a 2x2 table glyph followed by the "..." affordance.
-function makeTablePill(label: string): HTMLButtonElement {
+// A pill showing an orientation glyph (table / row / column) followed by the
+// "..." affordance. `iconStyle` lets each caller preserve its glyph's aspect
+// ratio (the row glyph is wide, the column glyph is tall).
+function makeGlyphPill(label: string, iconSrc: string, iconStyle: string): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.setAttribute("aria-label", label);
   btn.title = label;
-  btn.innerHTML = `<img src="${cellContentTableIcon}" width="16" height="16" alt="" style="display:block" /><span style="font-size:16px;line-height:1">⋯</span>`;
+  btn.innerHTML = `<img src="${iconSrc}" alt="" style="${iconStyle}" /><span style="font-size:16px;line-height:1">⋯</span>`;
   stylePill(btn);
   return btn;
 }
 
 function ensureMenuPills(): void {
   if (!colMenuPill) {
-    colMenuPill = makePill("Column menu");
+    colMenuPill = makeGlyphPill("Column menu", menuColumnIcon, "display:block;height:16px;width:auto");
     colMenuPill.setAttribute("data-btable-menu-pill", "column");
     colMenuPill.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -854,7 +859,7 @@ function ensureMenuPills(): void {
     });
   }
   if (!rowMenuPill) {
-    rowMenuPill = makePill("Row menu");
+    rowMenuPill = makeGlyphPill("Row menu", menuRowIcon, "display:block;height:9px;width:auto");
     rowMenuPill.setAttribute("data-btable-menu-pill", "row");
     rowMenuPill.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -865,7 +870,7 @@ function ensureMenuPills(): void {
 
 function ensureTablePills(): void {
   const make = (id: string) => {
-    const pill = makeTablePill("Table menu");
+    const pill = makeGlyphPill("Table menu", cellContentTableIcon, "display:block;width:16px;height:16px");
     pill.setAttribute("data-btable-menu-pill", "table");
     pill.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1096,6 +1101,84 @@ function makeIconToggle(icon: string, title: string, active: boolean, onClick: (
   return b;
 }
 
+// A text-labeled toggle button matching makeIconToggle (used for the "fixed
+// size" option in the Size control, where the label is a measurement).
+function makeTextToggle(text: string, title: string, active: boolean, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.textContent = text;
+  Object.assign(b.style, {
+    minWidth: "28px",
+    height: "24px",
+    padding: "0 6px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid transparent",
+    borderRadius: "5px",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: "12px",
+    color: kBloomBlue,
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  setToggleActive(b, active);
+  b.addEventListener("mousedown", (e) => e.preventDefault());
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// "Size" control for the selected row or column: a 3-way choice — Grow (fill),
+// Hug (shrink to content), or a fixed measurement — mirroring the sidebar's
+// Size control. `dim` selects whether it drives column widths or row heights.
+function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
+  const table = ctx.table;
+  const growIcon = dim === "column" ? columnGrowIcon : rowGrowIcon;
+  const hugIcon = dim === "column" ? columnHugIcon : rowHugIcon;
+  const index = dim === "column" ? ctx.col : ctx.row;
+
+  const read = (): string => {
+    if (!table) return "hug";
+    try {
+      const c = new BloomTable(table);
+      const raw = (dim === "column" ? c.getColumnWidth(index) : c.getRowHeight(index)) || "hug";
+      return typeof raw === "string" ? raw.trim() : raw;
+    } catch {
+      return "hug";
+    }
+  };
+  const write = (value: string) => {
+    if (!table) return;
+    try {
+      const c = new BloomTable(table);
+      if (dim === "column") c.setColumnWidth(index, value);
+      else c.setRowHeight(index, value);
+      render(table);
+    } catch {}
+  };
+
+  const current = read();
+  const mode: "grow" | "hug" | "fixed" =
+    current === "fill" ? "grow" : /(px|mm)$/i.test(current) ? "fixed" : "hug";
+  const mmMatch = current.match(/^(\d+(?:\.\d+)?)mm$/i);
+  const fixedLabel = mode === "fixed" ? (mmMatch ? `${mmMatch[1]}mm` : current) : "mm";
+
+  return makeControlRow("Size", [
+    makeIconToggle(growIcon, "Grow", mode === "grow", () => write("fill")),
+    makeIconToggle(hugIcon, "Hug", mode === "hug", () => write("hug")),
+    makeTextToggle(fixedLabel, "Fixed size", mode === "fixed", () => {
+      // Keep an existing fixed value if present; otherwise default to 10mm.
+      const cur = read();
+      write(cur && /(px|mm)$/i.test(cur) ? cur : "10mm");
+    }),
+  ]);
+}
+
 // Parse the leading number from a CSS length (e.g. "6px" -> 6). 0 if absent.
 function firstPx(s: string | null | undefined): number {
   const n = parseFloat((s ?? "").trim());
@@ -1281,6 +1364,16 @@ function buildCellSection(ctx: MenuCtx): HTMLElement[] {
   }
   els.push(makeControlRow("Alignment", alignButtons));
 
+  // Padding: same slider used for the table's cell-gap controls.
+  if (cell) {
+    els.push(
+      makeSliderRow("Padding", 0, 40, firstPx(getCellPadding(cell)), "px", (v) => {
+        setCellPadding(cell, `${v}px`);
+        if (ctx.table) render(ctx.table);
+      }),
+    );
+  }
+
   // Merge / Split (cell span). Merge needs a column to the right to absorb;
   // Split needs an existing horizontal span to reduce.
   const spanX = cell ? getSpan(cell).x || 1 : 1;
@@ -1295,8 +1388,8 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
   return [
     makeMenuHeader("Row"),
     // 1) adds
-    makeMenuItem("Add Row Above", () => menuAddRow(0), undefined, false, kAddItemIconSvg),
-    makeMenuItem("Add Row Below", () => menuAddRow(1), undefined, false, kAddItemIconSvg),
+    makeMenuItem("Add Row Above", () => menuAddRow(0), undefined, false, kAddRowAboveIconSvg),
+    makeMenuItem("Add Row Below", () => menuAddRow(1), undefined, false, kAddRowBelowIconSvg),
     // 2) moves
     makeMenuItem("Move Row Up", () => menuMoveRow(-1), undefined, ctx.row <= 0, kMoveUpIconSvg),
     makeMenuItem(
@@ -1309,7 +1402,10 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
     // 3) divider, 4) delete
     makeDivider(),
     makeMenuItem("Delete Row", tryRemoveRow, "row", false, kTrashIconSvg),
-    // 5) hint
+    // 5) size, separated from the commands above
+    makeDivider(),
+    buildSizeControl(ctx, "row"),
+    // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
 }
@@ -1318,8 +1414,8 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
   return [
     makeMenuHeader("Column"),
     // 1) adds
-    makeMenuItem("Add Column Left", () => menuAddColumn(0), undefined, false, kAddItemIconSvg),
-    makeMenuItem("Add Column Right", () => menuAddColumn(1), undefined, false, kAddItemIconSvg),
+    makeMenuItem("Add Column Left", () => menuAddColumn(0), undefined, false, kAddColumnLeftIconSvg),
+    makeMenuItem("Add Column Right", () => menuAddColumn(1), undefined, false, kAddColumnRightIconSvg),
     // 2) moves
     makeMenuItem("Move Left", () => menuMoveColumn(-1), undefined, ctx.col <= 0, kMoveLeftIconSvg),
     makeMenuItem(
@@ -1332,7 +1428,10 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
     // 3) divider, 4) delete
     makeDivider(),
     makeMenuItem("Delete Column", tryRemoveColumn, "column", false, columnDeleteIcon),
-    // 5) hint
+    // 5) size, separated from the commands above
+    makeDivider(),
+    buildSizeControl(ctx, "column"),
+    // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
 }
