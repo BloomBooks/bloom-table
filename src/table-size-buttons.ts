@@ -86,9 +86,7 @@ export function resetTableSizeButtons(): void {
   proxColAdd = null;
   proxRowAdd = null;
   tablePillTL = null;
-  tablePillBR = null;
   proxTablePillTL = null;
-  proxTablePillBR = null;
   if (menuPopup) {
     menuPopup.remove();
     menuPopup = null;
@@ -175,12 +173,10 @@ let proxRowCluster: ProximityDiv | null = null;
 let proxColAdd: ProximityDiv | null = null;
 let proxRowAdd: ProximityDiv | null = null;
 
-// Table-level menu pills (table icon + "..."), shown at the table's top-left
-// and bottom-right corners. Both open the same "Table" menu.
+// Table-level menu pill (table icon + "..."), horizontally centered above the
+// table's top edge. Opens the "Table" menu.
 let tablePillTL: HTMLButtonElement | null = null;
-let tablePillBR: HTMLButtonElement | null = null;
 let proxTablePillTL: ProximityDiv | null = null;
-let proxTablePillBR: ProximityDiv | null = null;
 
 // The open popup menu; null when closed. menuOpenId identifies which trigger
 // opened it (so clicking the same pill toggles it closed). menuTargetCell is the
@@ -875,16 +871,12 @@ function ensureTablePills(): void {
     });
     return pill;
   };
-  // The table pills are the menu entry points and live at the table corners,
-  // far from where the cursor usually is — keep them clearly visible at rest
-  // (rather than fading to near-invisible) so they're discoverable.
+  // The table pill is the menu entry point and lives above the table, away from
+  // where the cursor usually is — keep it clearly visible at rest (rather than
+  // fading to near-invisible) so it's discoverable.
   if (!tablePillTL) {
     tablePillTL = make("pill:table:tl");
     proxTablePillTL = new ProximityDiv(document.body, tablePillTL, { minOpacity: 0.6 });
-  }
-  if (!tablePillBR) {
-    tablePillBR = make("pill:table:br");
-    proxTablePillBR = new ProximityDiv(document.body, tablePillBR, { minOpacity: 0.6 });
   }
 }
 
@@ -1406,8 +1398,7 @@ function onDocMouseDownForMenu(e: MouseEvent): void {
     (menuPopup && menuPopup.contains(t)) ||
     (colMenuPill && colMenuPill.contains(t)) ||
     (rowMenuPill && rowMenuPill.contains(t)) ||
-    (tablePillTL && tablePillTL.contains(t)) ||
-    (tablePillBR && tablePillBR.contains(t))
+    (tablePillTL && tablePillTL.contains(t))
   ) {
     return;
   }
@@ -1628,7 +1619,6 @@ function showEdgeOverlays(table: HTMLElement) {
   // Table pills and the "+" add buttons are table-level, so they show whenever
   // the table is active (regardless of whether a cell is selected).
   if (tablePillTL) tablePillTL.style.display = "flex";
-  if (tablePillBR) tablePillBR.style.display = "flex";
   if (colAddBtn) colAddBtn.style.display = "flex";
   if (rowAddBtn) rowAddBtn.style.display = "flex";
   if (cornerHandle) cornerHandle.style.display = "block";
@@ -1640,7 +1630,6 @@ function hideEdgeOverlays() {
   if (colCluster) colCluster.style.display = "none";
   if (rowCluster) rowCluster.style.display = "none";
   if (tablePillTL) tablePillTL.style.display = "none";
-  if (tablePillBR) tablePillBR.style.display = "none";
   if (colAddBtn) colAddBtn.style.display = "none";
   if (rowAddBtn) rowAddBtn.style.display = "none";
   if (cornerHandle) cornerHandle.style.display = "none";
@@ -1828,16 +1817,39 @@ function applyAnchorPositioning(table: HTMLElement) {
   // only meaningful when the table has rendered cells. Hide them when bounds are
   // degenerate so they don't strand mid-viewport during a transient relayout.
   if (tablePillTL) tablePillTL.style.display = haveBounds ? "flex" : "none";
-  if (tablePillBR) tablePillBR.style.display = haveBounds ? "flex" : "none";
   if (colAddBtn) colAddBtn.style.display = haveBounds ? "flex" : "none";
   if (rowAddBtn) rowAddBtn.style.display = haveBounds ? "flex" : "none";
   if (haveBounds) {
-    placePill(proxTablePillTL, minL - cornerGap, minT - cornerGap, "translate(-100%, -100%)");
-    placePill(proxTablePillBR, maxR + cornerGap, maxB + cornerGap, "translate(0, 0)");
-
     // "+" add buttons hug the table edges, centered on the table's content box.
     const midX = (minL + maxR) / 2;
     const midY = (minT + maxB) / 2;
+
+    // Table pill: horizontally centered above the table's top edge. But the
+    // selected column's "..." pill is *also* centered above that column in the
+    // same band, so when the selection is near the table's horizontal middle
+    // the two would sit on top of each other. Detect that overlap and slide the
+    // table pill sideways (toward whichever edge is farther from the column) so
+    // both stay clickable.
+    let tablePillX = midX;
+    if (colAnchorCell && tablePillTL && colCluster && colCluster.style.display !== "none") {
+      const colRect = colAnchorCell.getBoundingClientRect();
+      const colCenterX = (colRect.left + colRect.right) / 2;
+      const tablePillW = tablePillTL.getBoundingClientRect().width || 50;
+      const colPillW = colMenuPill?.getBoundingClientRect().width || 30;
+      const minClear = tablePillW / 2 + colPillW / 2 + 8; // keep an 8px gap
+      if (Math.abs(tablePillX - colCenterX) < minClear) {
+        // Prefer sliding the table pill to the *left* of the column's pill; only
+        // fall back to the right when the left position would run off the
+        // table's left edge.
+        const leftPos = colCenterX - minClear;
+        const rightPos = colCenterX + minClear;
+        tablePillX = leftPos >= minL ? leftPos : rightPos;
+        // Don't let the shifted pill drift past the table's own edges.
+        tablePillX = Math.max(minL, Math.min(maxR, tablePillX));
+      }
+    }
+    placePill(proxTablePillTL, tablePillX, minT - cornerGap, "translate(-50%, -100%)");
+
     // Row "+" below the table, horizontally centered.
     placePill(proxRowAdd, midX, maxB + gap, "translate(-50%, 0)");
     // Column "+" to the right of the table, vertically centered.
