@@ -1888,11 +1888,11 @@ function applyAnchorPositioning(table: HTMLElement) {
   anchorTo(proxColCluster, colAnchorCell, "top");
   anchorTo(proxRowCluster, rowAnchorCell, "left");
 
-  // Table pills sit diagonally outside the corners of the table's *cell content*
-  // (not the layout box, which can be much larger than hugging cells). Compute
-  // the union rect of the visible cells; a spanning cell's rect covers the area
-  // its skipped neighbours would, so this is robust to spans too.
-  const cornerGap = 14; // px outward from the corner
+  // The table-level affordances are positioned relative to the table's *cell
+  // content* bounds (not the layout box, which can be much larger than the
+  // hugging cells). Compute the union rect of the visible cells; a spanning
+  // cell's rect covers the area its skipped neighbours would, so this is robust
+  // to spans too.
   let minL = Infinity,
     minT = Infinity,
     maxR = -Infinity,
@@ -1930,36 +1930,27 @@ function applyAnchorPositioning(table: HTMLElement) {
     const midX = (minL + maxR) / 2;
     const midY = (minT + maxB) / 2;
 
-    // Table pill: horizontally centered above the table's top edge. But the
-    // selected column's "..." pill is *also* centered above that column in the
-    // same band, so when the selection is near the table's horizontal middle
-    // the two would sit on top of each other. Detect that overlap and slide the
-    // table pill sideways (toward whichever edge is farther from the column) so
-    // both stay clickable.
-    let tablePillX = midX;
-    if (colAnchorCell && tablePillTL && colCluster && colCluster.style.display !== "none") {
-      const colRect = colAnchorCell.getBoundingClientRect();
-      const colCenterX = (colRect.left + colRect.right) / 2;
-      const tablePillW = tablePillTL.getBoundingClientRect().width || 50;
-      const colPillW = colMenuPill?.getBoundingClientRect().width || 30;
-      const minClear = tablePillW / 2 + colPillW / 2 + 8; // keep an 8px gap
-      if (Math.abs(tablePillX - colCenterX) < minClear) {
-        // Prefer sliding the table pill to the *left* of the column's pill; only
-        // fall back to the right when the left position would run off the
-        // table's left edge.
-        const leftPos = colCenterX - minClear;
-        const rightPos = colCenterX + minClear;
-        tablePillX = leftPos >= minL ? leftPos : rightPos;
-        // Don't let the shifted pill drift past the table's own edges.
-        tablePillX = Math.max(minL, Math.min(maxR, tablePillX));
-      }
-    }
-    placePill(proxTablePillTL, tablePillX, minT - cornerGap, "translate(-50%, -100%)");
-
     // Row "+" below the table, horizontally centered.
     placePill(proxRowAdd, midX, maxB + gap, "translate(-50%, 0)");
     // Column "+" to the right of the table, vertically centered.
     placePill(proxColAdd, maxR + gap, midY, "translate(0, -50%)");
+
+    // Table pill: sits *below* the table so that opening its menu (which drops
+    // downward) doesn't cover the table contents being edited. It shares the
+    // band below the table with the row "+" add button (centered there), so
+    // slide the pill sideways to clear it — preferring left, and falling back
+    // to the right only when the left position would run off the table's edge.
+    let tablePillX = midX;
+    if (tablePillTL && rowAddBtn) {
+      const tablePillW = tablePillTL.getBoundingClientRect().width || 50;
+      const rowAddW = rowAddBtn.getBoundingClientRect().width || 30;
+      const minClear = tablePillW / 2 + rowAddW / 2 + 8; // keep an 8px gap
+      const leftPos = midX - minClear;
+      tablePillX = leftPos >= minL ? leftPos : midX + minClear;
+      // Don't let the shifted pill drift past the table's own edges.
+      tablePillX = Math.max(minL, Math.min(maxR, tablePillX));
+    }
+    placePill(proxTablePillTL, tablePillX, maxB + gap, "translate(-50%, 0)");
   }
 
   // Corner (resize) handle straddles the bottom-right corner of the cell content.
