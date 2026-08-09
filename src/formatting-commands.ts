@@ -275,27 +275,24 @@ export function hasCopiedProperties(): boolean {
   return copiedProperties !== null;
 }
 
-/** Snapshot the properties of the scope's first cell. Returns the snapshot
- *  (also kept as the active clipboard), or null when the scope is empty.
- *  Borders are the cell's OWN painted sides (no borrowing of neighbor-owned
- *  strokes): copying a borderless cell that sits next to bordered neighbors
- *  must paste as borderless, not smuggle the neighbors' lines along. */
-export function copyProperties(cells: HTMLElement[]): CopiedCellProperties | null {
-  const seed = cells[0];
-  if (!seed) return null;
-  const own = getCellOwnPerimeter(seed);
-  const fallback = representativeBorderColorHex(seed);
+/** Snapshot one cell's paintable properties: the shared CellSettings record
+ *  plus its OWN painted perimeter (no borrowing of neighbor-owned strokes —
+ *  copying a borderless cell that sits next to bordered neighbors must paste
+ *  as borderless, not smuggle the neighbors' lines along). */
+export function snapshotCellProperties(cell: HTMLElement): CopiedCellProperties {
+  const own = getCellOwnPerimeter(cell);
+  const fallback = representativeBorderColorHex(cell);
   const edge = (e: {
     weight: number;
     style: BorderStyle;
     color: string | null;
   }): CopiedEdge => ({
-    weight: e.weight as CopiedEdge["weight"],
+    weight: e.weight,
     style: e.style,
     color: e.color ?? fallback,
   });
-  copiedProperties = {
-    settings: snapshotCellSettings(seed),
+  return {
+    settings: snapshotCellSettings(cell),
     border: {
       top: edge(own.top),
       right: edge(own.right),
@@ -303,24 +300,37 @@ export function copyProperties(cells: HTMLElement[]): CopiedCellProperties | nul
       left: edge(own.left),
     },
   };
+}
+
+/** Snapshot the properties of the scope's first cell. Returns the snapshot
+ *  (also kept as the active clipboard), or null when the scope is empty. */
+export function copyProperties(cells: HTMLElement[]): CopiedCellProperties | null {
+  const seed = cells[0];
+  if (!seed) return null;
+  copiedProperties = snapshotCellProperties(seed);
   return copiedProperties;
 }
 
-/** Stamp the copied properties onto every cell in the target scope. Content
- *  type is one of them: a target cell of a different type is rebuilt as an
- *  empty skeleton of the copied type (its content is not preserved). No-op
- *  when nothing has been copied. */
-export function pasteProperties(table: HTMLElement, cells: HTMLElement[]): void {
-  const p = copiedProperties;
-  if (!p || !cells.length) return;
-  // As in applyContentType, host notification for content-type changes waits
-  // until the history entry closes.
-  const targetType = p.settings.contentType;
-  const wasDifferent = targetType
-    ? cells.filter((c) => getCurrentContentTypeId(c) !== targetType)
-    : [];
-  withHistory(table, "Paste Properties", () => {
-    for (const c of cells) {
+// Stamp per-cell properties onto the targets in one history entry. Content
+// type is one of them: a target cell of a different type is rebuilt as an
+// empty skeleton of the stamped type (its content is not preserved). As in
+// applyContentType, host notification for content-type changes waits until
+// the history entry closes.
+function stampProperties(
+  table: HTMLElement,
+  cells: HTMLElement[],
+  propsFor: (index: number) => CopiedCellProperties,
+  label: string,
+): void {
+  if (!cells.length) return;
+  const wasDifferent: Array<[HTMLElement, string]> = [];
+  cells.forEach((c, i) => {
+    const t = propsFor(i).settings.contentType;
+    if (t && getCurrentContentTypeId(c) !== t) wasDifferent.push([c, t]);
+  });
+  withHistory(table, label, () => {
+    cells.forEach((c, i) => {
+      const p = propsFor(i);
       applyCellSettings(c, p.settings);
       applyCellPerimeter(table, c, {
         top: { ...p.border.top },
@@ -328,12 +338,33 @@ export function pasteProperties(table: HTMLElement, cells: HTMLElement[]): void 
         bottom: { ...p.border.bottom },
         left: { ...p.border.left },
       });
-    }
+    });
     render(table);
   });
-  for (const c of wasDifferent) {
-    if (getCurrentContentTypeId(c) === targetType) dispatchCellContentChanged(c, targetType);
+  for (const [c, t] of wasDifferent) {
+    if (getCurrentContentTypeId(c) === t) dispatchCellContentChanged(c, t);
   }
+}
+
+/** Stamp the copied properties onto every cell in the target scope. No-op
+ *  when nothing has been copied. */
+export function pasteProperties(table: HTMLElement, cells: HTMLElement[]): void {
+  const p = copiedProperties;
+  if (!p) return;
+  stampProperties(table, cells, () => p, "Paste Properties");
+}
+
+/** Paint-format stamping: apply a per-cell pattern (the snapshots of the
+ *  source scope's cells, in order) onto the target cells, mapping by index
+ *  and cycling when the target is longer — an A-B-A-B source column keeps
+ *  alternating across a longer target. Truncates when the target is shorter. */
+export function paintProperties(
+  table: HTMLElement,
+  cells: HTMLElement[],
+  pattern: CopiedCellProperties[],
+): void {
+  if (!pattern.length) return;
+  stampProperties(table, cells, (i) => pattern[i % pattern.length], "Paint Format");
 }
 
 export function applyBorderStyle(

@@ -37,6 +37,9 @@ import {
   copyProperties,
   pasteProperties,
   hasCopiedProperties,
+  snapshotCellProperties,
+  paintProperties,
+  type CopiedCellProperties,
 } from "./formatting-commands";
 // Toolbar icons reused on the menu (imported as URLs).
 import columnDeleteIcon from "./components/icons/column-delete.svg";
@@ -76,6 +79,10 @@ const kPasteIconSvg = `<svg ${kIconAttr}><path d="M19 2h-4.18C14.4.84 13.3 0 12 
 const kCutIconSvg = `<svg ${kIconAttr}><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z"/></svg>`;
 const kTrashIconSvg = `<svg ${kIconAttr}><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 const kInfoIconSvg = `<svg ${kIconAttr}><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
+// MUI "FormatPaint" glyph (paint roller), for Paint format.
+const kPaintRollerPath =
+  "M18 4V3c0-.55-.45-1-1-1H5c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V6h1v4H9v11c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-9h8V4z";
+const kPaintIconSvg = `<svg ${kIconAttr}><path d="${kPaintRollerPath}"/></svg>`;
 
 let installed = false;
 // Unique ID source for anchor names, plus the set of names minted this
@@ -86,6 +93,7 @@ const mintedAnchorNames = new Set<string>();
 
 // Reset function for testing
 export function resetTableSizeButtons(): void {
+  exitPaintFormatMode();
   installed = false;
   overlayTable = null;
   // Fresh "session" for anchor names, so tests exercise the same collision
@@ -1261,23 +1269,183 @@ function buildFormattingSection(ctx: MenuCtx, scope: FormattingScope): HTMLEleme
   return [makeDivider(), makeMenuHeader("Format"), ...controls];
 }
 
-// Copy/Paste properties: copy snapshots the scope's formatting (alignment,
-// padding, fill, corners, borders) into a session-wide clipboard; paste stamps
-// it onto every cell in the target scope. Available from all four menus.
+// Format transfer, per scope. The Table menu keeps Copy/Paste properties (the
+// clipboard is plain data, so it can carry formatting across pages and
+// documents). The Cell/Row/Column menus instead offer "Paint format": it
+// snapshots this scope's cells and enters a mode where every subsequent click
+// stamps that pattern onto the clicked cell's matching scope.
 function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   const { table, cells, seed } = scopeCells(ctx, scope);
   if (!table || !seed) return [];
+  if (scope === "table") {
+    return [
+      makeDivider(),
+      makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
+      makeMenuItem(
+        "Paste properties",
+        () => pasteProperties(table, cells()),
+        undefined,
+        !hasCopiedProperties(),
+        kPasteIconSvg,
+      ),
+    ];
+  }
   return [
     makeDivider(),
-    makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
     makeMenuItem(
-      "Paste properties",
-      () => pasteProperties(table, cells()),
+      "Paint format",
+      () => enterPaintFormatMode(table, scope, cells()),
       undefined,
-      !hasCopiedProperties(),
-      kPasteIconSvg,
+      false,
+      kPaintIconSvg,
     ),
   ];
+}
+
+// ===== Paint Format mode =====
+// Entered from a Cell/Row/Column menu's "Paint format". Every subsequent
+// click stamps the snapshot onto the clicked cell's matching scope, in any
+// bloom-table on the page (a row/column pattern cycles when sizes differ).
+// Escape or the slashed-roller badge at the source table's top-left exits.
+let paintMode: {
+  scope: "cell" | "row" | "column";
+  pattern: CopiedCellProperties[];
+  table: HTMLElement;
+  badge: HTMLDivElement;
+} | null = null;
+
+export function isPaintFormatModeActive(): boolean {
+  return !!paintMode;
+}
+
+// Roller cursor while the mode is active. Cells carry inline cursor styles,
+// so the rule needs !important to win; the badge opts back out to a pointer.
+const kPaintCursorUrl = `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24'><path d='${kPaintRollerPath}' fill='%23222' stroke='%23fff' stroke-width='0.75'/></svg>") 4 4, copy`;
+let paintStyleInstalled = false;
+function ensurePaintFormatStyle(): void {
+  if (paintStyleInstalled) return;
+  paintStyleInstalled = true;
+  const style = document.createElement("style");
+  style.setAttribute("data-table-overlay", "paint-format-style");
+  style.textContent = `
+    body.bloom-paint-format, body.bloom-paint-format * { cursor: ${kPaintCursorUrl} !important; }
+    body.bloom-paint-format .bloom-paint-format-badge, body.bloom-paint-format .bloom-paint-format-badge * { cursor: pointer !important; }
+  `;
+  document.head.appendChild(style);
+}
+
+function makePaintFormatBadge(): HTMLDivElement {
+  const badge = document.createElement("div");
+  badge.className = "bloom-paint-format-badge";
+  badge.title = "Exit Paint Format (Esc)";
+  badge.setAttribute("role", "button");
+  badge.setAttribute("aria-label", "Exit Paint Format");
+  Object.assign(badge.style, {
+    position: "absolute",
+    width: "28px",
+    height: "28px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#fff",
+    border: "1px solid #bbb",
+    borderRadius: "6px",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+    zIndex: "2147483647",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  // The roller with a red slash: "you are painting; click to stop".
+  badge.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" style="display:block"><path d="${kPaintRollerPath}" fill="#444"/><line x1="3" y1="3" x2="21" y2="21" stroke="#d32f2f" stroke-width="2.5" stroke-linecap="round"/></svg>`;
+  badge.addEventListener("mousedown", (e) => e.preventDefault());
+  badge.addEventListener("click", (e) => {
+    e.stopPropagation();
+    exitPaintFormatMode();
+  });
+  return badge;
+}
+
+// The badge sits just outside the source table's top-left corner (clamped to
+// the viewport when the table touches the page edge).
+function positionPaintBadge(): void {
+  if (!paintMode) return;
+  if (!document.body.contains(paintMode.table)) {
+    exitPaintFormatMode();
+    return;
+  }
+  const rect = paintMode.table.getBoundingClientRect();
+  const size = 28;
+  const margin = 4;
+  const left = Math.max(0, window.scrollX + rect.left - size - margin);
+  const top = Math.max(0, window.scrollY + rect.top - size - margin);
+  paintMode.badge.style.left = `${left}px`;
+  paintMode.badge.style.top = `${top}px`;
+}
+
+// Capture-phase handler for pointerdown/mousedown/click while painting: a
+// click on any cell is consumed entirely (no selection change, no caret) and
+// stamps the pattern once, on pointerdown. Clicks elsewhere behave normally
+// and leave the mode active.
+function onPaintPointerDown(e: Event): void {
+  if (!paintMode) return;
+  const target = e.target as HTMLElement | null;
+  if (!target || !(target instanceof Element)) return;
+  if (paintMode.badge.contains(target)) return;
+  const cell = target.closest?.(".bloom-cell") as HTMLElement | null;
+  const table = cell?.closest(".bloom-table") as HTMLElement | null;
+  if (!cell || !table || cell.classList.contains("bloom-skip")) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.type !== "pointerdown") return;
+  const targets =
+    paintMode.scope === "cell" ? [cell] : getCellsInScope(table, paintMode.scope, cell);
+  paintProperties(table, targets, paintMode.pattern);
+  positionPaintBadge();
+}
+
+function onPaintKeyDown(e: KeyboardEvent): void {
+  if (e.key !== "Escape") return;
+  e.stopPropagation();
+  exitPaintFormatMode();
+}
+
+export function enterPaintFormatMode(
+  table: HTMLElement,
+  scope: "cell" | "row" | "column",
+  sourceCells: HTMLElement[],
+): void {
+  if (!sourceCells.length) return;
+  exitPaintFormatMode();
+  ensurePaintFormatStyle();
+  const badge = makePaintFormatBadge();
+  document.body.appendChild(badge);
+  paintMode = {
+    scope,
+    pattern: sourceCells.map((c) => snapshotCellProperties(c)),
+    table,
+    badge,
+  };
+  document.body.classList.add("bloom-paint-format");
+  document.addEventListener("pointerdown", onPaintPointerDown, true);
+  document.addEventListener("mousedown", onPaintPointerDown, true);
+  document.addEventListener("click", onPaintPointerDown, true);
+  document.addEventListener("keydown", onPaintKeyDown, true);
+  window.addEventListener("scroll", positionPaintBadge, true);
+  window.addEventListener("resize", positionPaintBadge);
+  hideEdgeOverlays(); // pills stay out of the way while painting
+  positionPaintBadge();
+}
+
+export function exitPaintFormatMode(): void {
+  if (!paintMode) return;
+  paintMode.badge.remove();
+  paintMode = null;
+  document.body.classList.remove("bloom-paint-format");
+  document.removeEventListener("pointerdown", onPaintPointerDown, true);
+  document.removeEventListener("mousedown", onPaintPointerDown, true);
+  document.removeEventListener("click", onPaintPointerDown, true);
+  document.removeEventListener("keydown", onPaintKeyDown, true);
+  window.removeEventListener("scroll", positionPaintBadge, true);
+  window.removeEventListener("resize", positionPaintBadge);
 }
 
 function buildCellSection(ctx: MenuCtx): HTMLElement[] {
@@ -1669,6 +1837,9 @@ function removeTable(table: HTMLElement): void {
 const kPointerNearClass = "bloom-pointer-near";
 
 function showEdgeOverlays(table: HTMLElement) {
+  // While painting formats, the pills stay hidden no matter which path
+  // (focusin, contextmenu, proximity gate) tries to raise them.
+  if (paintMode) return;
   if (overlayTable && overlayTable !== table) overlayTable.classList.remove(kPointerNearClass);
   table.classList.add(kPointerNearClass);
   overlayTable = table;
@@ -1792,6 +1963,11 @@ function pointerInActiveZone(table: HTMLElement, x: number, y: number): boolean 
 }
 
 function updateProximityGate(): void {
+  // While painting formats, the pills stay out of the way entirely.
+  if (paintMode) {
+    if (overlayTable) hideEdgeOverlays();
+    return;
+  }
   // Keep the affordances up while a menu is open — the popup commonly extends
   // past the active zone, so the cursor would read as "outside" while the user
   // is still interacting with it.
@@ -1916,6 +2092,12 @@ function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HT
 // selection. The column cluster sits above the selected column; the row cluster
 // sits to the left of the selected row.
 function applyAnchorPositioning(table: HTMLElement) {
+  // Repositioning re-decides visibility; while Paint Format is active the
+  // overlays must stay hidden no matter what triggers a reposition.
+  if (paintMode) {
+    hideEdgeOverlays();
+    return;
+  }
   const gap = 8; // px
   let rows = 0,
     cols = 0;
