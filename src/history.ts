@@ -23,6 +23,16 @@ class TableHistoryManager {
     this.attachedTables = new Set();
     this.operationInProgress = false;
   }
+
+  // Read-only view of the undo stack for diagnostics (oldest first). Exposes
+  // labels and timing only, not the captured states.
+  getEntriesForDebug(): { label: string; timestamp: number; tableInDom: boolean }[] {
+    return this.history.map((e) => ({
+      label: e.label,
+      timestamp: e.timestamp,
+      tableInDom: !!e.table && document.body.contains(e.table),
+    }));
+  }
   private captureTableState(table: HTMLElement): TableState {
     const attributes: Record<string, string> = {};
 

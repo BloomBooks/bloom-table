@@ -6,6 +6,7 @@ import SaveButton from "./components/SaveButton";
 import Toolbar from "./Toolbar";
 import ReactDOM from "react-dom/client";
 import { registerCellContentType, defaultCellContentsForEachType } from "../src/cell-contents";
+import { copyDebugInfo } from "./utils/debugInfo";
 
 // In the demo, image cells use a local placeholder instead of the library's
 // default remote (Wikipedia) image. Reuse the built-in image type's icon and
@@ -23,6 +24,7 @@ const Demo: React.FC = () => {
   const [examplePngPath, setExamplePngPath] = useState<string | undefined>();
   const [attemptHtmlContent, setAttemptHtmlContent] = useState<string>("");
   const [currentExample, setCurrentExample] = useState<Example | null>(null);
+  const [debugCopied, setDebugCopied] = useState(false);
 
   const attemptStorageKey = useMemo(() => {
     if (!currentExample) return null;
@@ -190,23 +192,38 @@ const Demo: React.FC = () => {
               }
             }}
           />
-          {/* Start Over button anchored to lower-left of the user attempt area */}
-          <button
-            onClick={() => {
-              const html = default2x2Grid;
-              setAttemptHtmlContent(html);
-              if (attemptStorageKey) {
-                try {
-                  localStorage.removeItem(attemptStorageKey);
-                } catch {}
-              }
-            }}
-            className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded"
-            title="Clear your work and start over with an empty 2x2 table"
-            style={{ position: "absolute", left: 16, bottom: 16 }}
-          >
-            Start Over
-          </button>
+          {/* Start Over + Copy Debug Info anchored to lower-left of the user attempt area */}
+          <div style={{ position: "absolute", left: 16, bottom: 16, display: "flex", gap: 8 }}>
+            <button
+              onClick={() => {
+                const html = default2x2Grid;
+                setAttemptHtmlContent(html);
+                if (attemptStorageKey) {
+                  try {
+                    localStorage.removeItem(attemptStorageKey);
+                  } catch {}
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded"
+              title="Clear your work and start over with an empty 2x2 table"
+            >
+              Start Over
+            </button>
+            <button
+              onClick={async () => {
+                await copyDebugInfo(
+                  currentExample ? `${currentExample.group}/${currentExample.htmlFile}` : undefined,
+                  attemptStorageKey,
+                );
+                setDebugCopied(true);
+                window.setTimeout(() => setDebugCopied(false), 1500);
+              }}
+              className="bg-gray-600 hover:bg-gray-700 text-white text-sm px-3 py-1 rounded"
+              title="Copy a diagnostic snapshot (table HTML, selection/overlay state, saved attempt) for pasting into a bug report or AI chat"
+            >
+              {debugCopied ? "Copied!" : "Copy Debug Info"}
+            </button>
+          </div>
         </div>
       )}
       <div id="controls-panel">
