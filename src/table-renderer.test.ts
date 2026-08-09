@@ -320,6 +320,52 @@ describe("table-renderer", () => {
       color: "#888",
     });
   });
+  it("zero-gap tie goes to the cell whose perpendicular sides are stroked", () => {
+    // Alphabet-exercise shape: the left cell has no top/bottom borders (an
+    // image column), the right cell has both. The shared edge between them
+    // ties, and must be painted on the right cell's left border so its corner
+    // radius curves into same-element borders instead of curling the lone
+    // right border of the image cell into a floating bracket.
+    const g = makeTable();
+    g.setAttribute("data-column-widths", "100px,100px");
+    g.setAttribute("data-row-heights", "30px");
+    addCell(g);
+    addCell(g);
+    const solid = { weight: 1, style: "solid", color: "#000" };
+    const none = { weight: 0, style: "none", color: "#000" };
+    g.setAttribute(
+      "data-edges-h",
+      JSON.stringify([
+        [none, solid],
+        [none, solid],
+      ]),
+    );
+    g.setAttribute("data-edges-v", JSON.stringify([[solid, solid, solid]]));
+    const m = buildRenderModel(g);
+    expect(m.cellBorders[0].right).toBeNull();
+    expect(m.cellBorders[1].left).toEqual(solid);
+  });
+
+  it("zero-gap tie between equally-stroked cells still favors the left cell", () => {
+    const g = makeTable();
+    g.setAttribute("data-column-widths", "100px,100px");
+    g.setAttribute("data-row-heights", "30px");
+    addCell(g);
+    addCell(g);
+    const solid = { weight: 1, style: "solid", color: "#000" };
+    g.setAttribute(
+      "data-edges-h",
+      JSON.stringify([
+        [solid, solid],
+        [solid, solid],
+      ]),
+    );
+    g.setAttribute("data-edges-v", JSON.stringify([[solid, solid, solid]]));
+    const m = buildRenderModel(g);
+    expect(m.cellBorders[0].right).toEqual(solid);
+    expect(m.cellBorders[1].left).toBeNull();
+  });
+
   it("builds template strings from data attributes", () => {
     const g = makeTable();
     g.setAttribute("data-column-widths", "hug,100px,fill");

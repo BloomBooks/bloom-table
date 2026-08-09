@@ -305,6 +305,37 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     return { north, south };
   }
 
+  function paintedSpec(spec: BorderSpec | null | undefined): boolean {
+    return !!spec && spec.style !== "none" && spec.weight > 0;
+  }
+
+  // Whether cell (r,c) shows a visible stroke on its top/bottom side, resolved
+  // the same way the passes below resolve it. Used by the zero-gap tie-break.
+  function hSidePainted(r: number, c: number, which: "top" | "bottom"): boolean {
+    const b = which === "top" ? r : r + 1;
+    const { north, south } = readH(b, c);
+    const facing = which === "top" ? south : north;
+    if (b === 0 || b === rows) {
+      return paintedSpec(facing ?? (isNestedTable ? null : edgeDefault));
+    }
+    if (hasPositiveGapY(b - 1)) return paintedSpec(facing ?? edgeDefault);
+    const side = pickSide(north || null, south || null, "leftTop") ?? "a";
+    return paintedSpec((side === "a" ? north : south) ?? edgeDefault);
+  }
+
+  // Same for the left/right sides of cell (r,c).
+  function vSidePainted(r: number, c: number, which: "left" | "right"): boolean {
+    const b = which === "left" ? c : c + 1;
+    const { west, east } = readV(r, b);
+    const facing = which === "left" ? east : west;
+    if (b === 0 || b === cols) {
+      return paintedSpec(facing ?? (isNestedTable ? null : edgeDefault));
+    }
+    if (hasPositiveGapX(b - 1)) return paintedSpec(facing ?? edgeDefault);
+    const side = pickSide(west || null, east || null, "leftTop") ?? "a";
+    return paintedSpec((side === "a" ? west : east) ?? edgeDefault);
+  }
+
   // Resolve vertical inner edges (between c and c+1), boundary index b=c+1 in [1..cols-1]
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols - 1; c++) {
@@ -325,13 +356,21 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         if (!leftIsSkip) cellBorders[iLeft].right = (west ?? edgeDefault) || null;
         if (!rightIsSkip) cellBorders[iRight].left = (east ?? edgeDefault) || null;
       } else {
-        // Zero gap: resolve to a single stroke
+        // Zero gap: resolve to a single stroke. On a tie, paint it on the
+        // cell whose top/bottom sides are also stroked, so a corner radius
+        // has same-element borders to curve into (a lone rounded border
+        // otherwise curls into a floating bracket beside the neighbor).
         const a = west || null;
         const b = east || null;
-        let side = pickSide(a, b, "leftTop");
+        const scoreLeft =
+          (hSidePainted(r, c, "top") ? 1 : 0) + (hSidePainted(r, c, "bottom") ? 1 : 0);
+        const scoreRight =
+          (hSidePainted(r, c + 1, "top") ? 1 : 0) + (hSidePainted(r, c + 1, "bottom") ? 1 : 0);
+        const tieFavor = scoreRight > scoreLeft ? "rightBottom" : "leftTop";
+        let side = pickSide(a, b, tieFavor);
         if (!side && edgeDefault) {
-          // neither side provided; fall back to default on left
-          side = "a";
+          // neither side provided; fall back to default on the favored side
+          side = tieFavor === "rightBottom" ? "b" : "a";
         }
         if (!side) continue;
         const winner = side === "a" ? a || edgeDefault : b || edgeDefault;
@@ -368,8 +407,13 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
       } else {
         const a = north || null;
         const b = south || null;
-        let side = pickSide(a, b, "leftTop");
-        if (!side && edgeDefault) side = "a";
+        const scoreTop =
+          (vSidePainted(r, c, "left") ? 1 : 0) + (vSidePainted(r, c, "right") ? 1 : 0);
+        const scoreBottom =
+          (vSidePainted(r + 1, c, "left") ? 1 : 0) + (vSidePainted(r + 1, c, "right") ? 1 : 0);
+        const tieFavor = scoreBottom > scoreTop ? "rightBottom" : "leftTop";
+        let side = pickSide(a, b, tieFavor);
+        if (!side && edgeDefault) side = tieFavor === "rightBottom" ? "b" : "a";
         if (!side) continue;
         const winner = side === "a" ? a || edgeDefault : b || edgeDefault;
         if (!winner) continue;
