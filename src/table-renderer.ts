@@ -108,7 +108,34 @@ function stylePrecedence(style: string | undefined): number {
   }
 }
 
-//
+// The border spec an unspecified edge falls back to: data-border-default wins,
+// else the --edge-default-* CSS variables on the table, else EDGE_DEFAULT.
+// Exported so edge writers can materialize a neighbor's currently-rendered
+// default when one cell withdraws its side of a shared boundary.
+export function resolveEdgeDefault(table: HTMLElement): BorderSpec | null {
+  const authored = normalize(getEdgeDefault(table));
+  if (authored) return authored;
+  const cs = getComputedStyle(table);
+  let wRaw = cs.getPropertyValue("--edge-default-weight").trim();
+  let sRaw = cs.getPropertyValue("--edge-default-style").trim();
+  let cRaw = cs.getPropertyValue("--edge-default-color").trim();
+  // jsdom may not propagate custom properties via computed style; fall back to inline style
+  if (!wRaw) wRaw = table.style.getPropertyValue("--edge-default-weight").trim();
+  if (!sRaw) sRaw = table.style.getPropertyValue("--edge-default-style").trim();
+  if (!cRaw) cRaw = table.style.getPropertyValue("--edge-default-color").trim();
+  if (wRaw || sRaw || cRaw) {
+    const w = wRaw ? parseFloat(wRaw) : EDGE_DEFAULT.weight;
+    const s = (sRaw || EDGE_DEFAULT.style) as BorderSpec["style"];
+    const c = cRaw || EDGE_DEFAULT.color;
+    return normalize({
+      weight: isFinite(w) ? w : EDGE_DEFAULT.weight,
+      style: s,
+      color: c,
+    });
+  }
+  // Fallback to TS defaults if CSS variables are not set
+  return normalize({ ...EDGE_DEFAULT });
+}
 
 export function buildRenderModel(table: HTMLElement): RenderModel {
   const columnWidths = getAttrList(table, "data-column-widths");
@@ -153,31 +180,7 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   // Edge inputs
   const edgesH = getEdgesH(table) as HEdgeEntry[][] | null; // (R+1) x C of entries: interior rows 1..R-1, perimeters at 0 (top) and R (bottom)
   const edgesV = getEdgesV(table) as VEdgeEntry[][] | null; // R x (C+1) of entries: interior cols 1..C-1, perimeters at 0 (left) and C (right)
-  // Discover default edge: data-border-default wins; else read CSS vars on table
-  let edgeDefault = normalize(getEdgeDefault(table));
-  if (!edgeDefault) {
-    const cs = getComputedStyle(table);
-    let wRaw = cs.getPropertyValue("--edge-default-weight").trim();
-    let sRaw = cs.getPropertyValue("--edge-default-style").trim();
-    let cRaw = cs.getPropertyValue("--edge-default-color").trim();
-    // jsdom may not propagate custom properties via computed style; fall back to inline style
-    if (!wRaw) wRaw = table.style.getPropertyValue("--edge-default-weight").trim();
-    if (!sRaw) sRaw = table.style.getPropertyValue("--edge-default-style").trim();
-    if (!cRaw) cRaw = table.style.getPropertyValue("--edge-default-color").trim();
-    if (wRaw || sRaw || cRaw) {
-      const w = wRaw ? parseFloat(wRaw) : EDGE_DEFAULT.weight;
-      const s = (sRaw || EDGE_DEFAULT.style) as BorderSpec["style"];
-      const c = cRaw || EDGE_DEFAULT.color;
-      edgeDefault = normalize({
-        weight: isFinite(w) ? w : EDGE_DEFAULT.weight,
-        style: s,
-        color: c,
-      });
-    } else {
-      // Fallback to TS defaults if CSS variables are not set
-      edgeDefault = normalize({ ...EDGE_DEFAULT });
-    }
-  }
+  const edgeDefault = resolveEdgeDefault(table);
   const gapX = getGapX(table);
   const gapY = getGapY(table);
 
@@ -200,12 +203,15 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   }
 
   function borderScore(spec: BorderSpec | null | undefined): number[] {
-    // Higher tuple wins lexicographically: [noneWins, weight, stylePrec]
-    // We treat 'none' as dominating any other style per rule
+    // Higher tuple wins lexicographically: [visible, weight, stylePrec].
+    // A visible border beats an explicit 'none' (CSS collapsed-border rule):
+    // one cell withdrawing its side of a shared edge must not erase a line
+    // the neighbor explicitly wants. 'none' still beats the implicit default
+    // because an explicit side always beats an absent one (see pickSide).
     const s = spec && spec.style ? spec.style : "none";
     const w = spec && Number.isFinite(spec.weight) ? spec.weight : 0;
-    const noneWin = s === "none" ? 1 : 0;
-    return [noneWin, w, stylePrecedence(s)];
+    const visible = s !== "none" && w > 0 ? 1 : 0;
+    return [visible, w, stylePrecedence(s)];
   }
   function pickSide(
     a: BorderSpec | null | undefined,
@@ -219,7 +225,7 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     if (!aPresent && !bPresent) return null;
     const sa = borderScore(a);
     const sb = borderScore(b);
-    if (sa[0] !== sb[0]) return sa[0] > sb[0] ? "a" : "b"; // 'none' wins
+    if (sa[0] !== sb[0]) return sa[0] > sb[0] ? "a" : "b"; // visible beats 'none'
     if (sa[1] !== sb[1]) return sa[1] > sb[1] ? "a" : "b"; // weight
     if (sa[2] !== sb[2]) return sa[2] > sb[2] ? "a" : "b"; // style prec
     return tieFavor === "leftTop" ? "a" : "b";
@@ -375,12 +381,16 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         if (!side) continue;
         const winner = side === "a" ? a || edgeDefault : b || edgeDefault;
         if (!winner) continue;
+        // The losing side becomes null (the winner paints the stroke), except
+        // an explicit 'none' is kept: it renders identically, but lets the
+        // border UI read "this cell declined this side" instead of borrowing
+        // the neighbor's line.
         if (side === "a") {
           if (!leftIsSkip) cellBorders[iLeft].right = winner;
-          if (!rightIsSkip) cellBorders[iRight].left = null;
+          if (!rightIsSkip) cellBorders[iRight].left = b && b.style === "none" ? b : null;
         } else {
           if (!rightIsSkip) cellBorders[iRight].left = winner;
-          if (!leftIsSkip) cellBorders[iLeft].right = null;
+          if (!leftIsSkip) cellBorders[iLeft].right = a && a.style === "none" ? a : null;
         }
       }
     }
@@ -417,12 +427,13 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         if (!side) continue;
         const winner = side === "a" ? a || edgeDefault : b || edgeDefault;
         if (!winner) continue;
+        // As with vertical edges: keep an explicit 'none' on the losing side.
         if (side === "a") {
           if (!topIsSkip) cellBorders[iTop].bottom = winner;
-          if (!bottomIsSkip) cellBorders[iBottom].top = null;
+          if (!bottomIsSkip) cellBorders[iBottom].top = b && b.style === "none" ? b : null;
         } else {
           if (!bottomIsSkip) cellBorders[iBottom].top = winner;
-          if (!topIsSkip) cellBorders[iTop].bottom = null;
+          if (!topIsSkip) cellBorders[iTop].bottom = a && a.style === "none" ? a : null;
         }
       }
     }

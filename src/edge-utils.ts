@@ -18,6 +18,7 @@ import {
   getGapY,
 } from "./table-model";
 import { getTableCells } from "./structure";
+import { resolveEdgeDefault } from "./table-renderer";
 
 // Simple converters between UI-friendly types and model BorderSpec
 export type UIStyle = "none" | "solid" | "dashed" | "dotted" | "double";
@@ -256,10 +257,16 @@ export function applyCellPerimeter(
 
   // Gap info: when a boundary has a positive gap, the two adjacent cells own
   // independent border lines, so we must write only this cell's side and leave
-  // the neighbor's alone. With no gap there is one shared line; we overwrite the
-  // whole edge so the change lands on it (and the renderer collapses it).
+  // the neighbor's alone. With no gap there is one shared line: writing a
+  // visible border claims the whole edge (setting a line sets it for both
+  // neighbors), but writing 'none' only withdraws this cell's side — the
+  // neighbor keeps any line it wants. Since an untouched neighbor side may be
+  // relying on the implicit default, we materialize it with the currently
+  // rendered spec so withdrawing our side doesn't erase the neighbor's line.
   const gapX = getGapX(table);
   const gapY = getGapY(table);
+  const isRemoval = (spec: BorderSpec | null): boolean => !!spec && spec.weight === 0;
+  const dflt = () => resolveEdgeDefault(table);
 
   // Left
   if (map.left !== undefined) {
@@ -272,6 +279,8 @@ export function applyCellPerimeter(
         v[rr][0] = outerSpec;
       } else if (gapPositive(gapX, c - 1)) {
         v[rr][c] = { west: splitV(v[rr][c]).west, east: innerSpec };
+      } else if (isRemoval(innerSpec)) {
+        v[rr][c] = { west: splitV(v[rr][c]).west ?? dflt(), east: innerSpec };
       } else {
         v[rr][c] = innerSpec;
       }
@@ -289,6 +298,8 @@ export function applyCellPerimeter(
         v[rr][cols] = outerSpec;
       } else if (gapPositive(gapX, rc)) {
         v[rr][rc + 1] = { west: innerSpec, east: splitV(v[rr][rc + 1]).east };
+      } else if (isRemoval(innerSpec)) {
+        v[rr][rc + 1] = { west: innerSpec, east: splitV(v[rr][rc + 1]).east ?? dflt() };
       } else {
         v[rr][rc + 1] = innerSpec;
       }
@@ -307,6 +318,8 @@ export function applyCellPerimeter(
         h[0][cc] = outerSpec;
       } else if (gapPositive(gapY, r - 1)) {
         h[boundaryRow][cc] = { north: splitH(h[boundaryRow][cc]).north, south: innerSpec };
+      } else if (isRemoval(innerSpec)) {
+        h[boundaryRow][cc] = { north: splitH(h[boundaryRow][cc]).north ?? dflt(), south: innerSpec };
       } else {
         h[boundaryRow][cc] = innerSpec;
       }
@@ -325,6 +338,8 @@ export function applyCellPerimeter(
         h[boundaryRow][cc] = outerSpec;
       } else if (gapPositive(gapY, rrBottom)) {
         h[boundaryRow][cc] = { north: innerSpec, south: splitH(h[boundaryRow][cc]).south };
+      } else if (isRemoval(innerSpec)) {
+        h[boundaryRow][cc] = { north: innerSpec, south: splitH(h[boundaryRow][cc]).south ?? dflt() };
       } else {
         h[boundaryRow][cc] = innerSpec;
       }

@@ -417,13 +417,15 @@ describe("table-renderer", () => {
     expect(m.cellBorders[1].left).toBeNull();
   });
 
-  it("'none' trumps any other style/weight in conflicts", () => {
+  it("a visible border beats an explicit 'none' in conflicts", () => {
     const g = makeTable();
     g.setAttribute("data-column-widths", "100px,100px");
     g.setAttribute("data-row-heights", "30px");
     addCell(g);
     addCell(g);
-    // Edge definition for the boundary: west=none, east=4px solid
+    // Edge definition for the boundary: west=none, east=4px solid. The left
+    // cell withdrew its side; the right cell still wants a line, so the line
+    // draws (CSS collapsed-border rule: 'none' yields to any real border).
     g.setAttribute(
       "data-edges-v",
       JSON.stringify([
@@ -436,13 +438,18 @@ describe("table-renderer", () => {
       ]),
     );
     const m = buildRenderModel(g);
-    // Expect the winner to be 'none' on the edge, applied to left cell's right and suppressing right cell's left
+    expect(m.cellBorders[1].left).toEqual({
+      weight: 4,
+      style: "solid",
+      color: "blue",
+    });
+    // The withdrawn side keeps its explicit 'none' (renders as nothing, but
+    // tells the border UI this cell declined the side).
     expect(m.cellBorders[0].right).toEqual({
       weight: 0,
       style: "none",
       color: "#000",
     });
-    expect(m.cellBorders[1].left).toBeNull();
   });
 
   it("uses table inner borders when cells have none", () => {
@@ -677,20 +684,29 @@ describe("table-renderer", () => {
       style: "solid",
       color: "#000",
     });
-    // Inner edges must not draw; with zero gap and both sides 'none',
-    // the winner is 'none' applied to the left/top side only.
+    // Inner edges must not draw; with zero gap and both sides 'none', both
+    // cells carry the explicit 'none' (the border UI reads each cell's own
+    // declined claim), and neither renders a stroke.
     expect(m.cellBorders[0].right).toEqual({
       weight: 0,
       style: "none",
       color: "#000",
     });
-    expect(m.cellBorders[1].left).toBeNull();
+    expect(m.cellBorders[1].left).toEqual({
+      weight: 0,
+      style: "none",
+      color: "#000",
+    });
     expect(m.cellBorders[0].bottom).toEqual({
       weight: 0,
       style: "none",
       color: "#000",
     });
-    expect(m.cellBorders[2].top).toBeNull();
+    expect(m.cellBorders[2].top).toEqual({
+      weight: 0,
+      style: "none",
+      color: "#000",
+    });
   });
 
   // Borders are applied per-side; no outline usage.

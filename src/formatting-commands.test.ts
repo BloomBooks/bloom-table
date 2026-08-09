@@ -24,7 +24,7 @@ import {
   setSpan,
 } from "./table-model";
 import { getCurrentContentTypeId } from "./cell-contents";
-import { render } from "./table-renderer";
+import { render, buildRenderModel } from "./table-renderer";
 
 // A 2x2 table matching the attribute model the renderer reads. Attached so
 // history-backed commands (content type) actually run.
@@ -288,6 +288,57 @@ describe("copy/paste properties", () => {
     expect(copyProperties([cells[0]])).not.toBe(null);
     expect(copyProperties([])).toBe(null);
     expect(hasCopiedProperties()).toBe(true);
+  });
+
+  it("copying a borderless column doesn't smuggle the neighbors' lines along", () => {
+    // The alphabet-exercise shape: text and image columns alternate; the image
+    // columns paint nothing (their h edges are none, and the solid v
+    // boundaries are painted by the text neighbors, which complete
+    // perimeters). Copying an image cell and pasting onto the last (image)
+    // column must yield a borderless column — in particular no invented right
+    // perimeter line — while the boundary shared with the text neighbor stays.
+    const solid = { weight: 1, style: "solid", color: "#858585" };
+    const none = { weight: 0, style: "none", color: "#000" };
+    document.body.innerHTML = `
+      <div class="bloom-table" data-column-widths="hug,hug,hug,hug" data-row-heights="hug">
+        <div class="bloom-cell"><div contenteditable="true">text</div></div>
+        <div class="bloom-cell"><div contenteditable="true">img</div></div>
+        <div class="bloom-cell"><div contenteditable="true">text</div></div>
+        <div class="bloom-cell"><div contenteditable="true">img</div></div>
+      </div>`;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([[solid, solid, solid, solid, solid]]),
+    );
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([
+        [solid, none, solid, none],
+        [solid, none, solid, none],
+      ]),
+    );
+    attachTable(table);
+    const cells = Array.from(table.children).filter(
+      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+    );
+
+    const copied = copyProperties([cells[1]]);
+    expect(copied?.border.left.style).toBe("none");
+    expect(copied?.border.right.style).toBe("none");
+
+    pasteProperties(table, [cells[3]]);
+
+    const cb = buildRenderModel(table).cellBorders;
+    const visible = (b: { weight: number; style: string } | null | undefined) =>
+      !!b && b.weight > 0 && b.style !== "none";
+    // The pasted column paints nothing — especially no right perimeter.
+    expect(visible(cb[3].top)).toBe(false);
+    expect(visible(cb[3].right)).toBe(false);
+    expect(visible(cb[3].bottom)).toBe(false);
+    expect(visible(cb[3].left)).toBe(false);
+    // The boundary with the text neighbor survives, painted by the text cell.
+    expect(visible(cb[2].right)).toBe(true);
   });
 
   it("paste carries the content type: the target becomes an empty skeleton of it", () => {

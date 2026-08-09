@@ -31,6 +31,7 @@ import {
 import {
   getCellPerimeterValueMap,
   getCellPerimeterColors,
+  getCellOwnPerimeter,
   getTableOuterBorderValueMap,
 } from "./border-state";
 import { representativeBorderColorHex } from "./color-utils";
@@ -275,25 +276,31 @@ export function hasCopiedProperties(): boolean {
 }
 
 /** Snapshot the properties of the scope's first cell. Returns the snapshot
- *  (also kept as the active clipboard), or null when the scope is empty. */
+ *  (also kept as the active clipboard), or null when the scope is empty.
+ *  Borders are the cell's OWN painted sides (no borrowing of neighbor-owned
+ *  strokes): copying a borderless cell that sits next to bordered neighbors
+ *  must paste as borderless, not smuggle the neighbors' lines along. */
 export function copyProperties(cells: HTMLElement[]): CopiedCellProperties | null {
   const seed = cells[0];
   if (!seed) return null;
-  const m = getCellPerimeterValueMap(seed);
-  const colors = getCellPerimeterColors(seed);
+  const own = getCellOwnPerimeter(seed);
   const fallback = representativeBorderColorHex(seed);
-  const edge = (e: { weight: number; style: BorderStyle }, color: string | null): CopiedEdge => ({
-    weight: e.weight,
+  const edge = (e: {
+    weight: number;
+    style: BorderStyle;
+    color: string | null;
+  }): CopiedEdge => ({
+    weight: e.weight as CopiedEdge["weight"],
     style: e.style,
-    color: color ?? fallback,
+    color: e.color ?? fallback,
   });
   copiedProperties = {
     settings: snapshotCellSettings(seed),
     border: {
-      top: edge(m.top, colors.top),
-      right: edge(m.right, colors.right),
-      bottom: edge(m.bottom, colors.bottom),
-      left: edge(m.left, colors.left),
+      top: edge(own.top),
+      right: edge(own.right),
+      bottom: edge(own.bottom),
+      left: edge(own.left),
     },
   };
   return copiedProperties;

@@ -129,6 +129,44 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
   };
 }
 
+/** A cell's own painted sides from the render model, with NO borrowing of
+ *  neighbor-owned strokes: a side the cell doesn't paint (unset, lost to the
+ *  neighbor, or explicitly declined) resolves to a 'none' edge. This is what
+ *  copy-properties wants — pasting these claims reproduces the source's look,
+ *  because paste's sided none-writes keep the target's neighbors' lines while
+ *  visible sides claim the shared edge. (The borrowing value map above would
+ *  capture a neighbor's stroke as if it were this cell's border and, pasted
+ *  at a table edge, invent a perimeter line the source never painted.) */
+export function getCellOwnPerimeter(cell: HTMLElement): {
+  top: { weight: BorderWeight; style: BorderStyle; color: string | null };
+  right: { weight: BorderWeight; style: BorderStyle; color: string | null };
+  bottom: { weight: BorderWeight; style: BorderStyle; color: string | null };
+  left: { weight: BorderWeight; style: BorderStyle; color: string | null };
+} {
+  const table = cell.closest(".bloom-table") as HTMLElement | null;
+  let sides: { top?: any; right?: any; bottom?: any; left?: any } = {};
+  if (table) {
+    const model = buildRenderModel(table);
+    const cells = Array.from(table.children).filter(
+      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+    );
+    const index = cells.indexOf(cell);
+    sides = model.cellBorders[index] || {};
+  }
+  const toEdge = (spec: any) => {
+    const w = snapWeight(Number.isFinite(spec?.weight) ? spec.weight : 0);
+    const style: BorderStyle = w === 0 ? "none" : ((spec?.style as BorderStyle) ?? "solid");
+    const color = spec && typeof spec.color === "string" && spec.color ? spec.color : null;
+    return { weight: w, style, color };
+  };
+  return {
+    top: toEdge(sides.top),
+    right: toEdge(sides.right),
+    bottom: toEdge(sides.bottom),
+    left: toEdge(sides.left),
+  };
+}
+
 /** Per-edge colors of a cell's perimeter, resolved the same way as
  *  getCellPerimeterValueMap. An edge with no explicit color (or an invisible
  *  edge) yields null, so callers can fall back per edge instead of flattening
