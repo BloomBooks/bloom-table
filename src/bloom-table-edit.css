@@ -14,14 +14,24 @@
   --selected-table-outline-offset: 1px;
   --selected-table-outline-style: dotted;
   /* Subtle boundary hint color (very faint) */
-  --table-hint-color: rgba(0, 0, 0, 0.08);
+  --table-hint-color: rgba(0, 0, 0, 0.15);
 }
+
+/* All of the editing chrome below (selection outline, selected-cell tint,
+   boundary hints) is gated on .bloom-pointer-near: table-size-buttons.ts adds
+   it to the table while the pointer is inside the table's active zone (the
+   same zone that reveals the "+"/menu pills, held open while a menu popup is
+   up) and removes it when the mouse moves away. With nested tables the class
+   can land on either the outer or the inner table (focus targets the inner,
+   the mouse gate the outer), so the :is(...) forms match a selected table
+   that IS the near table, is inside it, or contains it. */
 
 /* Selected outlines (non-intrusive, no layout shift) */
 .bloom-cell.cell--selected {
   position: relative; /* establish containing block for overlay */
 }
-.bloom-cell.cell--selected::after {
+.bloom-table:is(.bloom-pointer-near, .bloom-pointer-near *, :has(.bloom-pointer-near))
+  .bloom-cell.cell--selected::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -32,55 +42,30 @@
   z-index: 1;
 }
 
-.bloom-table.table--selected {
+.bloom-table.table--selected:is(
+    .bloom-pointer-near,
+    .bloom-pointer-near *,
+    :has(.bloom-pointer-near)
+  ) {
   outline: var(--selected-table-outline-width) var(--selected-table-outline-style, solid)
     var(--selected-table-outline-color);
   outline-offset: var(--selected-table-outline-offset);
 }
 
-/* Boundary hints: shown only when table is selected, and only where borders are none */
-.bloom-table.table--selected .bloom-cell {
-  /* Layered background gradients for 1px separators; each is transparent unless the corresponding --hint-*-color is set */
-  background-image:
-    /* top */
-    linear-gradient(
-      to bottom,
-      var(--hint-top-color, transparent) 0,
-      var(--hint-top-color, transparent) 1px,
-      transparent 1px
-    ),
-    /* right */
-    linear-gradient(
-        to left,
-        var(--hint-right-color, transparent) 0,
-        var(--hint-right-color, transparent) 1px,
-        transparent 1px
-      ),
-    /* bottom */
-    linear-gradient(
-        to top,
-        var(--hint-bottom-color, transparent) 0,
-        var(--hint-bottom-color, transparent) 1px,
-        transparent 1px
-      ),
-    /* left */
-    linear-gradient(
-        to right,
-        var(--hint-left-color, transparent) 0,
-        var(--hint-left-color, transparent) 1px,
-        transparent 1px
-      );
-  background-repeat: no-repeat;
-  background-size:
-    100% 1px,
-    /* top */ 1px 100%,
-    /* right */ 100% 1px,
-    /* bottom */ 1px 100%; /* left */
-  background-position:
-    0 0,
-    /* top */ 100% 0,
-    /* right */ 0 100%,
-    /* bottom */ 0 0; /* left */
+/* Boundary hints: while the table is selected AND the pointer is near it,
+   every cell of that table gets a faint dashed outline all the way around, so
+   cells whose borders are invisible stay findable. Drawn just inside the cell
+   edge, so it overlays the outer pixel of a real border — faint enough to be
+   unobtrusive there. The child combinator keeps a selected outer table from
+   outlining the cells of nested tables. */
+.bloom-table.table--selected:is(
+    .bloom-pointer-near,
+    .bloom-pointer-near *,
+    :has(.bloom-pointer-near)
+  )
+  > .bloom-cell {
+  outline: 1px dashed var(--table-hint-color);
+  outline-offset: -1px;
 }
 
 /* --- Selection / affected-region highlight ---------------------------------

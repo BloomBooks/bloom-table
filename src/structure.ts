@@ -59,7 +59,7 @@
  */
 
 import { tableHistoryManager } from "./history";
-import { setupContentsOfCell } from "./cell-contents";
+import { setupContentsOfCell, getCurrentContentTypeId } from "./cell-contents";
 import { getEdgesH, setEdgesH, getEdgesV, setEdgesV } from "./table-model";
 
 /**
@@ -69,22 +69,35 @@ import { getEdgesH, setEdgesH, getEdgesV, setEdgesV } from "./table-model";
  * content-type/content (a new cell starts empty). Borders are handled
  * separately via the edge arrays.
  */
+// The transferable per-cell settings: everything that makes a cell "the same
+// kind of cell" without copying its content. This is THE definition shared by
+// row/column insertion (structure.ts) and the copy/paste-properties clipboard
+// (formatting-commands.ts) — extend it here so the consumers can't drift.
 const CELL_SETTING_ATTRS = ["data-bg", "data-align", "data-pad", "data-corners"] as const;
 
-type CellSettings = Partial<Record<(typeof CELL_SETTING_ATTRS)[number], string | null>>;
+export type CellSettings = Partial<Record<(typeof CELL_SETTING_ATTRS)[number], string | null>> & {
+  contentType?: string;
+};
 
-function snapshotCellSettings(cell: HTMLElement): CellSettings {
+export function snapshotCellSettings(cell: HTMLElement): CellSettings {
   const snap: CellSettings = {};
   for (const attr of CELL_SETTING_ATTRS) snap[attr] = cell.getAttribute(attr);
+  snap.contentType = getCurrentContentTypeId(cell);
   return snap;
 }
 
-function applyCellSettings(cell: HTMLElement, snap: CellSettings): void {
+export function applyCellSettings(cell: HTMLElement, snap: CellSettings): void {
   for (const attr of CELL_SETTING_ATTRS) {
     const v = snap[attr];
     if (v != null) cell.setAttribute(attr, v);
     else cell.removeAttribute(attr);
   }
+  // The cell holds the same KIND of content as the snapshot's source — an
+  // empty skeleton of that content type, not a copy of its content (a no-op
+  // when the type already matches). History/host notification are suppressed:
+  // callers run this inside their own history entry and dispatch the
+  // content-changed event themselves after it closes.
+  if (snap.contentType) setupContentsOfCell(cell, snap.contentType, false, false);
 }
 
 // Clamp a caller-supplied source index to a valid row/column, or null when no
@@ -92,32 +105,6 @@ function applyCellSettings(cell: HTMLElement, snap: CellSettings): void {
 function resolveSourceIndex(sourceIndex: number | undefined, count: number): number | null {
   if (sourceIndex == null || count <= 0) return null;
   return Math.max(0, Math.min(sourceIndex, count - 1));
-}
-
-// Snapshot each cell's settings across a source row (one entry per column).
-function captureRowCellSettings(
-  table: HTMLElement,
-  sourceRow: number,
-  numColumns: number,
-): CellSettings[] {
-  const settings: CellSettings[] = [];
-  for (let c = 0; c < numColumns; c++) {
-    settings.push(snapshotCellSettings(getCell(table, sourceRow, c)));
-  }
-  return settings;
-}
-
-// Snapshot each cell's settings down a source column (one entry per row).
-function captureColumnCellSettings(
-  table: HTMLElement,
-  sourceColumn: number,
-  numRows: number,
-): CellSettings[] {
-  const settings: CellSettings[] = [];
-  for (let r = 0; r < numRows; r++) {
-    settings.push(snapshotCellSettings(getCell(table, r, sourceColumn)));
-  }
-  return settings;
 }
 
 // Deep-clone an edge entry (BorderSpec, sided object, or null) so the inserted
@@ -268,41 +255,13 @@ export const getTargetTable = (): HTMLElement | null => {
 };
 
 export const addRow = (table: HTMLElement, skipHistory = false, sourceIndex?: number): void => {
-  //assert(table instanceof HTMLElement, "table parameter must be an HTMLElement");
   assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
 
   const description = "Add Row";
   const performOperation = () => {
-    const columnWidthsAttr = table.getAttribute("data-column-widths");
-    const numColumns = columnWidthsAttr ? columnWidthsAttr.split(",").length : 1;
-
-    assert(numColumns > 0, "Table must have at least one column");
-
-    const rowHeights = (table.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter((h) => h.trim() !== "");
-    const numRows = rowHeights.length;
-
-    // Capture the selected (source) row's settings before mutating the table.
-    const src = resolveSourceIndex(sourceIndex, numRows);
-    const sourceCellSettings =
-      src != null ? captureRowCellSettings(table, src, numColumns) : null;
-    const newHeight = src != null ? rowHeights[src] : defaultRowHeight;
-
-    const newRowHeights = numRows > 0 ? `${rowHeights.join(",")},${newHeight}` : newHeight;
-    table.setAttribute("data-row-heights", newRowHeights);
-
-    const newCells: HTMLElement[] = [];
-    for (let i = 0; i < numColumns; i++) {
-      const newCell = createCell();
-      table.appendChild(newCell);
-      newCells.push(newCell);
-    }
-
-    if (src != null && sourceCellSettings) {
-      newCells.forEach((cell, c) => applyCellSettings(cell, sourceCellSettings[c]));
-      copyEdgesForInsertedRow(table, numRows, src, numRows, numColumns);
-    }
+    const info = getTableInfo(table);
+    const src = resolveSourceIndex(sourceIndex, info.rowCount);
+    insertLineAt(table, "row", info.rowCount, src, src != null ? "skeleton" : "blank");
   };
 
   if (skipHistory) {
@@ -343,41 +302,18 @@ export const addColumn = (table: HTMLElement, skipHistory = false, sourceIndex?:
 
   const description = "Add Column";
   const performOperation = () => {
-    const columnWidths = (table.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter((w) => w.trim() !== "");
-    const numColumns = columnWidths.length;
-
-    const rowHeightsAttr = table.getAttribute("data-row-heights") || "";
-    const numRows = rowHeightsAttr ? rowHeightsAttr.split(",").length : 0;
-
-    // Capture the selected (source) column's settings before mutating the table.
-    const src = numRows > 0 ? resolveSourceIndex(sourceIndex, numColumns) : null;
-    const sourceCellSettings =
-      src != null ? captureColumnCellSettings(table, src, numRows) : null;
-    const newWidth = src != null ? columnWidths[src] : defaultColumnWidth;
-
-    const newColumnWidths = numColumns > 0 ? `${columnWidths.join(",")},${newWidth}` : newWidth;
-    table.setAttribute("data-column-widths", newColumnWidths);
-
-    if (numRows === 0) return;
-    const cells = getTableCells(table);
-    const newCells: HTMLElement[] = [];
-    for (let i = 0; i < numRows; i++) {
-      const newCell = createCell();
-
-      // Calculate the position where the new cell should be inserted
-      // For each row, we want to insert after the last cell of that row
-      const insertPosition = i * numColumns + numColumns;
-      const referenceNode = cells[insertPosition] || null;
-      table.insertBefore(newCell, referenceNode);
-      newCells.push(newCell);
+    const info = getTableInfo(table);
+    if (info.rowCount === 0) {
+      // Attach-time bootstrap: a table with no rows yet still records the
+      // column's width, so the first added row creates the right cell count.
+      table.setAttribute(
+        "data-column-widths",
+        [...info.columnWidths, defaultColumnWidth].join(","),
+      );
+      return;
     }
-
-    if (src != null && sourceCellSettings) {
-      newCells.forEach((cell, r) => applyCellSettings(cell, sourceCellSettings[r]));
-      copyEdgesForInsertedColumn(table, numColumns, src, numRows, numColumns);
-    }
+    const src = resolveSourceIndex(sourceIndex, info.columnCount);
+    insertLineAt(table, "column", info.columnCount, src, src != null ? "skeleton" : "blank");
   };
 
   if (skipHistory) {
@@ -654,44 +590,8 @@ export const addColumnAt = (
   );
   const description = `Add Column at ${actualIndex}`;
   const performOperation = () => {
-    const numRows = tableInfo.rowCount;
-    if (numRows === 0) return;
-
-    // Capture the selected (source) column's settings before mutating the table.
     const src = resolveSourceIndex(sourceIndex, tableInfo.columnCount);
-    const sourceCellSettings =
-      src != null ? captureColumnCellSettings(table, src, numRows) : null;
-
-    // Collect reference nodes BEFORE changing the table structure
-    const referenceNodes: (HTMLElement | null)[] = [];
-    for (let rowIndex = 0; rowIndex < numRows; rowIndex++) {
-      // Find reference node for insertion. If adding at the end, it's null.
-      // Otherwise, it's the cell at the insertion index for the current row.
-      const referenceNode =
-        actualIndex < tableInfo.columnCount ? getCell(table, rowIndex, actualIndex) : null;
-      referenceNodes.push(referenceNode);
-    }
-
-    // Now update the table structure
-    const currentColumnWidths = table.getAttribute("data-column-widths") || "";
-    const columnWidths = currentColumnWidths ? currentColumnWidths.split(",") : [];
-
-    // Insert new column width at the specified index (inherit the source column's width)
-    const newWidth = src != null ? columnWidths[src] ?? defaultColumnWidth : defaultColumnWidth;
-    columnWidths.splice(actualIndex, 0, newWidth);
-    table.setAttribute("data-column-widths", columnWidths.join(",")); // Insert new cells at the appropriate positions
-    const newCells: HTMLElement[] = [];
-    for (let rowIndex = 0; rowIndex < numRows; rowIndex++) {
-      const newCell = createCell();
-
-      table.insertBefore(newCell, referenceNodes[rowIndex]);
-      newCells.push(newCell);
-    }
-
-    if (src != null && sourceCellSettings) {
-      newCells.forEach((cell, r) => applyCellSettings(cell, sourceCellSettings[r]));
-      copyEdgesForInsertedColumn(table, actualIndex, src, numRows, tableInfo.columnCount);
-    }
+    insertLineAt(table, "column", actualIndex, src, src != null ? "skeleton" : "blank");
   };
 
   if (skipHistory) {
@@ -724,39 +624,305 @@ export const addRowAt = (
   );
   const description = `Add Row at ${actualIndex}`;
   const performOperation = () => {
-    const numColumns = tableInfo.columnCount;
-    if (numColumns === 0) return;
-
-    // Capture the selected (source) row's settings before mutating the table.
     const src = resolveSourceIndex(sourceIndex, tableInfo.rowCount);
-    const sourceCellSettings =
-      src != null ? captureRowCellSettings(table, src, numColumns) : null;
-
-    // Find the reference node for insertion BEFORE changing the table structure
-    // If adding at the end, referenceNode is null.
-    // Otherwise, it's the first cell of the row at the insertion index.
-    const referenceNode = actualIndex < tableInfo.rowCount ? getCell(table, actualIndex, 0) : null;
-
-    // Now update the table structure
-    const currentRowHeights = table.getAttribute("data-row-heights") || "";
-    const rowHeights = currentRowHeights ? currentRowHeights.split(",") : [];
-
-    // Insert new row height at the specified index (inherit the source row's height)
-    const newHeight = src != null ? rowHeights[src] ?? defaultRowHeight : defaultRowHeight;
-    rowHeights.splice(actualIndex, 0, newHeight);
-    table.setAttribute("data-row-heights", rowHeights.join(",")); // Insert new cells for the entire row
-    const newCells: HTMLElement[] = [];
-    for (let colIndex = 0; colIndex < numColumns; colIndex++) {
-      const newCell = createCell();
-      table.insertBefore(newCell, referenceNode);
-      newCells.push(newCell);
-    }
-
-    if (src != null && sourceCellSettings) {
-      newCells.forEach((cell, c) => applyCellSettings(cell, sourceCellSettings[c]));
-      copyEdgesForInsertedRow(table, actualIndex, src, tableInfo.rowCount, numColumns);
-    }
+    insertLineAt(table, "row", actualIndex, src, src != null ? "skeleton" : "blank");
   };
+
+  if (skipHistory) {
+    performOperation();
+  } else {
+    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+  }
+};
+
+// Deep-clone a cell for duplication, stripping transient editing state that
+// must not exist twice in the document (selection classes, anchor names —
+// including on descendants, e.g. cells of a nested table that hosted pills).
+function cloneCellForDuplicate(cell: HTMLElement): HTMLElement {
+  const clone = cell.cloneNode(true) as HTMLElement;
+  const strip = (el: HTMLElement) => {
+    el.classList.remove("cell--selected");
+    el.style.removeProperty("anchor-name");
+    delete (el.dataset as any).btableAnchorName;
+  };
+  strip(clone);
+  clone.querySelectorAll<HTMLElement>("*").forEach(strip);
+  return clone;
+}
+
+// The spanning (anchor) cell covering a grid position, with its position and
+// span, or null when the position is out of range.
+type SpanCover = {
+  anchor: HTMLElement;
+  row: number;
+  column: number;
+  spanX: number;
+  spanY: number;
+};
+
+function findSpanCover(table: HTMLElement, row: number, column: number): SpanCover | null {
+  for (const cell of getTableCells(table)) {
+    if (cell.classList.contains("bloom-skip")) continue;
+    const pos = getRowAndColumn(table, cell);
+    const spanX = parseInt(cell.getAttribute("data-span-x") || "1") || 1;
+    const spanY = parseInt(cell.getAttribute("data-span-y") || "1") || 1;
+    if (
+      row >= pos.row &&
+      row < pos.row + spanY &&
+      column >= pos.column &&
+      column < pos.column + spanX
+    ) {
+      return { anchor: cell, row: pos.row, column: pos.column, spanX, spanY };
+    }
+  }
+  return null;
+}
+
+// Give a clone fresh default contents. Used where a duplicate's cell is
+// covered by (or freed from) a merge: carrying the source's content into it
+// would duplicate that content — hidden inside a skip cell (and resurrected on
+// a later unmerge), or immediately visible in a cell the source never showed.
+function resetCloneContents(clone: HTMLElement): void {
+  delete clone.dataset.contentType;
+  clone.innerHTML = "";
+  clone.removeAttribute("tabindex");
+  setupContentsOfCell(clone);
+}
+
+// Write a cell's span attributes and their CSS-var mirrors (same convention as
+// setCellSpan). x/y of 1 clears the attribute.
+function writeSpan(cell: HTMLElement, x: number, y: number): void {
+  if (x > 1) {
+    cell.setAttribute("data-span-x", String(x));
+    cell.style.setProperty("--span-x", String(x));
+  } else {
+    cell.removeAttribute("data-span-x");
+    cell.style.removeProperty("--span-x");
+  }
+  if (y > 1) {
+    cell.setAttribute("data-span-y", String(y));
+    cell.style.setProperty("--span-y", String(y));
+  } else {
+    cell.removeAttribute("data-span-y");
+    cell.style.removeProperty("--span-y");
+  }
+}
+
+// ---- Unified line insertion --------------------------------------------------
+// Add row/column and duplicate row/column are all "insert a line at an index,
+// modeled on a source line". They share this core; the differences are the
+// axis and how the new cells are built:
+//   "clone"    — deep copies of the source line's cells, contents included
+//                (duplicate; the copy must land directly after its source)
+//   "skeleton" — fresh cells inheriting the source cells' settings (see
+//                CellSettings) plus the line's size and borders
+//   "blank"    — fresh default cells (no source line)
+// The core also keeps merges consistent: a merge crossing the insertion
+// boundary grows one line, covering the new line's cells inside it.
+
+type LineAxis = "row" | "column";
+type NewCellsMode = "clone" | "skeleton" | "blank";
+type TableInfo = ReturnType<typeof getTableInfo>;
+
+// Everything axis-specific, so rows and columns share one implementation
+// instead of two hand-mirrored ones (mirror drift has caused bugs before).
+const lineAxisOps = {
+  row: {
+    sizeAttr: "data-row-heights",
+    defaultSize: () => defaultRowHeight,
+    sizes: (info: TableInfo) => info.rowHeights,
+    lineCount: (info: TableInfo) => info.rowCount,
+    perpCount: (info: TableInfo) => info.columnCount,
+    cellAt: (table: HTMLElement, line: number, perp: number) => getCell(table, line, perp),
+    coverAt: (table: HTMLElement, line: number, perp: number) => findSpanCover(table, line, perp),
+    lineOf: (cover: SpanCover) => cover.row,
+    spanAlong: (cover: SpanCover) => cover.spanY,
+    growAnchor: (cover: SpanCover) => writeSpan(cover.anchor, cover.spanX, cover.spanY + 1),
+    // A whole row is inserted contiguously before the first cell of the row
+    // currently at the insertion index (or appended at the very end). Tolerant
+    // linear indexing rather than getCell: a table may declare sizes before
+    // its cells exist.
+    referenceNodes: (
+      table: HTMLElement,
+      info: TableInfo,
+      insertIndex: number,
+    ): (HTMLElement | null)[] => {
+      const cells = getTableCells(table);
+      const ref = (cells[insertIndex * info.columnCount] as HTMLElement | undefined) ?? null;
+      return new Array<HTMLElement | null>(info.columnCount).fill(ref);
+    },
+    copyEdges: (table: HTMLElement, insertIndex: number, source: number, info: TableInfo) =>
+      copyEdgesForInsertedRow(table, insertIndex, source, info.rowCount, info.columnCount),
+  },
+  column: {
+    sizeAttr: "data-column-widths",
+    defaultSize: () => defaultColumnWidth,
+    sizes: (info: TableInfo) => info.columnWidths,
+    lineCount: (info: TableInfo) => info.columnCount,
+    perpCount: (info: TableInfo) => info.rowCount,
+    cellAt: (table: HTMLElement, line: number, perp: number) => getCell(table, perp, line),
+    coverAt: (table: HTMLElement, line: number, perp: number) => findSpanCover(table, perp, line),
+    lineOf: (cover: SpanCover) => cover.column,
+    spanAlong: (cover: SpanCover) => cover.spanX,
+    growAnchor: (cover: SpanCover) => writeSpan(cover.anchor, cover.spanX + 1, cover.spanY),
+    // Each row needs its own reference: mid-table it's that row's cell at the
+    // insertion index; appending at the right edge it's the NEXT row's first
+    // cell (null only for the last row — appending with a null reference for
+    // every row would pile the whole new column after the last row and shift
+    // every cell through the grid). Tolerant linear indexing rather than
+    // getCell: a table may declare sizes before its cells exist.
+    referenceNodes: (
+      table: HTMLElement,
+      info: TableInfo,
+      insertIndex: number,
+    ): (HTMLElement | null)[] => {
+      const cells = getTableCells(table);
+      const refs: (HTMLElement | null)[] = [];
+      for (let r = 0; r < info.rowCount; r++) {
+        const linear =
+          insertIndex < info.columnCount
+            ? r * info.columnCount + insertIndex
+            : (r + 1) * info.columnCount;
+        refs.push((cells[linear] as HTMLElement | undefined) ?? null);
+      }
+      return refs;
+    },
+    copyEdges: (table: HTMLElement, insertIndex: number, source: number, info: TableInfo) =>
+      copyEdgesForInsertedColumn(table, insertIndex, source, info.rowCount, info.columnCount),
+  },
+} as const;
+
+// The shared insertion core. Runs inside the caller's history entry.
+function insertLineAt(
+  table: HTMLElement,
+  axis: LineAxis,
+  insertIndex: number,
+  sourceIndex: number | null,
+  mode: NewCellsMode,
+): void {
+  const ops = lineAxisOps[axis];
+  const info = getTableInfo(table);
+  const lineCount = ops.lineCount(info);
+  const perpCount = ops.perpCount(info);
+  if (perpCount === 0) return;
+  assert(
+    insertIndex >= 0 && insertIndex <= lineCount,
+    `${axis} index ${insertIndex} is out of bounds`,
+  );
+  assert(
+    mode !== "clone" || sourceIndex === insertIndex - 1,
+    "clone mode inserts the copy directly after its source line",
+  );
+
+  // Build the new cells, and find the merge covering each grid position on
+  // the line just before the insertion boundary — all BEFORE mutating the
+  // table (content resets happen on detached nodes, so no host events fire).
+  const newCells: HTMLElement[] = [];
+  const covers: (SpanCover | null)[] = [];
+  const boundaryLine = insertIndex - 1;
+  for (let p = 0; p < perpCount; p++) {
+    if (mode === "clone") {
+      newCells.push(cloneCellForDuplicate(ops.cellAt(table, sourceIndex!, p)));
+    } else {
+      const cell = createCell();
+      if (mode === "skeleton" && sourceIndex != null) {
+        applyCellSettings(cell, snapshotCellSettings(ops.cellAt(table, sourceIndex, p)));
+      }
+      newCells.push(cell);
+    }
+    covers.push(
+      boundaryLine >= 0 && boundaryLine < lineCount ? ops.coverAt(table, boundaryLine, p) : null,
+    );
+  }
+  const referenceNodes = ops.referenceNodes(table, info, insertIndex);
+
+  // The new line inherits the source line's size.
+  const sizes = ops.sizes(info);
+  const sourceSize = sourceIndex != null ? sizes[sourceIndex] : undefined;
+  sizes.splice(insertIndex, 0, sourceSize ?? ops.defaultSize());
+  table.setAttribute(ops.sizeAttr, sizes.join(","));
+
+  // Merge fix-up, before DOM insertion. A new cell never carries a span along
+  // the insertion axis. Where a merge crosses the insertion boundary, the new
+  // line is interior to it: the merge grows one line and the new cell becomes
+  // a covered (skip) cell. A clone whose source was covered by a merge that
+  // ENDS at the source line sits outside the merge and becomes an ordinary
+  // cell. Merges perpendicular to the axis are self-contained in a cloned
+  // line and copy over as-is. Clones covered by or freed from a merge get
+  // fresh default contents — carrying the source's content into them would
+  // duplicate it (hidden in the skip case, resurrected on a later unmerge).
+  const grown = new Set<HTMLElement>();
+  newCells.forEach((cell, p) => {
+    const cover = covers[p];
+    if (!cover) return;
+    const lastCoveredLine = ops.lineOf(cover) + ops.spanAlong(cover) - 1;
+    if (lastCoveredLine >= insertIndex) {
+      cell.classList.add("bloom-skip");
+      writeSpan(cell, 1, 1);
+      if (mode === "clone") resetCloneContents(cell);
+      if (!grown.has(cover.anchor)) {
+        grown.add(cover.anchor);
+        ops.growAnchor(cover);
+      }
+    } else if (mode === "clone" && sourceIndex != null && ops.lineOf(cover) < sourceIndex) {
+      cell.classList.remove("bloom-skip");
+      writeSpan(cell, 1, 1);
+      resetCloneContents(cell);
+    }
+  });
+
+  newCells.forEach((cell, p) => table.insertBefore(cell, referenceNodes[p]));
+  if (sourceIndex != null) ops.copyEdges(table, insertIndex, sourceIndex, info);
+}
+
+/**
+ * Duplicates the row at `sourceRow`, inserting the copy directly below it.
+ * Unlike addRowAt (whose new cells inherit only settings), this copies
+ * everything: contents, content types, spans, and borders. A vertical span
+ * that continues below the source row grows one row taller (the copy's cell
+ * is covered by it); a vertical span that ENDS at the source row leaves an
+ * ordinary unmerged cell in the copy.
+ */
+export const duplicateRowAt = (table: HTMLElement, sourceRow: number, skipHistory = false): void => {
+  if (!table) return;
+
+  const tableInfo = getTableInfo(table);
+  assert(
+    sourceRow >= 0 && sourceRow < tableInfo.rowCount,
+    `Row index ${sourceRow} is out of bounds`,
+  );
+  const description = `Duplicate Row ${sourceRow}`;
+  const performOperation = () => insertLineAt(table, "row", sourceRow + 1, sourceRow, "clone");
+
+  if (skipHistory) {
+    performOperation();
+  } else {
+    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+  }
+};
+
+/**
+ * Duplicates the column at `sourceColumn`, inserting the copy directly to its
+ * right. Copies everything: contents, content types, spans, and borders.
+ * A horizontal span that continues right of the source column grows one column
+ * wider (the copy's cell is covered by it); a horizontal span that ENDS at the
+ * source column leaves an ordinary unmerged cell in the copy.
+ */
+export const duplicateColumnAt = (
+  table: HTMLElement,
+  sourceColumn: number,
+  skipHistory = false,
+): void => {
+  if (!table) return;
+
+  const tableInfo = getTableInfo(table);
+  assert(
+    sourceColumn >= 0 && sourceColumn < tableInfo.columnCount,
+    `Column index ${sourceColumn} is out of bounds`,
+  );
+  const description = `Duplicate Column ${sourceColumn}`;
+  const performOperation = () =>
+    insertLineAt(table, "column", sourceColumn + 1, sourceColumn, "clone");
 
   if (skipHistory) {
     performOperation();

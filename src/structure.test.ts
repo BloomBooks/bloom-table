@@ -6,6 +6,8 @@ import {
   addRowAt,
   defaultColumnWidth,
   defaultRowHeight,
+  duplicateColumnAt,
+  duplicateRowAt,
   getCell,
   getTableCells,
   getTableInfo,
@@ -475,6 +477,55 @@ it("addColumnAt works when adding at end", () => {
   expect(info.columnCount).toBe(original.columnCount + 1);
 });
 
+it("addColumnAt at the end keeps every existing cell in its row (multi-row)", () => {
+  // Regression: appending a column used a null insertion reference for EVERY
+  // row, piling the whole new column after the last row and shifting every
+  // existing cell one position through the grid.
+  const table = newTable(); // 2x2
+  getCell(table, 0, 0).id = "r0c0";
+  getCell(table, 0, 1).id = "r0c1";
+  getCell(table, 1, 0).id = "r1c0";
+  getCell(table, 1, 1).id = "r1c1";
+
+  addColumnAt(table, 2); // append at the right edge
+
+  expect(getCell(table, 0, 0).id).toBe("r0c0");
+  expect(getCell(table, 0, 1).id).toBe("r0c1");
+  expect(getCell(table, 0, 2).id).toBe(""); // new
+  expect(getCell(table, 1, 0).id).toBe("r1c0");
+  expect(getCell(table, 1, 1).id).toBe("r1c1");
+  expect(getCell(table, 1, 2).id).toBe(""); // new
+});
+
+it("addRowAt through a vertical merge grows the span and covers the new cell", () => {
+  const table = newTable();
+  addRow(table); // 2x3
+  const anchor = getCell(table, 0, 0);
+  setCellSpan(anchor, 1, 3); // spans all 3 rows
+
+  addRowAt(table, 1, false, 0); // insert inside the merge
+
+  expect(getTableInfo(table).rowCount).toBe(4);
+  expect(anchor.getAttribute("data-span-y")).toBe("4");
+  // The new row's cell under the merge is covered; its neighbor is ordinary.
+  expect(getCell(table, 1, 0).classList.contains("bloom-skip")).toBe(true);
+  expect(getCell(table, 1, 1).classList.contains("bloom-skip")).toBe(false);
+});
+
+it("addColumnAt through a horizontal merge grows the span and covers the new cell", () => {
+  const table = newTable();
+  addColumn(table); // 2x3
+  const anchor = getCell(table, 0, 0);
+  setCellSpan(anchor, 3, 1); // spans all 3 columns
+
+  addColumnAt(table, 1, false, 0); // insert inside the merge
+
+  expect(getTableInfo(table).columnCount).toBe(4);
+  expect(anchor.getAttribute("data-span-x")).toBe("4");
+  expect(getCell(table, 0, 1).classList.contains("bloom-skip")).toBe(true);
+  expect(getCell(table, 1, 1).classList.contains("bloom-skip")).toBe(false);
+});
+
 it("addRowAt works when adding at end", () => {
   const table = newTable();
   const original = getTableInfo(table);
@@ -763,6 +814,40 @@ describe("inserted rows/columns inherit the source's settings", () => {
     expect(getCell(table, 1, 1).getAttribute("data-align")).toBe("start");
   });
 
+  it("addRowAt copies the source cells' content types (empty skeleton, not content)", () => {
+    const table = build(["100px", "fill"], ["20px", "30px"]);
+    const c00 = getCell(table, 0, 0);
+    const c01 = getCell(table, 0, 1);
+    c00.setAttribute("data-content-type", "image");
+    c01.setAttribute("data-content-type", "text");
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    editable.textContent = "source text";
+    c01.appendChild(editable);
+
+    addRowAt(table, 1, false, 0);
+
+    const n0 = getCell(table, 1, 0);
+    const n1 = getCell(table, 1, 1);
+    expect(n0.getAttribute("data-content-type")).toBe("image");
+    expect(n0.querySelector("img")).not.toBe(null);
+    expect(n1.getAttribute("data-content-type")).toBe("text");
+    // The content itself is not copied.
+    expect(n1.textContent).toBe("");
+  });
+
+  it("addColumnAt copies the source cells' content types", () => {
+    const table = build(["100px", "fill"], ["20px", "30px"]);
+    getCell(table, 0, 1).setAttribute("data-content-type", "image");
+    getCell(table, 1, 1).setAttribute("data-content-type", "text");
+
+    addColumnAt(table, 1, false, 1);
+
+    expect(getCell(table, 0, 1).getAttribute("data-content-type")).toBe("image");
+    expect(getCell(table, 0, 1).querySelector("img")).not.toBe(null);
+    expect(getCell(table, 1, 1).getAttribute("data-content-type")).toBe("text");
+  });
+
   it("does not copy settings when no source index is given", () => {
     const table = build(["100px", "fill"], ["20px", "30px"]);
     getCell(table, 0, 0).setAttribute("data-bg", "#ff0000");
@@ -886,5 +971,247 @@ describe("moveRowAt / moveColumnAt", () => {
     moveRowAt(table, 1, 1);
     expect(table.getAttribute("data-row-heights")).toBe("10px,20px");
     expect(getCell(table, 0, 0).textContent).toBe("0,0");
+  });
+
+  it("duplicateRowAt inserts a content copy below the source and copies its height", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+
+    duplicateRowAt(table, 0);
+
+    expect(getTableInfo(table).rowCount).toBe(3);
+    expect(table.getAttribute("data-row-heights")).toBe("10px,10px,20px");
+    // The copy sits directly below the source with the same contents; the
+    // original bottom row is pushed down.
+    expect(getCell(table, 1, 0).textContent).toBe("0,0");
+    expect(getCell(table, 1, 1).textContent).toBe("0,1");
+    expect(getCell(table, 2, 0).textContent).toBe("1,0");
+  });
+
+  it("duplicateRowAt of the last row appends at the end", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+
+    duplicateRowAt(table, 1);
+
+    expect(table.getAttribute("data-row-heights")).toBe("10px,20px,20px");
+    expect(getCell(table, 2, 1).textContent).toBe("1,1");
+  });
+
+  it("duplicateColumnAt inserts a content copy to the right and copies its width", () => {
+    const table = buildLabeled(["100px", "200px"], ["10px", "20px"]);
+
+    duplicateColumnAt(table, 0);
+
+    expect(getTableInfo(table).columnCount).toBe(3);
+    expect(table.getAttribute("data-column-widths")).toBe("100px,100px,200px");
+    expect(getCell(table, 0, 1).textContent).toBe("0,0");
+    expect(getCell(table, 1, 1).textContent).toBe("1,0");
+    expect(getCell(table, 0, 2).textContent).toBe("0,1");
+  });
+
+  it("duplicateColumnAt of the last column appends at the right edge", () => {
+    const table = buildLabeled(["100px", "200px"], ["10px", "20px"]);
+
+    duplicateColumnAt(table, 1);
+
+    expect(table.getAttribute("data-column-widths")).toBe("100px,200px,200px");
+    expect(getCell(table, 0, 2).textContent).toBe("0,1");
+    expect(getCell(table, 1, 2).textContent).toBe("1,1");
+  });
+
+  it("duplicated cells do not carry over the selection highlight", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    getCell(table, 0, 0).classList.add("cell--selected");
+
+    duplicateRowAt(table, 0);
+
+    expect(getCell(table, 1, 0).classList.contains("cell--selected")).toBe(false);
+    // The source keeps its selection.
+    expect(getCell(table, 0, 0).classList.contains("cell--selected")).toBe(true);
+  });
+
+  it("duplicated cells do not duplicate anchor names", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    const source = getCell(table, 0, 0);
+    source.style.setProperty("anchor-name", "--btable-cell-1");
+    source.setAttribute("data-btable-anchor-name", "--btable-cell-1");
+
+    duplicateRowAt(table, 0);
+
+    const copy = getCell(table, 1, 0);
+    expect(copy.style.getPropertyValue("anchor-name")).toBe("");
+    expect(copy.getAttribute("data-btable-anchor-name")).toBe(null);
+    // The source keeps its anchor.
+    expect(source.getAttribute("data-btable-anchor-name")).toBe("--btable-cell-1");
+  });
+
+  it("duplicateRowAt splices the edge arrays (copying the source row's vertical edges)", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [{ id: "r0" }, {}, {}],
+        [{ id: "r1" }, {}, {}],
+      ]),
+    );
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([[{ id: "top" }, {}], [{ id: "mid" }, {}], [{ id: "bottom" }, {}]]),
+    );
+
+    duplicateRowAt(table, 0);
+
+    const v = JSON.parse(table.getAttribute("data-edges-v")!);
+    expect(v.map((row: { id?: string }[]) => row[0].id)).toEqual(["r0", "r0", "r1"]);
+    const h = JSON.parse(table.getAttribute("data-edges-h")!);
+    expect(h.map((row: { id?: string }[]) => row[0].id)).toEqual(["top", "mid", "mid", "bottom"]);
+  });
+
+  it("duplicateColumnAt splices the edge arrays (copying the source column's horizontal edges)", () => {
+    const table = buildLabeled(["100px", "200px"], ["10px", "20px"]);
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([
+        [{ id: "c0" }, { id: "c1" }],
+        [{ id: "c0" }, { id: "c1" }],
+        [{ id: "c0" }, { id: "c1" }],
+      ]),
+    );
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [{ id: "left" }, { id: "mid" }, { id: "right" }],
+        [{ id: "left" }, { id: "mid" }, { id: "right" }],
+      ]),
+    );
+
+    duplicateColumnAt(table, 0);
+
+    const h = JSON.parse(table.getAttribute("data-edges-h")!);
+    for (const boundaryRow of h) {
+      expect(boundaryRow.map((e: { id?: string }) => e.id)).toEqual(["c0", "c0", "c1"]);
+    }
+    const v = JSON.parse(table.getAttribute("data-edges-v")!);
+    for (const row of v) {
+      expect(row.map((e: { id?: string }) => e.id)).toEqual(["left", "mid", "mid", "right"]);
+    }
+  });
+
+  it("duplicateRowAt grows a vertical span that continues below the source row", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px", "30px"]);
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 1, 2); // covers rows 0-1; cell(1,0) becomes bloom-skip
+
+    duplicateRowAt(table, 0);
+
+    // The merge grew to cover the inserted copy: anchor spans 3 rows, the
+    // copy's cell in that column is covered, and the original covered cell
+    // (now at row 2) stays covered.
+    expect(anchor.getAttribute("data-span-y")).toBe("3");
+    expectCellToBeSkipped(table, 1, 0);
+    expectCellToBeSkipped(table, 2, 0);
+    expectCellToNotBeSkipped(table, 3, 0);
+    // The clone itself never carries a span.
+    expect(getCell(table, 1, 0).getAttribute("data-span-y")).toBe(null);
+    // The other column duplicated normally.
+    expect(getCell(table, 1, 1).textContent).toBe("0,1");
+  });
+
+  it("duplicateRowAt of the LAST covered row leaves an ordinary cell in the copy", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px", "30px"]);
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 1, 2); // covers rows 0-1
+
+    duplicateRowAt(table, 1); // duplicate the last covered row
+
+    // The copy sits below the merge: the span is unchanged and the copy's
+    // cell in that column is a normal, visible cell.
+    expect(anchor.getAttribute("data-span-y")).toBe("2");
+    expectCellToBeSkipped(table, 1, 0);
+    expectCellToNotBeSkipped(table, 2, 0);
+    expect(getCell(table, 2, 0).getAttribute("data-span-y")).toBe(null);
+  });
+
+  it("duplicated cells strip selection/anchor state from descendants too", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    const source = getCell(table, 0, 0);
+    const child = document.createElement("div");
+    child.classList.add("cell--selected");
+    child.style.setProperty("anchor-name", "--btable-cell-9");
+    child.setAttribute("data-btable-anchor-name", "--btable-cell-9");
+    source.appendChild(child);
+
+    duplicateRowAt(table, 0);
+
+    const copyChild = getCell(table, 1, 0).firstElementChild as HTMLElement;
+    expect(copyChild.classList.contains("cell--selected")).toBe(false);
+    expect(copyChild.style.getPropertyValue("anchor-name")).toBe("");
+    expect(copyChild.getAttribute("data-btable-anchor-name")).toBe(null);
+  });
+
+  it("duplicateRowAt handles a merge spanning both directions (2x2)", () => {
+    const table = buildLabeled(["100px", "200px", "fill"], ["10px", "20px", "30px"]);
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 2, 2); // covers (0,1), (1,0), (1,1)
+
+    duplicateRowAt(table, 0);
+
+    // The merge grew exactly once, keeping its width.
+    expect(anchor.getAttribute("data-span-x")).toBe("2");
+    expect(anchor.getAttribute("data-span-y")).toBe("3");
+    // Both covered columns of the new row are skip cells.
+    expectCellToBeSkipped(table, 1, 0);
+    expectCellToBeSkipped(table, 1, 1);
+    expectCellToNotBeSkipped(table, 1, 2);
+    expect(getCell(table, 1, 2).textContent).toBe("0,2");
+    // The originally covered row shifted down intact.
+    expectCellToBeSkipped(table, 2, 0);
+    expectCellToBeSkipped(table, 2, 1);
+  });
+
+  it("cells covered by or freed from a merge get fresh contents, not the merge's", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px", "30px"]);
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 1, 2); // anchor shows "0,0"; (1,0) is skip, still holding "1,0"
+
+    duplicateRowAt(table, 1); // last covered row → the copy's cell is freed
+
+    const freed = getCell(table, 2, 0);
+    expectCellToNotBeSkipped(table, 2, 0);
+    expect(freed.textContent).toBe(""); // not the hidden "1,0"
+
+    duplicateRowAt(table, 0); // interior → the copy's cell is covered
+    const covered = getCell(table, 1, 0);
+    expect(covered.classList.contains("bloom-skip")).toBe(true);
+    expect(covered.textContent).toBe(""); // not a hidden copy of "0,0"
+  });
+
+  it("duplicateColumnAt copies a vertical span through unchanged", () => {
+    const table = buildLabeled(["100px", "fill"], ["10px", "20px"]);
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 1, 2); // vertical merge contained in column 0
+
+    duplicateColumnAt(table, 0);
+
+    // The copy is its own vertical merge: its top cell spans 2 rows and its
+    // bottom cell is covered. The original merge is untouched.
+    expect(getCell(table, 0, 1).getAttribute("data-span-y")).toBe("2");
+    expectCellToBeSkipped(table, 1, 1);
+    expect(anchor.getAttribute("data-span-y")).toBe("2");
+    expectCellToBeSkipped(table, 1, 0);
+  });
+
+  it("duplicateColumnAt grows a horizontal span that continues right of the source column", () => {
+    const table = buildLabeled(["100px", "200px", "300px"], ["10px"]);
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 2, 1); // covers columns 0-1; cell(0,1) becomes bloom-skip
+
+    duplicateColumnAt(table, 0);
+
+    expect(anchor.getAttribute("data-span-x")).toBe("3");
+    expectCellToBeSkipped(table, 0, 1); // the clone, covered by the grown span
+    expectCellToBeSkipped(table, 0, 2); // the originally covered cell
+    expectCellToNotBeSkipped(table, 0, 3);
+    expect(getCell(table, 0, 1).getAttribute("data-span-x")).toBe(null);
+    expect(table.getAttribute("data-column-widths")).toBe("100px,100px,200px,300px");
   });
 });

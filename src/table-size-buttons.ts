@@ -6,32 +6,38 @@ import { getTableInfo, getRowAndColumn } from "./structure";
 import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
 import { render } from "./table-renderer";
-import {
-  setupContentsOfCell,
-  contentTypeOptions,
-  getCurrentContentTypeId,
-} from "./cell-contents";
+import { contentTypeOptions, getCurrentContentTypeId } from "./cell-contents";
 import {
   getCellAlign,
-  setCellAlign,
   getSpan,
   getGapX,
   setGapX,
   getGapY,
   setGapY,
   getCellBackground,
-  setCellBackground,
   getCellPadding,
-  setCellPadding,
   getCellCorners,
-  setCellCorners,
   getTableBackground,
-  setTableBackground,
   type CellAlign,
 } from "./table-model";
 import { representativeBorderColorHex } from "./color-utils";
-import { getTableOuterBorderValueMap } from "./border-state";
-import { applyOuterBorders, applyUniformInner, setDefaultBorder } from "./edge-utils";
+import { getCellPerimeterValueMap } from "./border-state";
+import type { BorderStyle, BorderWeight } from "./components/BorderControl/logic/types";
+import {
+  type FormattingScope,
+  getCellsInScope,
+  applyContentType,
+  applyAlignment,
+  applyPadding,
+  applyCorners,
+  applyFill,
+  applyBorderColor,
+  applyBorderStyle,
+  applyBorderWeight,
+  copyProperties,
+  pasteProperties,
+  hasCopiedProperties,
+} from "./formatting-commands";
 // Toolbar icons reused on the menu (imported as URLs).
 import columnDeleteIcon from "./components/icons/column-delete.svg";
 import cellMergeIcon from "./components/icons/cell-merge.svg";
@@ -65,18 +71,27 @@ const kMoveDownIconSvg = `<svg ${kIconAttr}><path d="M12 20l7-7h-4V6H9v7H5z"/></
 const kMoveLeftIconSvg = `<svg ${kIconAttr}><path d="M4 12l7-7v4h7v6h-7v4z"/></svg>`;
 const kMoveRightIconSvg = `<svg ${kIconAttr}><path d="M20 12l-7-7v4H6v6h7v4z"/></svg>`;
 const kCopyIconSvg = `<svg ${kIconAttr}><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>`;
+// MUI "ContentPaste" glyph, for Paste properties.
+const kPasteIconSvg = `<svg ${kIconAttr}><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>`;
 const kCutIconSvg = `<svg ${kIconAttr}><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z"/></svg>`;
 const kTrashIconSvg = `<svg ${kIconAttr}><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
 const kInfoIconSvg = `<svg ${kIconAttr}><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
 
 let installed = false;
-// Unique ID source for anchor names
+// Unique ID source for anchor names, plus the set of names minted this
+// session (names found in loaded HTML but absent here are stale and must not
+// be reused — see getElementAnchorName).
 let anchorCounter = 0;
+const mintedAnchorNames = new Set<string>();
 
 // Reset function for testing
 export function resetTableSizeButtons(): void {
   installed = false;
   overlayTable = null;
+  // Fresh "session" for anchor names, so tests exercise the same collision
+  // rules a real page reload does.
+  anchorCounter = 0;
+  mintedAnchorNames.clear();
 
   // Reset cluster elements
   colAddBtn = null;
@@ -712,6 +727,66 @@ function makeTextToggle(text: string, title: string, active: boolean, onClick: (
   return b;
 }
 
+// Shared shell for the border style/weight sample-line toggles.
+function makeSampleToggle(title: string, sample: HTMLElement, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  Object.assign(b.style, {
+    width: "32px",
+    height: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid transparent",
+    borderRadius: "5px",
+    background: "transparent",
+    cursor: "pointer",
+    padding: "0",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  b.appendChild(sample);
+  setToggleActive(b, false);
+  b.addEventListener("mousedown", (e) => e.preventDefault());
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// A border-style toggle showing a sample line in that style ("none" shows an
+// empty slot), mirroring the sidebar's Style choices.
+function makeBorderStyleToggle(style: string, onClick: () => void): HTMLButtonElement {
+  const sample = document.createElement("span");
+  Object.assign(sample.style, {
+    width: "22px",
+    height: "0",
+    borderTop: style === "none" ? "none" : `2px ${style} ${kItemIconColor}`,
+    display: "block",
+  } as CSSStyleDeclaration);
+  const title = style === "none" ? "None" : style[0].toUpperCase() + style.slice(1);
+  const b = makeSampleToggle(title, sample, onClick);
+  b.dataset.style = style;
+  return b;
+}
+
+// A border-weight toggle showing a line of that thickness ("0" is empty),
+// mirroring the sidebar's Weight choices.
+function makeBorderWeightToggle(weight: number, onClick: () => void): HTMLButtonElement {
+  const sample = document.createElement("span");
+  Object.assign(sample.style, {
+    width: "22px",
+    height: `${weight}px`,
+    background: weight ? kItemIconColor : "transparent",
+    display: "block",
+  } as CSSStyleDeclaration);
+  const b = makeSampleToggle(weight ? `${weight}` : "0 (None)", sample, onClick);
+  b.dataset.weight = String(weight);
+  return b;
+}
+
 // A corner-radius toggle: a small box with left+top borders and a rounded
 // top-left corner, mirroring the sidebar's corner sample buttons.
 function makeCornerToggle(radius: number, active: boolean, onClick: () => void): HTMLButtonElement {
@@ -797,14 +872,25 @@ function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
     refresh();
   });
 
+  // Fixed sizes can carry long float tails (e.g. a drag-resize writing
+  // 89.99999618530273px); trim them for display only — the stored value keeps
+  // full precision. px rounds to whole pixels; mm keeps one decimal (1mm is
+  // ~3.8px, so whole-mm rounding would misreport meaningfully).
+  const roundedLabel = (s: string): string => {
+    const m = s.match(/^(-?\d+(?:\.\d+)?)(px|mm)$/i);
+    if (!m) return s;
+    const n = parseFloat(m[1]);
+    const isPx = m[2].toLowerCase() === "px";
+    return `${isPx ? Math.round(n) : Math.round(n * 10) / 10}${m[2]}`;
+  };
+
   // Re-derive the active option (and the fixed-size label) from the table after
   // every change, since the menu stays open and isn't rebuilt on edit.
   const refresh = () => {
     const current = read();
     const mode: "grow" | "hug" | "fixed" =
       current === "fill" ? "grow" : /(px|mm)$/i.test(current) ? "fixed" : "hug";
-    const mmMatch = current.match(/^(\d+(?:\.\d+)?)mm$/i);
-    fixed.textContent = mode === "fixed" ? (mmMatch ? `${mmMatch[1]}mm` : current) : "mm";
+    fixed.textContent = mode === "fixed" ? roundedLabel(current) : "mm";
     setToggleActive(grow, mode === "grow");
     setToggleActive(hug, mode === "hug");
     setToggleActive(fixed, mode === "fixed");
@@ -820,12 +906,6 @@ function firstPx(s: string | null | undefined): number {
   return isNaN(n) ? 0 : n;
 }
 
-// Direct-child cells of a table (DOM order).
-function tableCells(table: HTMLElement): HTMLElement[] {
-  return Array.from(table.children).filter(
-    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
-  );
-}
 
 // A labeled range slider on its own row. Interacting with it does not close the
 // menu (the slider lives inside the popup, which the outside-click guard skips).
@@ -864,12 +944,8 @@ function makeSliderRow(
   return makeControlRow(label, [input, readout]);
 }
 
-// A labeled native color picker on its own row. Does not close the menu.
-function makeColorRow(
-  label: string,
-  value: string,
-  onInput: (v: string) => void,
-): HTMLDivElement {
+// A native color picker input. Does not close the menu.
+function makeColorInput(label: string, value: string, onInput: (v: string) => void): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "color";
   // The native picker only accepts #rrggbb; ignore non-hex values (shows black).
@@ -885,49 +961,38 @@ function makeColorRow(
     background: "transparent",
   } as CSSStyleDeclaration);
   input.addEventListener("input", () => onInput(input.value));
-  return makeControlRow(label, [input]);
+  return input;
 }
 
-// Re-color every border of the table while preserving the current weights and
-// styles (mirrors the React panel's table border-color behavior).
-function applyTableBorderColor(table: HTMLElement, color: string): void {
-  const base = getTableOuterBorderValueMap(table);
-  applyOuterBorders(
-    table,
-    {
-      top: { weight: base.top.weight, style: base.top.style, color },
-      right: { weight: base.right.weight, style: base.right.style, color },
-      bottom: { weight: base.bottom.weight, style: base.bottom.style, color },
-      left: { weight: base.left.weight, style: base.left.style, color },
-    },
-    color,
-  );
-  applyUniformInner(
-    table,
-    "innerH",
-    { weight: base.innerH.weight, style: base.innerH.style, color } as any,
-    color,
-  );
-  applyUniformInner(
-    table,
-    "innerV",
-    { weight: base.innerV.weight, style: base.innerV.style, color } as any,
-    color,
-  );
-  setDefaultBorder(
-    table,
-    { weight: base.innerH.weight, style: base.innerH.style, color } as any,
-    color,
-  );
-  render(table);
-}
+type ColorEntry = { label: string; value: string; onInput: (v: string) => void };
 
-// Color the table's surface by filling every cell. We never color the container
-// div (it's sized larger than the cells, so its color would bleed outside).
-function applyTableFill(table: HTMLElement, color: string | null): void {
-  setTableBackground(table, null);
-  tableCells(table).forEach((cell) => setCellBackground(cell, color || null));
-  render(table);
+// Two labeled color pickers side by side on one row (Fill | Border color).
+function makeColorPairRow(entries: [ColorEntry, ColorEntry]): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.style.padding = "4px 14px";
+  wrap.style.boxSizing = "border-box";
+  const line = document.createElement("div");
+  Object.assign(line.style, {
+    display: "flex",
+    gap: "16px",
+    paddingLeft: `${kIconSlotPx}px`,
+  } as CSSStyleDeclaration);
+  for (const e of entries) {
+    const col = document.createElement("div");
+    Object.assign(col.style, {
+      display: "flex",
+      flexDirection: "column",
+      gap: "2px",
+    } as CSSStyleDeclaration);
+    const caption = document.createElement("span");
+    caption.textContent = e.label;
+    Object.assign(caption.style, { fontSize: "13px", color: "#222" } as CSSStyleDeclaration);
+    col.appendChild(caption);
+    col.appendChild(makeColorInput(e.label, e.value, e.onInput));
+    line.appendChild(col);
+  }
+  wrap.appendChild(line);
+  return wrap;
 }
 
 // ----- Section builders -----
@@ -954,28 +1019,57 @@ function buildMenuCtx(cell: HTMLElement | null): MenuCtx {
   return { table, cell, row, col, rowCount, colCount };
 }
 
-function buildCellSection(ctx: MenuCtx): HTMLElement[] {
-  const els: HTMLElement[] = [makeMenuHeader("Cell")];
-  const cell = ctx.cell;
+// Scope plumbing shared by the formatting/content-type builders: the cells a
+// command targets, and the value they all agree on (undefined when mixed).
+function scopeCells(ctx: MenuCtx, scope: FormattingScope) {
+  const table = ctx.table;
+  const cells = () => (table ? getCellsInScope(table, scope, ctx.cell) : []);
+  const common = <T>(get: (c: HTMLElement) => T): T | undefined => {
+    const list = cells();
+    if (!list.length) return undefined;
+    const first = get(list[0]);
+    return list.every((c) => get(c) === first) ? first : undefined;
+  };
+  return { table, cells, seed: cells()[0], common };
+}
 
-  // Content type: label followed by an icon toggle per registered type.
+// The Content Type chooser: an icon toggle per registered type, applied to
+// every cell in the scope. Its own section in all four menus.
+function buildContentTypeControls(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const { table, cells, seed, common } = scopeCells(ctx, scope);
+  if (!table || !seed) return [];
   const ctButtons: HTMLButtonElement[] = [];
   const refreshContent = () => {
-    const cur = cell ? getCurrentContentTypeId(cell) : undefined;
-    ctButtons.forEach((b) => setToggleActive(b, b.dataset.ctId === cur));
+    const cur = common((c) => getCurrentContentTypeId(c));
+    ctButtons.forEach((b) => setToggleActive(b, !!cur && b.dataset.ctId === cur));
   };
   for (const opt of contentTypeOptions()) {
-    const cur = cell ? getCurrentContentTypeId(cell) : undefined;
-    const b = makeIconToggle(opt.icon, opt.englishName, cur === opt.id, () => {
-      if (!cell) return;
-      setupContentsOfCell(cell, opt.id, true);
-      if (ctx.table) render(ctx.table);
+    const b = makeIconToggle(opt.icon, opt.englishName, false, () => {
+      applyContentType(table, cells(), opt.id);
       refreshContent();
     });
     b.dataset.ctId = opt.id;
     ctButtons.push(b);
   }
-  els.push(makeControlRow("Content Type", ctButtons));
+  refreshContent();
+  return [makeControlRow("Content Type", ctButtons)];
+}
+
+// The Content Type chooser as its own divider-separated section.
+function buildContentTypeSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const controls = buildContentTypeControls(ctx, scope);
+  return controls.length ? [makeDivider(), ...controls] : [];
+}
+
+// The formatting controls shared by all four menus: Alignment, Padding,
+// Fill + Border color, Corners. Each control applies to every cell in the
+// given scope (the cell / its row / its column / the whole table), so the
+// last command wins regardless of which menu it came from. Toggles light up
+// only when every cell in the scope agrees (mixed state shows none active).
+function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const els: HTMLElement[] = [];
+  const { table, cells, seed, common } = scopeCells(ctx, scope);
+  if (!table || !seed) return els;
 
   // Text alignment: label followed by left/center/right toggles.
   const aligns: { id: CellAlign; icon: string; title: string }[] = [
@@ -985,68 +1079,156 @@ function buildCellSection(ctx: MenuCtx): HTMLElement[] {
   ];
   const alignButtons: HTMLButtonElement[] = [];
   const refreshAlign = () => {
-    const cur = cell ? getCellAlign(cell) || "center" : "center";
-    alignButtons.forEach((b) => setToggleActive(b, b.dataset.align === cur));
+    const cur = common((c) => getCellAlign(c) || "center");
+    alignButtons.forEach((b) => setToggleActive(b, !!cur && b.dataset.align === cur));
   };
   for (const a of aligns) {
-    const cur = cell ? getCellAlign(cell) || "center" : "center";
-    const b = makeIconToggle(a.icon, a.title, cur === a.id, () => {
-      if (!cell) return;
-      setCellAlign(cell, a.id);
-      if (ctx.table) render(ctx.table);
+    const b = makeIconToggle(a.icon, a.title, false, () => {
+      applyAlignment(table, cells(), a.id);
       refreshAlign();
     });
     b.dataset.align = a.id;
     alignButtons.push(b);
   }
   els.push(makeControlRow("Alignment", alignButtons));
+  refreshAlign();
 
-  // Padding: same slider used for the table's cell-gap controls.
-  if (cell) {
-    els.push(
-      makeSliderRow(
-        "Padding between border and text",
-        0,
-        40,
-        firstPx(getCellPadding(cell)),
-        "px",
-        (v) => {
-          setCellPadding(cell, `${v}px`);
-          if (ctx.table) render(ctx.table);
-        },
+  // Padding. Seeds from the scope's common value, or the first cell when mixed.
+  els.push(
+    makeSliderRow(
+      "Padding between border and text",
+      0,
+      40,
+      common((c) => firstPx(getCellPadding(c))) ?? firstPx(getCellPadding(seed)),
+      "px",
+      (v) => applyPadding(table, cells(), v),
+    ),
+  );
+
+  // Fill and Border color side by side. Fill's table scope falls back to the
+  // container color so a legacy table-level background still shows as current.
+  // (common() maps "no cell has a fill" to null, which must reach the table
+  // fallback — don't coalesce it to "" before the ?? chain.)
+  const fillValue =
+    common((c) => getCellBackground(c)) ??
+    (scope === "table" ? getTableBackground(table) : null) ??
+    "";
+  els.push(
+    makeColorPairRow([
+      {
+        label: "Fill",
+        value: fillValue,
+        onInput: (color) => applyFill(table, scope, cells(), color || null),
+      },
+      {
+        label: "Border color",
+        value: representativeBorderColorHex(seed),
+        onInput: (color) => applyBorderColor(table, scope, cells(), color),
+      },
+    ]),
+  );
+
+  // Border style and weight, mirroring the sidebar's choices. The shown value
+  // is the one every perimeter edge of every cell in the scope agrees on.
+  const cellEdgeCommon = <T>(pick: (e: { weight: number; style: BorderStyle }) => T) =>
+    common((c) => {
+      const m = getCellPerimeterValueMap(c);
+      const vals = [m.top, m.right, m.bottom, m.left].map(pick);
+      return vals.every((v) => v === vals[0]) ? vals[0] : ("mixed" as const);
+    });
+
+  // Style and weight are coupled in the model (style "none" zeroes the
+  // weight, weight 0 turns the style off, and either one can re-arm the
+  // other), so every change refreshes BOTH toggle rows.
+  const styleButtons: HTMLButtonElement[] = [];
+  const weightButtons: HTMLButtonElement[] = [];
+  const refreshBorderToggles = () => {
+    const curStyle = cellEdgeCommon((e) => e.style);
+    styleButtons.forEach((b) =>
+      setToggleActive(b, curStyle !== undefined && curStyle !== "mixed" && b.dataset.style === curStyle),
+    );
+    const curWeight = cellEdgeCommon((e) => e.weight);
+    weightButtons.forEach((b) =>
+      setToggleActive(
+        b,
+        curWeight !== undefined && curWeight !== "mixed" && Number(b.dataset.weight) === curWeight,
       ),
     );
+  };
+  for (const style of ["none", "solid", "dashed", "dotted", "double"] as BorderStyle[]) {
+    const b = makeBorderStyleToggle(style, () => {
+      applyBorderStyle(table, scope, cells(), style);
+      refreshBorderToggles();
+    });
+    styleButtons.push(b);
   }
+  els.push(makeControlRow("Border Style", styleButtons));
+  for (const weight of [0, 1, 2, 4] as BorderWeight[]) {
+    const b = makeBorderWeightToggle(weight, () => {
+      applyBorderWeight(table, scope, cells(), weight);
+      refreshBorderToggles();
+    });
+    weightButtons.push(b);
+  }
+  els.push(makeControlRow("Border Weight", weightButtons));
+  refreshBorderToggles();
 
-  // Fill: cell background color (same color picker the table section uses).
-  if (cell) {
-    els.push(
-      makeColorRow("Fill", getCellBackground(cell) ?? "", (color) => {
-        setCellBackground(cell, color || null);
-        if (ctx.table) render(ctx.table);
-      }),
-    );
+  // Corners: corner radius (0/4/8/16) applied per cell.
+  const cornerButtons: HTMLButtonElement[] = [];
+  const refreshCorners = () => {
+    const cur = common((c) => getCellCorners(c)?.radius ?? 0);
+    cornerButtons.forEach((b) => setToggleActive(b, cur !== undefined && Number(b.dataset.radius) === cur));
+  };
+  for (const radius of [0, 4, 8, 16]) {
+    const b = makeCornerToggle(radius, false, () => {
+      applyCorners(table, cells(), radius);
+      refreshCorners();
+    });
+    b.dataset.radius = String(radius);
+    cornerButtons.push(b);
   }
+  els.push(makeControlRow("Corners", cornerButtons));
+  refreshCorners();
 
-  // Corners: per-cell corner radius (0/4/8/16), mirroring the sidebar's control.
-  if (cell) {
-    const cornerButtons: HTMLButtonElement[] = [];
-    const refreshCorners = () => {
-      const cur = getCellCorners(cell)?.radius ?? 0;
-      cornerButtons.forEach((b) => setToggleActive(b, Number(b.dataset.radius) === cur));
-    };
-    for (const radius of [0, 4, 8, 16]) {
-      const cur = getCellCorners(cell)?.radius ?? 0;
-      const b = makeCornerToggle(radius, cur === radius, () => {
-        setCellCorners(cell, radius ? { radius } : null);
-        if (ctx.table) render(ctx.table);
-        refreshCorners();
-      });
-      b.dataset.radius = String(radius);
-      cornerButtons.push(b);
-    }
-    els.push(makeControlRow("Corners", cornerButtons));
-  }
+  return els;
+}
+
+// The formatting controls as a labeled sub-section (divider + "Format" header),
+// used by all four menus.
+function buildFormattingSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const controls = buildFormattingControls(ctx, scope);
+  if (!controls.length) return [];
+  return [makeDivider(), makeMenuHeader("Format"), ...controls];
+}
+
+// Copy/Paste properties: copy snapshots the scope's formatting (alignment,
+// padding, fill, corners, borders) into a session-wide clipboard; paste stamps
+// it onto every cell in the target scope. Available from all four menus.
+function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const { table, cells, seed } = scopeCells(ctx, scope);
+  if (!table || !seed) return [];
+  return [
+    makeDivider(),
+    makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
+    makeMenuItem(
+      "Paste properties",
+      () => pasteProperties(table, cells()),
+      undefined,
+      !hasCopiedProperties(),
+      kPasteIconSvg,
+    ),
+  ];
+}
+
+function buildCellSection(ctx: MenuCtx): HTMLElement[] {
+  const els: HTMLElement[] = [makeMenuHeader("Cell")];
+  const cell = ctx.cell;
+
+  // Content Type is its own section, then the shared Format section.
+  els.push(...buildContentTypeControls(ctx, "cell"));
+  els.push(...buildFormattingSection(ctx, "cell"));
+
+  els.push(...buildCopyPasteSection(ctx, "cell"));
 
   // Divider, then the span commands.
   els.push(makeDivider());
@@ -1078,12 +1260,17 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
       ctx.row >= ctx.rowCount - 1,
       kMoveDownIconSvg,
     ),
-    // 3) divider, 4) delete
-    makeDivider(),
-    makeMenuItem("Delete Row", tryRemoveRow, "row", false, kTrashIconSvg),
-    // 5) size, separated from the commands above
+    // 3) size
     makeDivider(),
     buildSizeControl(ctx, "row"),
+    // 4) content type + formatting, applied to every cell in the row
+    ...buildContentTypeSection(ctx, "row"),
+    ...buildFormattingSection(ctx, "row"),
+    ...buildCopyPasteSection(ctx, "row"),
+    // 5) duplicate/delete, the last commands in the menu
+    makeDivider(),
+    makeMenuItem("Duplicate Row", menuDuplicateRow, undefined, false, kCopyIconSvg),
+    makeMenuItem("Delete Row", tryRemoveRow, "row", false, kTrashIconSvg),
     // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
@@ -1104,12 +1291,17 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
       ctx.col >= ctx.colCount - 1,
       kMoveRightIconSvg,
     ),
-    // 3) divider, 4) delete
-    makeDivider(),
-    makeMenuItem("Delete Column", tryRemoveColumn, "column", false, columnDeleteIcon),
-    // 5) size, separated from the commands above
+    // 3) size
     makeDivider(),
     buildSizeControl(ctx, "column"),
+    // 4) content type + formatting, applied to every cell in the column
+    ...buildContentTypeSection(ctx, "column"),
+    ...buildFormattingSection(ctx, "column"),
+    ...buildCopyPasteSection(ctx, "column"),
+    // 5) duplicate/delete, the last commands in the menu
+    makeDivider(),
+    makeMenuItem("Duplicate Column", menuDuplicateColumn, undefined, false, kCopyIconSvg),
+    makeMenuItem("Delete Column", tryRemoveColumn, "column", false, columnDeleteIcon),
     // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
@@ -1119,6 +1311,13 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
   const els: HTMLElement[] = [makeMenuHeader("Table")];
   const table = ctx.table;
   if (table) {
+    // Content type + formatting, applied to every cell in the table (the
+    // Format section includes the Fill and Border color controls that used to
+    // live directly in this section).
+    els.push(...buildContentTypeSection(ctx, "table"));
+    els.push(...buildFormattingSection(ctx, "table"));
+
+    // Spacing sliders follow the Format section (right after Corners).
     els.push(
       makeSliderRow(
         "Horizontal space between cells",
@@ -1146,14 +1345,7 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
       ),
     );
 
-    const firstCell = tableCells(table)[0];
-    const borderColor = firstCell ? representativeBorderColorHex(firstCell) : "#000000";
-    els.push(
-      makeColorRow("Border color", borderColor, (color) => applyTableBorderColor(table, color)),
-    );
-
-    const fillValue = (firstCell && getCellBackground(firstCell)) ?? getTableBackground(table) ?? "";
-    els.push(makeColorRow("Fill", fillValue, (color) => applyTableFill(table, color)));
+    els.push(...buildCopyPasteSection(ctx, "table"));
   }
   els.push(makeDivider());
   els.push(makeMenuItem("Copy Table", menuCopyTable, undefined, false, kCopyIconSvg));
@@ -1336,6 +1528,28 @@ function menuMoveColumn(delta: number): void {
   } catch {}
 }
 
+function menuDuplicateRow(): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const { row } = getRowAndColumn(table, cell);
+    new BloomTable(table).duplicateRowAt(row);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
+function menuDuplicateColumn(): void {
+  const cell = getMenuCell();
+  const table = getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const { column } = getRowAndColumn(table, cell);
+    new BloomTable(table).duplicateColumnAt(column);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
 function menuMergeCell(): void {
   const cell = getMenuCell();
   const table = getMenuTable();
@@ -1388,12 +1602,21 @@ function removeTable(table: HTMLElement): void {
   table.remove();
 }
 
+// Marks the table the pointer is near (the same active zone that reveals the
+// pills). bloom-table-edit.css gates the edit-time chrome — selection outline,
+// selected-cell tint, boundary hints — on this class, so all of it disappears
+// together when the mouse leaves the table.
+const kPointerNearClass = "bloom-pointer-near";
+
 function showEdgeOverlays(table: HTMLElement) {
+  if (overlayTable && overlayTable !== table) overlayTable.classList.remove(kPointerNearClass);
+  table.classList.add(kPointerNearClass);
   overlayTable = table;
   ensureEdgeOverlays();
-  // The clusters target the current row/column, so they only make sense when a
-  // cell is selected.
-  const hasSelection = !!table.querySelector(".bloom-cell.cell--selected");
+  // The clusters target the current row/column, so they only make sense when
+  // one of THIS table's own cells is selected (a nested table's selection
+  // doesn't count — its own overlays handle it).
+  const hasSelection = !!ownSelectedCell(table);
   if (colCluster) colCluster.style.display = hasSelection ? "flex" : "none";
   if (rowCluster) rowCluster.style.display = hasSelection ? "flex" : "none";
   // Table pills and the "+" add buttons are table-level, so they show whenever
@@ -1406,6 +1629,7 @@ function showEdgeOverlays(table: HTMLElement) {
 }
 
 function hideEdgeOverlays() {
+  overlayTable?.classList.remove(kPointerNearClass);
   if (colCluster) colCluster.style.display = "none";
   if (rowCluster) rowCluster.style.display = "none";
   if (tablePillTL) tablePillTL.style.display = "none";
@@ -1517,23 +1741,29 @@ function updateProximityGate(): void {
   // every frame while hovering). Otherwise scan all tables so a first hover — before
   // any cell is focused — can reveal the table-level affordances too.
   let near: HTMLElement | null = null;
-  if (
-    overlayTable &&
-    document.body.contains(overlayTable) &&
-    pointerInActiveZone(overlayTable, gateMouseX, gateMouseY)
-  ) {
-    near = overlayTable;
-  } else {
-    for (const t of Array.from(document.querySelectorAll<HTMLElement>(".bloom-table"))) {
-      if (pointerInActiveZone(t, gateMouseX, gateMouseY)) {
-        near = t;
-        break;
-      }
-    }
+  const matches = Array.from(document.querySelectorAll<HTMLElement>(".bloom-table")).filter((t) =>
+    pointerInActiveZone(t, gateMouseX, gateMouseY),
+  );
+  if (matches.length) {
+    // Stay with the current table, except that a table nested inside it wins
+    // when the pointer is over it — the nested zone lies entirely inside the
+    // outer's, so the outer would otherwise capture the pointer forever.
+    const sticky =
+      overlayTable && document.body.contains(overlayTable) && matches.includes(overlayTable)
+        ? overlayTable
+        : null;
+    const candidates = sticky ? matches.filter((t) => t === sticky || sticky.contains(t)) : matches;
+    // Innermost candidate: the one that contains no other candidate.
+    near = candidates.find((t) => !candidates.some((o) => o !== t && t.contains(o))) ?? candidates[0];
   }
 
   if (near) {
-    if (near !== overlayTable) showEdgeOverlays(near);
+    // Re-show even for the current table if its pointer-near class is missing
+    // (repositionEdgeOverlays can adopt a table into overlayTable without
+    // going through showEdgeOverlays, e.g. on a scroll before any focus).
+    if (near !== overlayTable || !near.classList.contains(kPointerNearClass)) {
+      showEdgeOverlays(near);
+    }
   } else if (overlayTable) {
     hideEdgeOverlays();
   }
@@ -1562,15 +1792,52 @@ function installProximityGate(): void {
   );
 }
 
-// Create or retrieve a unique anchor-name for an element
+// Removes anchor names that were NOT minted this session from `root` and its
+// descendants. Called on attach: content loaded from a save (or pasted in)
+// can carry anchor names baked by a previous session, and those collide with
+// this session's counter (which restarts at 0), making pills anchor to the
+// wrong cell. Names minted this session are left alone (re-attach case).
+export function scrubStaleAnchorNames(root: HTMLElement): void {
+  const scrub = (el: HTMLElement) => {
+    const name = el.dataset.btableAnchorName;
+    if (!name || mintedAnchorNames.has(name)) return;
+    el.style.removeProperty("anchor-name");
+    delete el.dataset.btableAnchorName;
+  };
+  scrub(root);
+  root.querySelectorAll<HTMLElement>("[data-btable-anchor-name]").forEach(scrub);
+}
+
+// Create or retrieve a unique anchor-name for an element. Only names minted in
+// THIS session may be reused: content loaded from saved/undo HTML can carry
+// stale anchor names (removeTableEditingArtifacts strips them, but hosts may
+// have older saves, and history restores raw innerHTML), and a stale
+// --btable-cell-N would collide with a freshly minted one, anchoring the pills
+// to whichever other element holds the same name.
 function getElementAnchorName(el: HTMLElement, key: string, prefix: string): string {
   const existing = (el.dataset as any)[key] as string | undefined;
-  if (existing) return existing;
+  if (existing && mintedAnchorNames.has(existing)) return existing;
   const name = `--${prefix}-${++anchorCounter}`;
+  mintedAnchorNames.add(name);
   (el.style as any).anchorName = name;
   el.style.setProperty("anchor-name", name);
   (el.dataset as any)[key] = name;
   return name;
+}
+
+// The selected cell belonging to THIS table (direct child), or null. A
+// descendant query would also find a selected cell inside a nested table.
+function ownSelectedCell(table: HTMLElement): HTMLElement | null {
+  for (const el of Array.from(table.children)) {
+    if (
+      el instanceof HTMLElement &&
+      el.classList.contains("bloom-cell") &&
+      el.classList.contains("cell--selected")
+    ) {
+      return el;
+    }
+  }
+  return null;
 }
 
 function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
@@ -1599,8 +1866,11 @@ function applyAnchorPositioning(table: HTMLElement) {
   } catch {}
 
   // Resolve the selected cell's row/column; clusters anchor to the edge cell of
-  // that line (top cell for the column, first cell for the row).
-  const selected = table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  // that line (top cell for the column, first cell for the row). The selected
+  // cell must be one of THIS table's own cells — a querySelector would also
+  // match a cell of a nested table, whose position can't be resolved against
+  // this table, and the pills would silently anchor to cell (0,0).
+  const selected = ownSelectedCell(table);
   let selRow = 0,
     selCol = 0;
   if (selected) {
@@ -1720,7 +1990,8 @@ function applyAnchorPositioning(table: HTMLElement) {
 
 // The table-edge "+" buttons always append at the far edge of the table,
 // regardless of which cell is selected. (Use the row/column menus to insert
-// relative to the current cell.)
+// relative to the current cell.) The new row/column inherits ALL settings of
+// the adjacent one — the last row/column, not the selected one.
 function tryInsertColumnRight() {
   const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
   const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
@@ -1729,7 +2000,7 @@ function tryInsertColumnRight() {
     const widths = (table.getAttribute("data-column-widths") || "")
       .split(",")
       .filter((x) => x.length > 0);
-    new BloomTable(table).addColumnAt(widths.length);
+    new BloomTable(table).addColumnAt(widths.length, widths.length > 0 ? widths.length - 1 : undefined);
     scheduleOverlayReposition();
   } catch {}
 }
@@ -1742,7 +2013,7 @@ function tryInsertRowBelow() {
     const heights = (table.getAttribute("data-row-heights") || "")
       .split(",")
       .filter((x) => x.length > 0);
-    new BloomTable(table).addRowAt(heights.length);
+    new BloomTable(table).addRowAt(heights.length, heights.length > 0 ? heights.length - 1 : undefined);
     scheduleOverlayReposition();
   } catch {}
 }

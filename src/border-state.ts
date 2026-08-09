@@ -67,9 +67,41 @@ export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap 
   };
 }
 
-export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
+// Resolve a cell's four perimeter edge specs from the render model, borrowing
+// the neighbor-owned spec for shared inner edges this cell's side leaves
+// unset. Returns null when the cell isn't in a table.
+function resolveCellPerimeterSpecs(
+  cell: HTMLElement,
+): { top: any; right: any; bottom: any; left: any } | null {
   const table = cell.closest(".bloom-table") as HTMLElement | null;
-  if (!table) {
+  if (!table) return null;
+  const model = buildRenderModel(table);
+  const cells = Array.from(table.children).filter(
+    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+  );
+  const index = cells.indexOf(cell);
+  const rows = model.rowHeights.length;
+  const cols = model.columnWidths.length;
+  const r = Math.floor(index / Math.max(1, cols));
+  const c = index % Math.max(1, cols);
+  const inBounds = (rr: number, cc: number) => rr >= 0 && cc >= 0 && rr < rows && cc < cols;
+  const idx = (rr: number, cc: number) => rr * Math.max(1, cols) + cc;
+  const sides = model.cellBorders[index] || {};
+  return {
+    top:
+      sides.top ?? (inBounds(r - 1, c) ? (model.cellBorders[idx(r - 1, c)]?.bottom ?? null) : null),
+    right:
+      sides.right ?? (inBounds(r, c + 1) ? (model.cellBorders[idx(r, c + 1)]?.left ?? null) : null),
+    bottom:
+      sides.bottom ?? (inBounds(r + 1, c) ? (model.cellBorders[idx(r + 1, c)]?.top ?? null) : null),
+    left:
+      sides.left ?? (inBounds(r, c - 1) ? (model.cellBorders[idx(r, c - 1)]?.right ?? null) : null),
+  };
+}
+
+export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
+  const specs = resolveCellPerimeterSpecs(cell);
+  if (!specs) {
     return {
       top: { weight: 0, style: "none", radius: 0 },
       right: { weight: 0, style: "none", radius: 0 },
@@ -79,20 +111,6 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
       innerV: { weight: 0, style: "none", radius: 0 },
     } as BorderValueMap;
   }
-  const model = buildRenderModel(table);
-  const cells = Array.from(table.children).filter(
-    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
-  );
-  const index = cells.indexOf(cell);
-  const rows = model.rowHeights.length;
-  const cols = model.columnWidths.length;
-  const toRC = (i: number) => ({
-    r: Math.floor(i / Math.max(1, cols)),
-    c: i % Math.max(1, cols),
-  });
-  const { r, c } = toRC(index);
-  const inBounds = (rr: number, cc: number) => rr >= 0 && cc >= 0 && rr < rows && cc < cols;
-  const idx = (rr: number, cc: number) => rr * Math.max(1, cols) + cc;
   const toOuter = (spec: any): { weight: BorderWeight; style: BorderStyle } => {
     const w = snapWeight(Number.isFinite(spec?.weight) ? spec.weight : 0);
     let style: BorderStyle;
@@ -101,22 +119,33 @@ export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
     else style = EDGE_DEFAULT.style as BorderStyle;
     return { weight: w, style };
   };
-  const sides = model.cellBorders[index] || {};
-  // Union with neighbor-owned inner edges when this cell's side is unset
-  const topSpec =
-    sides.top ?? (inBounds(r - 1, c) ? (model.cellBorders[idx(r - 1, c)]?.bottom ?? null) : null);
-  const rightSpec =
-    sides.right ?? (inBounds(r, c + 1) ? (model.cellBorders[idx(r, c + 1)]?.left ?? null) : null);
-  const bottomSpec =
-    sides.bottom ?? (inBounds(r + 1, c) ? (model.cellBorders[idx(r + 1, c)]?.top ?? null) : null);
-  const leftSpec =
-    sides.left ?? (inBounds(r, c - 1) ? (model.cellBorders[idx(r, c - 1)]?.right ?? null) : null);
   return {
-    top: { ...toOuter(topSpec), radius: 0 },
-    right: { ...toOuter(rightSpec), radius: 0 },
-    bottom: { ...toOuter(bottomSpec), radius: 0 },
-    left: { ...toOuter(leftSpec), radius: 0 },
+    top: { ...toOuter(specs.top), radius: 0 },
+    right: { ...toOuter(specs.right), radius: 0 },
+    bottom: { ...toOuter(specs.bottom), radius: 0 },
+    left: { ...toOuter(specs.left), radius: 0 },
     innerH: { weight: 0, style: "none", radius: 0 },
     innerV: { weight: 0, style: "none", radius: 0 },
+  };
+}
+
+/** Per-edge colors of a cell's perimeter, resolved the same way as
+ *  getCellPerimeterValueMap. An edge with no explicit color (or an invisible
+ *  edge) yields null, so callers can fall back per edge instead of flattening
+ *  a multi-colored perimeter to one color. */
+export function getCellPerimeterColors(cell: HTMLElement): {
+  top: string | null;
+  right: string | null;
+  bottom: string | null;
+  left: string | null;
+} {
+  const specs = resolveCellPerimeterSpecs(cell);
+  const colorOf = (spec: any): string | null =>
+    spec && typeof spec.color === "string" && spec.color ? spec.color : null;
+  return {
+    top: colorOf(specs?.top),
+    right: colorOf(specs?.right),
+    bottom: colorOf(specs?.bottom),
+    left: colorOf(specs?.left),
   };
 }

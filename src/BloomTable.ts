@@ -10,6 +10,8 @@ import {
   removeColumnAt as structRemoveColumnAt,
   moveRowAt as structMoveRowAt,
   moveColumnAt as structMoveColumnAt,
+  duplicateRowAt as structDuplicateRowAt,
+  duplicateColumnAt as structDuplicateColumnAt,
 } from "./structure";
 import {
   getColumnWidths,
@@ -23,6 +25,16 @@ import {
 import { tableHistoryManager } from "./history";
 import { render } from "./table-renderer";
 import { getCell } from "./structure";
+import { attachTable } from "./attach";
+
+// cloneNode does not copy event listeners, so nested tables inside duplicated
+// cells arrive without text-editing or drag-to-resize wiring. Attach each one,
+// the same way setupContentsOfCell attaches a freshly created nested table.
+function attachClonedNestedTables(cells: HTMLElement[]): void {
+  for (const cell of cells) {
+    cell.querySelectorAll<HTMLElement>(".bloom-table").forEach((t) => attachTable(t));
+  }
+}
 
 export class BloomTable {
   constructor(private table: HTMLElement) {
@@ -120,36 +132,38 @@ export class BloomTable {
     }
   }
 
-  // Positioned structure ops
-  addRowAt(index: number): void {
+  // Positioned structure ops. `sourceRow`/`sourceCol` name the row/column
+  // whose settings (sizes, formatting, content types, borders) the new one
+  // inherits; when omitted, the selected cell's row/column is used.
+  addRowAt(index: number, sourceRowOverride?: number): void {
     // Capture selected column and source row (if any) before insertion
     const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetCol = 0;
-    let sourceRow: number | undefined;
+    let sourceRow: number | undefined = sourceRowOverride;
     if (sel) {
       const widths = getColumnWidths(this.table);
       const cellIndex = Array.from(this.table.children).indexOf(sel);
       const col = widths.length > 0 ? cellIndex % widths.length : 0;
       targetCol = Math.max(0, Math.min(col, Math.max(0, widths.length - 1)));
-      sourceRow = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
+      if (sourceRow == null) sourceRow = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
     }
     structAddRowAt(this.table, index, false, sourceRow);
     render(this.table);
     this.focusEditableInCell(getCell(this.table, index, targetCol));
   }
 
-  addColumnAt(index: number): void {
+  addColumnAt(index: number, sourceColOverride?: number): void {
     // Capture selected row and source column (if any) before insertion
     const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
     let targetRow = 0;
-    let sourceCol: number | undefined;
+    let sourceCol: number | undefined = sourceColOverride;
     if (sel) {
       const heights = getRowHeights(this.table);
       const widths = getColumnWidths(this.table);
       const cellIndex = Array.from(this.table.children).indexOf(sel);
       const row = widths.length > 0 ? Math.floor(cellIndex / widths.length) : 0;
       targetRow = Math.max(0, Math.min(row, Math.max(0, heights.length - 1)));
-      sourceCol = widths.length > 0 ? cellIndex % widths.length : 0;
+      if (sourceCol == null) sourceCol = widths.length > 0 ? cellIndex % widths.length : 0;
     }
     structAddColumnAt(this.table, index, false, sourceCol);
     render(this.table);
@@ -192,6 +206,63 @@ export class BloomTable {
     if (widthsAfter.length > 0) {
       const targetCol = Math.min(index, widthsAfter.length - 1);
       this.focusEditableInCell(getCell(this.table, targetRow, targetCol));
+    }
+  }
+
+  // Duplicate a row (contents and all); the copy lands directly below the
+  // source. Focus moves to the copy, in the column the user had selected.
+  duplicateRowAt(index: number): void {
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    let targetCol = 0;
+    const widths = getColumnWidths(this.table);
+    if (sel && widths.length > 0) {
+      const cellIndex = Array.from(this.table.children).indexOf(sel);
+      targetCol = Math.max(0, Math.min(cellIndex % widths.length, widths.length - 1));
+    }
+    const rowsBefore = getRowHeights(this.table).length;
+    structDuplicateRowAt(this.table, index);
+    const heights = getRowHeights(this.table);
+    // The structural op no-ops when the history manager refuses it (e.g. a
+    // detached table); don't attach/focus cells of a row that wasn't added.
+    if (heights.length === rowsBefore) return;
+    const cols = getColumnWidths(this.table).length;
+    attachClonedNestedTables(
+      Array.from({ length: cols }, (_, c) => getCell(this.table, index + 1, c)),
+    );
+    render(this.table);
+    if (heights.length > 0) {
+      this.focusEditableInCell(getCell(this.table, Math.min(index + 1, heights.length - 1), targetCol));
+    }
+  }
+
+  // Duplicate a column (contents and all); the copy lands directly to the
+  // right of the source. Focus moves to the copy, in the row the user had selected.
+  duplicateColumnAt(index: number): void {
+    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    let targetRow = 0;
+    const widths = getColumnWidths(this.table);
+    const heights = getRowHeights(this.table);
+    if (sel && widths.length > 0) {
+      const cellIndex = Array.from(this.table.children).indexOf(sel);
+      targetRow = Math.max(
+        0,
+        Math.min(Math.floor(cellIndex / widths.length), Math.max(0, heights.length - 1)),
+      );
+    }
+    const colsBefore = getColumnWidths(this.table).length;
+    structDuplicateColumnAt(this.table, index);
+    const widthsAfter = getColumnWidths(this.table);
+    // See duplicateRowAt: don't attach/focus when the op was refused.
+    if (widthsAfter.length === colsBefore) return;
+    const rows = getRowHeights(this.table).length;
+    attachClonedNestedTables(
+      Array.from({ length: rows }, (_, r) => getCell(this.table, r, index + 1)),
+    );
+    render(this.table);
+    if (widthsAfter.length > 0) {
+      this.focusEditableInCell(
+        getCell(this.table, targetRow, Math.min(index + 1, widthsAfter.length - 1)),
+      );
     }
   }
 

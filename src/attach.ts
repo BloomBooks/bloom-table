@@ -5,7 +5,7 @@ import { migrateTable } from "./migrate";
 import { attachTextEditing } from "./text-editing";
 import { render } from "./table-renderer";
 import { ensureSelectionHighlighting } from "./selection-highlight";
-import { ensureTableSizeButtons } from "./table-size-buttons";
+import { ensureTableSizeButtons, scrubStaleAnchorNames } from "./table-size-buttons";
 
 export function attachTable(tableDiv: HTMLElement): void {
   if (!tableDiv) throw new Error("Table element is required");
@@ -16,6 +16,15 @@ export function attachTable(tableDiv: HTMLElement): void {
   ensureSelectionHighlighting();
   // Install global table size buttons once
   ensureTableSizeButtons();
+  // Drop anchor names baked into saved content by a previous session — they
+  // collide with this session's freshly minted ones (pills would anchor to the
+  // wrong cell). Stale selection classes from a save mislead the affordances
+  // the same way; focus re-establishes the real selection.
+  scrubStaleAnchorNames(tableDiv);
+  tableDiv.classList.remove("table--selected", "bloom-pointer-near");
+  tableDiv
+    .querySelectorAll(".bloom-cell.cell--selected")
+    .forEach((c) => c.classList.remove("cell--selected"));
   if (!tableDiv.hasAttribute("data-column-widths")) {
     tableDiv.setAttribute("data-column-widths", "");
     // add two columns by default

@@ -538,11 +538,6 @@ export function render(table: HTMLElement): void {
     applyBorderSide(cell, "Right", b.right);
     applyBorderSide(cell, "Bottom", b.bottom);
     applyBorderSide(cell, "Left", b.left);
-    // Reset hint colors (computed below)
-    cell.style.removeProperty("--hint-top-color");
-    cell.style.removeProperty("--hint-right-color");
-    cell.style.removeProperty("--hint-bottom-color");
-    cell.style.removeProperty("--hint-left-color");
   });
 
   // Apply per-cell horizontal text alignment from data-align. Cells are flex containers
@@ -638,82 +633,7 @@ export function render(table: HTMLElement): void {
 
   // Nested tables: perimeters suppressed in buildRenderModel to avoid double borders with parent.
 
-  // Subtle boundary hints: show only where both sides are effectively none.
-  // Helper to check if a rendered spec is effectively none.
-  const isNone = (spec: BorderSpec | null | undefined) => {
-    if (!spec) return true;
-    if (spec.style === "none") return true;
-    const w = Number.isFinite((spec as any).weight) ? (spec as any).weight : 0;
-    return !w || w <= 0;
-  };
-
-  const rows = model.rowHeights.length;
-  const cols = model.columnWidths.length;
-  const idx = (r: number, c: number) => r * cols + c;
-
-  // Vertical inner boundaries: paint hint on the left cell's right side when both sides are none
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols - 1; c++) {
-      const iLeft = idx(r, c);
-      const iRight = idx(r, c + 1);
-      const left = model.cellBorders[iLeft]?.right;
-      const right = model.cellBorders[iRight]?.left;
-      if (isNone(left) && isNone(right)) {
-        const cell = cells[iLeft];
-        if (cell) cell.style.setProperty("--hint-right-color", "var(--table-hint-color)");
-      }
-    }
-  }
-
-  // Horizontal inner boundaries: paint hint on the top cell's bottom side when both sides are none
-  for (let r = 0; r < rows - 1; r++) {
-    for (let c = 0; c < cols; c++) {
-      const iTop = idx(r, c);
-      const iBottom = idx(r + 1, c);
-      const top = model.cellBorders[iTop]?.bottom;
-      const bottom = model.cellBorders[iBottom]?.top;
-      if (isNone(top) && isNone(bottom)) {
-        const cell = cells[iTop];
-        if (cell) cell.style.setProperty("--hint-bottom-color", "var(--table-hint-color)");
-      }
-    }
-  }
-
-  // Perimeters: paint hint on perimeters where the side is none
-  // Top row
-  for (let c = 0; c < cols; c++) {
-    const i = idx(0, c);
-    const spec = model.cellBorders[i]?.top;
-    if (isNone(spec)) {
-      const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-top-color", "var(--table-hint-color)");
-    }
-  }
-  // Bottom row
-  for (let c = 0; c < cols; c++) {
-    const i = idx(Math.max(0, rows - 1), c);
-    const spec = model.cellBorders[i]?.bottom;
-    if (isNone(spec)) {
-      const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-bottom-color", "var(--table-hint-color)");
-    }
-  }
-  // Left col
-  for (let r = 0; r < rows; r++) {
-    const i = idx(r, 0);
-    const spec = model.cellBorders[i]?.left;
-    if (isNone(spec)) {
-      const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-left-color", "var(--table-hint-color)");
-    }
-  }
-  // Right col
-  for (let r = 0; r < rows; r++) {
-    const i = idx(r, Math.max(0, cols - 1));
-    const spec = model.cellBorders[i]?.right;
-    if (isNone(spec)) {
-      const cell = cells[i];
-      if (cell) cell.style.setProperty("--hint-right-color", "var(--table-hint-color)");
-    }
-  }
+  // Boundary hints are pure CSS now: bloom-table-edit.css outlines every cell
+  // faintly while the table is selected and the pointer is near it, so cells
+  // with invisible borders stay findable during editing.
 }

@@ -109,6 +109,11 @@ export function setupContentsOfCell(
   cell: HTMLElement,
   targetType?: string,
   putInHistory: boolean = false,
+  // Pass false when calling from inside a history entry: the change event's
+  // contract is that handlers may run further table operations, which the
+  // history manager refuses while an entry is open. The caller must then
+  // dispatch kTableCellContentChangedEvent itself after the entry closes.
+  notifyHost: boolean = true,
 ): HTMLElement | null {
   const table = cell.closest<HTMLElement>(".bloom-table");
 
@@ -197,14 +202,21 @@ export function setupContentsOfCell(
   // The event bubbles (and crosses shadow boundaries) when the cell is attached;
   // for cells created detached (e.g. new rows/columns) the host can re-scan on
   // the "tableHistoryUpdated" event instead.
+  if (notifyHost) dispatchCellContentChanged(cell, targetType);
+
+  // for testing purposes, return the child
+  return (cell.firstChild as HTMLElement) || null;
+}
+
+/** Fire the content-changed notification for a cell. Callers that passed
+ *  notifyHost=false to setupContentsOfCell use this to dispatch once their
+ *  history entry has closed. */
+export function dispatchCellContentChanged(cell: HTMLElement, contentType?: string): void {
   cell.dispatchEvent(
     new CustomEvent(kTableCellContentChangedEvent, {
       bubbles: true,
       composed: true,
-      detail: { cell, contentType: targetType },
+      detail: { cell, contentType },
     }),
   );
-
-  // for testing purposes, return the child
-  return (cell.firstChild as HTMLElement) || null;
 }

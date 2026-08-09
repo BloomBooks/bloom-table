@@ -9,6 +9,9 @@
 // they would otherwise be captured in the saved HTML. The per-cell hint colors
 // and selection classes are also edit-only and are cleared here.
 
+// Legacy: older renderer versions wrote per-cell hint colors inline (boundary
+// hints are pure CSS now). Keep stripping them so content saved by an old
+// version comes out clean.
 const kHintColorProps = [
   "--hint-top-color",
   "--hint-right-color",
@@ -34,8 +37,17 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
     kHintColorProps.forEach((p) => cell.style.removeProperty(p));
     cell.classList.remove("cell--selected", "bloom-pulse-fill", "bloom-pulse-border");
   });
+
+  // Anchor names the pill-positioning code minted for cells. They are only
+  // meaningful within the session that minted them; saved copies collide with
+  // the next session's names (its counter restarts), anchoring the pills to
+  // the wrong cell.
+  root.querySelectorAll<HTMLElement>("[data-btable-anchor-name]").forEach((el) => {
+    el.style.removeProperty("anchor-name");
+    delete el.dataset.btableAnchorName;
+  });
   root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
-    table.classList.remove("table--selected");
+    table.classList.remove("table--selected", "bloom-pointer-near");
   });
 }
 

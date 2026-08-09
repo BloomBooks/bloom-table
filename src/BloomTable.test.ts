@@ -54,6 +54,21 @@ describe("BloomTable controller", () => {
     }
   });
 
+  it("addRowAt with a source override copies that row's settings, not the selected row's", () => {
+    const { table, ctrl } = setupTable(); // 2x2
+    const cells = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    // Style row 1 and select a cell in row 0.
+    cells[2].setAttribute("data-bg", "#112233");
+    cells[2].setAttribute("data-content-type", "image");
+    cells[0].classList.add("cell--selected");
+
+    ctrl.addRowAt(2, 1); // append below, sourcing from row 1 (the adjacent row)
+
+    const newCells = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell")).slice(4);
+    expect(newCells[0].getAttribute("data-bg")).toBe("#112233");
+    expect(newCells[0].getAttribute("data-content-type")).toBe("image");
+  });
+
   it("supports add/remove row/column and renders", () => {
     const { table, ctrl } = setupTable();
     const initialCells = table.querySelectorAll(".bloom-cell").length;
