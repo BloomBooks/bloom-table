@@ -756,32 +756,68 @@ function makeSampleToggle(title: string, sample: HTMLElement, onClick: () => voi
   return b;
 }
 
-// A border-style toggle showing a sample line in that style ("none" shows an
-// empty slot), mirroring the sidebar's Style choices.
-function makeBorderStyleToggle(style: string, onClick: () => void): HTMLButtonElement {
-  const sample = document.createElement("span");
-  Object.assign(sample.style, {
-    width: "22px",
-    height: "0",
-    borderTop: style === "none" ? "none" : `2px ${style} ${kItemIconColor}`,
+// The "none" indicator's stroke: the same gray used for the swatch box
+// outline, so the diagonal reads as part of the box.
+const kNoneStroke = "rgba(0,0,0,0.2)";
+
+// A white background crossed by a 1px diagonal from bottom-left to top-right
+// (gradient bands run perpendicular to the gradient direction, so "to bottom
+// right" yields a bottom-left -> top-right line).
+const noneDiagonal = `linear-gradient(to bottom right, #fff calc(50% - 0.5px), ${kNoneStroke} calc(50% - 0.5px), ${kNoneStroke} calc(50% + 0.5px), #fff calc(50% + 0.5px))`;
+
+// The classic "none" sample: an outlined white box with a diagonal line in
+// the same gray and width as its outline. Shared by the fill swatch and the
+// border style/weight "none" toggles.
+function makeNoneSample(width: number, height: number): HTMLElement {
+  const box = document.createElement("span");
+  Object.assign(box.style, {
+    width: `${width}px`,
+    height: `${height}px`,
     display: "block",
+    boxSizing: "border-box",
+    border: `1px solid ${kNoneStroke}`,
+    borderRadius: "2px",
+    background: noneDiagonal,
   } as CSSStyleDeclaration);
+  return box;
+}
+
+// A border-style toggle showing a sample line in that style ("none" shows the
+// crossed-out box), mirroring the sidebar's Style choices.
+function makeBorderStyleToggle(style: string, onClick: () => void): HTMLButtonElement {
+  let sample: HTMLElement;
+  if (style === "none") {
+    sample = makeNoneSample(22, 14);
+  } else {
+    sample = document.createElement("span");
+    Object.assign(sample.style, {
+      width: "22px",
+      height: "0",
+      borderTop: `2px ${style} ${kItemIconColor}`,
+      display: "block",
+    } as CSSStyleDeclaration);
+  }
   const title = style === "none" ? "None" : style[0].toUpperCase() + style.slice(1);
   const b = makeSampleToggle(title, sample, onClick);
   b.dataset.style = style;
   return b;
 }
 
-// A border-weight toggle showing a line of that thickness ("0" is empty),
-// mirroring the sidebar's Weight choices.
+// A border-weight toggle showing a line of that thickness ("0" shows the
+// crossed-out box), mirroring the sidebar's Weight choices.
 function makeBorderWeightToggle(weight: number, onClick: () => void): HTMLButtonElement {
-  const sample = document.createElement("span");
-  Object.assign(sample.style, {
-    width: "22px",
-    height: `${weight}px`,
-    background: weight ? kItemIconColor : "transparent",
-    display: "block",
-  } as CSSStyleDeclaration);
+  let sample: HTMLElement;
+  if (weight) {
+    sample = document.createElement("span");
+    Object.assign(sample.style, {
+      width: "22px",
+      height: `${weight}px`,
+      background: kItemIconColor,
+      display: "block",
+    } as CSSStyleDeclaration);
+  } else {
+    sample = makeNoneSample(22, 14);
+  }
   const b = makeSampleToggle(weight ? `${weight}` : "0 (None)", sample, onClick);
   b.dataset.weight = String(weight);
   return b;
@@ -944,12 +980,15 @@ function makeSliderRow(
   return makeControlRow(label, [input, readout]);
 }
 
-// A native color picker input. Does not close the menu.
-function makeColorInput(label: string, value: string, onInput: (v: string) => void): HTMLInputElement {
+// A native color picker input. Does not close the menu. A native color input
+// cannot display "no color", so when the value is unset (empty or non-hex)
+// the swatch is covered with the classic no-color indicator — white with a
+// red diagonal line — until the user picks a color.
+function makeColorInput(label: string, value: string, onInput: (v: string) => void): HTMLElement {
+  const isSet = /^#[0-9a-fA-F]{6}$/.test(value);
   const input = document.createElement("input");
   input.type = "color";
-  // The native picker only accepts #rrggbb; ignore non-hex values (shows black).
-  input.value = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
+  input.value = isSet ? value : "#ffffff";
   input.setAttribute("aria-label", label);
   Object.assign(input.style, {
     width: "40px",
@@ -960,8 +999,29 @@ function makeColorInput(label: string, value: string, onInput: (v: string) => vo
     cursor: "pointer",
     background: "transparent",
   } as CSSStyleDeclaration);
-  input.addEventListener("input", () => onInput(input.value));
-  return input;
+  const wrap = document.createElement("div");
+  Object.assign(wrap.style, {
+    position: "relative",
+    display: "inline-flex",
+    width: "40px",
+    height: "24px",
+  } as CSSStyleDeclaration);
+  wrap.appendChild(input);
+  const noColor = document.createElement("div");
+  Object.assign(noColor.style, {
+    position: "absolute",
+    inset: "1px",
+    borderRadius: "3px",
+    pointerEvents: "none", // clicks fall through to the input
+    background: noneDiagonal,
+    display: isSet ? "none" : "block",
+  } as CSSStyleDeclaration);
+  wrap.appendChild(noColor);
+  input.addEventListener("input", () => {
+    noColor.style.display = "none";
+    onInput(input.value);
+  });
+  return wrap;
 }
 
 type ColorEntry = { label: string; value: string; onInput: (v: string) => void };
