@@ -118,7 +118,7 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
     <Section label="Cell">
       {/* Content type selector */}
       <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...fillHover}>
-        <div className="text-sm opacity-80 mb-2">Content</div>
+        <div className="text-sm opacity-80 mb-2">Content Type</div>
         {currentCell && currentType && (
           <RadioGroup
             className="ml-2"

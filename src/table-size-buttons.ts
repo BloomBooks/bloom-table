@@ -2,17 +2,9 @@
 // Right/Left insert columns; Top/Bottom insert rows.
 
 import { BloomTable } from "./BloomTable";
-import {
-  addColumnAt,
-  addRowAt,
-  getTableInfo,
-  getRowAndColumn,
-  removeColumnAt,
-  removeRowAt,
-} from "./structure";
+import { getTableInfo, getRowAndColumn } from "./structure";
 import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
-import { tableHistoryManager } from "./history";
 import { render } from "./table-renderer";
 import {
   setupContentsOfCell,
@@ -29,6 +21,10 @@ import {
   setGapY,
   getCellBackground,
   setCellBackground,
+  getCellPadding,
+  setCellPadding,
+  getCellCorners,
+  setCellCorners,
   getTableBackground,
   setTableBackground,
   type CellAlign,
@@ -44,7 +40,12 @@ import alignLeftIcon from "./components/icons/align-left.svg";
 import alignCenterIcon from "./components/icons/align-center.svg";
 import alignRightIcon from "./components/icons/align-right.svg";
 import cellContentTableIcon from "./components/icons/cell-content-table.svg";
-import resizeTableIcon from "./components/icons/resize-table.svg";
+import menuRowIcon from "./components/icons/menu-row.svg";
+import menuColumnIcon from "./components/icons/menu-column.svg";
+import columnGrowIcon from "./components/icons/column-grow.svg";
+import columnHugIcon from "./components/icons/column-hug.svg";
+import rowGrowIcon from "./components/icons/row-grow.svg";
+import rowHugIcon from "./components/icons/row-hug.svg";
 
 // Inline SVG icons (MUI "Add" and "Delete" glyph paths) so the core attach
 // path stays free of React / MUI. fill:currentColor lets the button color
@@ -53,7 +54,12 @@ const kAddIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="widt
 // Inline glyphs (16px, fill:currentColor) for menu items that have no toolbar
 // icon: directional move arrows, copy, and delete-table.
 const kIconAttr = `viewBox="0 0 24 24" width="16" height="16" style="width:16px;height:16px;display:block;fill:currentColor"`;
-const kAddItemIconSvg = `<svg ${kIconAttr}><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+// Directional "add" glyphs: a "+" paired with the edge line the new row/column
+// lands against. The "+" sits on the side the line is being added.
+const kAddRowAboveIconSvg = `<svg ${kIconAttr}><rect x="10.5" y="2" width="3" height="11" rx="0.5"/><rect x="6" y="6" width="12" height="3" rx="0.5"/><rect x="3" y="19" width="18" height="2.5" rx="1"/></svg>`;
+const kAddRowBelowIconSvg = `<svg ${kIconAttr}><rect x="3" y="2.5" width="18" height="2.5" rx="1"/><rect x="10.5" y="11" width="3" height="11" rx="0.5"/><rect x="6" y="15" width="12" height="3" rx="0.5"/></svg>`;
+const kAddColumnLeftIconSvg = `<svg ${kIconAttr}><rect x="6" y="6" width="3" height="12" rx="0.5"/><rect x="1.5" y="10.5" width="12" height="3" rx="0.5"/><rect x="19" y="3" width="2.5" height="18" rx="1"/></svg>`;
+const kAddColumnRightIconSvg = `<svg ${kIconAttr}><rect x="2.5" y="3" width="2.5" height="18" rx="1"/><rect x="15" y="6" width="3" height="12" rx="0.5"/><rect x="10.5" y="10.5" width="12" height="3" rx="0.5"/></svg>`;
 const kMoveUpIconSvg = `<svg ${kIconAttr}><path d="M12 4l-7 7h4v7h6v-7h4z"/></svg>`;
 const kMoveDownIconSvg = `<svg ${kIconAttr}><path d="M12 20l7-7h-4V6H9v7H5z"/></svg>`;
 const kMoveLeftIconSvg = `<svg ${kIconAttr}><path d="M4 12l7-7v4h7v6h-7v4z"/></svg>`;
@@ -70,8 +76,6 @@ let anchorCounter = 0;
 // Reset function for testing
 export function resetTableSizeButtons(): void {
   installed = false;
-  cornerHandle = null;
-  proxCornerHandle = null;
   overlayTable = null;
 
   // Reset cluster elements
@@ -103,7 +107,6 @@ export function ensureTableSizeButtons(): void {
   installed = true;
 
   ensureEdgeOverlays();
-  ensureCornerHandle();
 
   document.addEventListener(
     "focusin",
@@ -189,417 +192,6 @@ let menuTargetCell: HTMLElement | null = null;
 
 let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
-
-// --- Corner drag affordance (lower-right grow/shrink handle) ---
-let cornerHandle: HTMLDivElement | null = null;
-let proxCornerHandle: ProximityDiv | null = null;
-let cornerDragging = false;
-let cornerInitialState: {
-  innerHTML: string;
-  attributes: Record<string, string>;
-} | null = null;
-let cornerDragTable: HTMLElement | null = null;
-let cornerStartX = 0;
-let cornerStartY = 0;
-let cornerStartRows = 0;
-let cornerStartCols = 0;
-let cornerUpdateRaf = 0; // RAF handle for throttling updates
-// Store initial selection state to restore after drag ends
-let cornerInitialSelection: {
-  activeCell: HTMLElement | null;
-  selectedTable: HTMLElement | null;
-} | null = null;
-
-const kCornerUnitColPx = 20; // pixels per column step - reduced for better responsiveness
-const kCornerUnitRowPx = 20; // pixels per row step - reduced for better responsiveness
-
-function ensureCornerHandle() {
-  // If an existing handle is present but detached (e.g., test reset document.body), recreate it
-  if (cornerHandle && document.body.contains(cornerHandle)) return cornerHandle;
-  if (proxCornerHandle && (!cornerHandle || !document.body.contains(proxCornerHandle.element))) {
-    try {
-      proxCornerHandle.destroy();
-    } catch {}
-    proxCornerHandle = null;
-  }
-  cornerHandle = null;
-  const el = document.createElement("div");
-  el.setAttribute("data-btable-corner-handle", "");
-  Object.assign(el.style, {
-    width: "14px",
-    height: "14px",
-    position: "static",
-    cursor: "nwse-resize",
-    display: "none",
-    zIndex: "2147483647",
-  } as CSSStyleDeclaration);
-  el.innerHTML = `<img src="${resizeTableIcon}" alt="" draggable="false" style="width:14px;height:14px;display:block;pointer-events:none" />`;
-
-  // Mouse interactions
-  const onMouseDown = (e: MouseEvent) => {
-    console.log("🟢 Corner handle mousedown", {
-      clientX: e.clientX,
-      clientY: e.clientY,
-    });
-
-    const table =
-      (document.querySelector(".bloom-cell.cell--selected") as HTMLElement | null)?.closest(".bloom-table") ||
-      overlayTable ||
-      (document.querySelector(".bloom-table") as HTMLElement | null);
-    if (!table) {
-      console.log("🔴 No table found for corner drag");
-      return;
-    }
-
-    console.log("🎯 Found table for corner drag", { table: table.tagName });
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Store initial selection state to restore after drag
-    const initialActiveCell =
-      document.querySelector(".bloom-cell.cell--selected") || document.activeElement?.closest(".bloom-cell");
-    const initialSelectedTable = initialActiveCell?.closest(".bloom-table");
-    cornerInitialSelection = {
-      activeCell: initialActiveCell as HTMLElement | null,
-      selectedTable: initialSelectedTable as HTMLElement | null,
-    };
-    console.log("💾 Stored initial selection", {
-      hasActiveCell: !!cornerInitialSelection.activeCell,
-      hasSelectedTable: !!cornerInitialSelection.selectedTable,
-    });
-
-    // Capture start and initial counts
-    cornerDragging = true;
-    cornerDragTable = table as HTMLElement;
-
-    // Ensure overlayTable points to our target table throughout the drag
-    overlayTable = cornerDragTable;
-    console.log("🎯 Set overlayTable to cornerDragTable for stable targeting");
-
-    cornerStartX = e.clientX;
-    cornerStartY = e.clientY;
-    try {
-      const info = getTableInfo(table as HTMLElement);
-      cornerStartRows = info.rowCount;
-      cornerStartCols = info.columnCount;
-      console.log("📊 Initial table state", {
-        startRows: cornerStartRows,
-        startCols: cornerStartCols,
-        startX: cornerStartX,
-        startY: cornerStartY,
-      });
-    } catch (err) {
-      console.log("🔴 Error getting table info:", err);
-      cornerStartRows = 0;
-      cornerStartCols = 0;
-    }
-    cornerInitialState = snapshotTable(table as HTMLElement);
-    console.log("📸 Table snapshot taken");
-
-    // Install global listeners once per drag
-    console.log("👂 Installing mousemove and mouseup listeners");
-    document.addEventListener("mousemove", handleCornerDragMove);
-    document.addEventListener("mouseup", handleCornerDragUp, { once: true });
-    document.addEventListener("mouseup", handleCornerDragUp, { once: true });
-  };
-  el.addEventListener("mousedown", onMouseDown);
-
-  // Wrap with ProximityDiv so opacity eases in near cursor
-  const prox = new ProximityDiv(document.body, el);
-  cornerHandle = el;
-  proxCornerHandle = prox;
-  return el;
-}
-
-function snapshotTable(table: HTMLElement): {
-  innerHTML: string;
-  attributes: Record<string, string>;
-} {
-  const attributes: Record<string, string> = {};
-  for (let i = 0; i < table.attributes.length; i++) {
-    const a = table.attributes[i];
-    attributes[a.name] = a.value || "";
-  }
-  return { innerHTML: table.innerHTML, attributes };
-}
-
-function restoreTable(
-  table: HTMLElement,
-  state: { innerHTML: string; attributes: Record<string, string> },
-) {
-  // Remove all current attributes
-  const toRemove: string[] = [];
-  for (let i = 0; i < table.attributes.length; i++) {
-    toRemove.push(table.attributes[i].name);
-  }
-  toRemove.forEach((n) => table.removeAttribute(n));
-  // Restore saved
-  Object.entries(state.attributes).forEach(([n, v]) => table.setAttribute(n, v));
-  table.innerHTML = state.innerHTML;
-}
-
-function handleCornerDragMove(e: MouseEvent) {
-  console.log("🔵 handleCornerDragMove called", {
-    cornerDragging,
-    cornerDragTable: !!cornerDragTable,
-    clientX: e.clientX,
-    clientY: e.clientY,
-  });
-
-  if (!cornerDragging || !cornerDragTable) {
-    console.log("🔴 Early return - not dragging or no table");
-    return;
-  }
-  e.preventDefault();
-
-  const dx = e.clientX - cornerStartX;
-  const dy = e.clientY - cornerStartY;
-  const targetCols = Math.max(1, cornerStartCols + Math.floor(dx / kCornerUnitColPx));
-  const targetRows = Math.max(1, cornerStartRows + Math.floor(dy / kCornerUnitRowPx));
-
-  console.log("📐 Drag calculations", {
-    dx,
-    dy,
-    cornerStartCols,
-    cornerStartRows,
-    targetCols,
-    targetRows,
-    unitColPx: kCornerUnitColPx,
-    unitRowPx: kCornerUnitRowPx,
-    "dx/unitColPx": dx / kCornerUnitColPx,
-    "dy/unitRowPx": dy / kCornerUnitRowPx,
-    "floor(dx/unitColPx)": Math.floor(dx / kCornerUnitColPx),
-    "floor(dy/unitRowPx)": Math.floor(dy / kCornerUnitRowPx),
-  });
-
-  const info = getTableInfo(cornerDragTable);
-  console.log("🔢 Current table info", {
-    currentCols: info.columnCount,
-    currentRows: info.rowCount,
-  });
-
-  // During drag, we always use the stored table reference - no need to check DOM selection
-  console.log("🎯 Using stored cornerDragTable for all operations (no DOM selection dependency)");
-
-  let colChanges = 0;
-  let rowChanges = 0;
-
-  console.log("🎯 Change analysis", {
-    needColIncrease: info.columnCount < targetCols,
-    needColDecrease: info.columnCount > targetCols && info.columnCount > 1,
-    needRowIncrease: info.rowCount < targetRows,
-    needRowDecrease: info.rowCount > targetRows && info.rowCount > 1,
-    colDiff: targetCols - info.columnCount,
-    rowDiff: targetRows - info.rowCount,
-  });
-
-  // Adjust columns
-  while (info.columnCount < targetCols) {
-    console.log("➕ Adding column", {
-      currentCols: info.columnCount,
-      targetCols,
-    });
-    addColumnAt(cornerDragTable, info.columnCount, true);
-    info.columnCount++;
-    colChanges++;
-  }
-  while (info.columnCount > targetCols && info.columnCount > 1) {
-    console.log("➖ Removing column", {
-      currentCols: info.columnCount,
-      targetCols,
-    });
-    removeColumnAt(cornerDragTable, info.columnCount - 1, true);
-    info.columnCount--;
-    colChanges++;
-  }
-  // Adjust rows
-  while (info.rowCount < targetRows) {
-    console.log("➕ Adding row", { currentRows: info.rowCount, targetRows });
-    addRowAt(cornerDragTable, info.rowCount, true);
-    info.rowCount++;
-    rowChanges++;
-  }
-  while (info.rowCount > targetRows && info.rowCount > 1) {
-    console.log("➖ Removing row", { currentRows: info.rowCount, targetRows });
-    removeRowAt(cornerDragTable, info.rowCount - 1, true);
-    info.rowCount--;
-    rowChanges++;
-  }
-
-  console.log("⚡ Table adjustments", {
-    colChanges,
-    rowChanges,
-    newCols: info.columnCount,
-    newRows: info.rowCount,
-  });
-
-  // Throttle expensive visual updates using RAF, but fallback to immediate execution in tests
-  if (cornerUpdateRaf) {
-    console.log("🚫 Canceling previous RAF");
-    cancelAnimationFrame(cornerUpdateRaf);
-    cornerUpdateRaf = 0;
-  }
-
-  const updateVisuals = () => {
-    console.log("🎨 Running visual update");
-    if (!cornerDragTable) {
-      console.log("🔴 No table in visual update");
-      return;
-    }
-
-    try {
-      render(cornerDragTable);
-      console.log("✅ Render completed");
-    } catch (err) {
-      console.log("🔴 Render error:", err);
-    }
-    // Skip overlay repositioning during drag to prevent DOM timing issues
-    console.log("⏸️ Skipping overlay reposition during active drag");
-    cornerUpdateRaf = 0;
-  };
-
-  // In test environments (like happy-dom), requestAnimationFrame may not work properly
-  // So we check if we're in a test environment and execute immediately
-  if (
-    typeof window !== "undefined" &&
-    typeof window.requestAnimationFrame === "function" &&
-    !window.location.href.includes("vitest")
-  ) {
-    console.log("🔄 Scheduling RAF update");
-    cornerUpdateRaf = requestAnimationFrame(updateVisuals);
-  } else {
-    console.log("⚡ Running immediate update");
-    updateVisuals();
-  }
-}
-
-function handleCornerDragUp() {
-  console.log("🛑 Corner drag up - ending drag session");
-
-  if (!cornerDragging || !cornerDragTable) {
-    console.log("🔴 Not dragging or no table on mouseup");
-    return;
-  }
-
-  // Cancel any pending RAF update
-  if (cornerUpdateRaf) {
-    console.log("🚫 Canceling pending RAF update");
-    cancelAnimationFrame(cornerUpdateRaf);
-    cornerUpdateRaf = 0;
-  }
-
-  console.log("🚮 Removing mousemove listener");
-  // Remove the move listener installed at drag start
-  document.removeEventListener("mousemove", handleCornerDragMove);
-
-  const table = cornerDragTable;
-  const saved = cornerInitialState;
-  const savedSelection = cornerInitialSelection;
-
-  // Reset drag state but keep overlayTable pointing to our target
-  cornerDragging = false;
-  cornerDragTable = null;
-  cornerInitialState = null;
-  cornerInitialSelection = null;
-
-  // Important: Keep overlayTable pointing to our target table so overlays don't get confused
-  overlayTable = table;
-  console.log("🔄 Drag state reset, overlayTable preserved for target table");
-
-  // Restore selection to the table we were working with
-  if (savedSelection && table) {
-    console.log("🔄 Restoring selection to table after drag", {
-      hadActiveCell: !!savedSelection.activeCell,
-      hadSelectedTable: !!savedSelection.selectedTable,
-      tableCellCount: table.querySelectorAll(".bloom-cell").length,
-    });
-
-    try {
-      // Find the first cell in the potentially resized table
-      const firstCell = table.querySelector(".bloom-cell") as HTMLElement;
-      if (firstCell) {
-        // Explicitly clear any existing selection before setting new one
-        document
-          .querySelectorAll(".bloom-cell.cell--selected")
-          .forEach((el) => el.classList.remove("cell--selected"));
-        document
-          .querySelectorAll(".bloom-table.table--selected")
-          .forEach((el) => el.classList.remove("table--selected"));
-
-        // Apply selection classes directly to ensure they're set
-        firstCell.classList.add("cell--selected");
-        table.classList.add("table--selected");
-
-        // Also focus to ensure proper interaction state
-        const editable = firstCell.querySelector<HTMLElement>("[contenteditable]");
-        if (editable) {
-          editable.focus();
-          console.log("✅ Selection restored to table via editable focus + direct class setting", {
-            cellClasses: firstCell.className,
-            tableClasses: table.className,
-            activeElement:
-              document.activeElement?.tagName + "." + document.activeElement?.className,
-          });
-        } else {
-          firstCell.focus();
-          console.log("✅ Selection restored to table via cell focus + direct class setting", {
-            cellClasses: firstCell.className,
-            tableClasses: table.className,
-            activeElement:
-              document.activeElement?.tagName + "." + document.activeElement?.className,
-          });
-        }
-      } else {
-        console.log("🔴 No cells found in table for selection restoration");
-      }
-
-      // Add a slight delay then verify the final state
-      setTimeout(() => {
-        const finalSelectedCell = document.querySelector(".bloom-cell.cell--selected");
-        const finalSelectedTable = document.querySelector(".bloom-table.table--selected");
-        const finalActiveElement = document.activeElement;
-
-        console.log("🔍 Final selection state after restoration", {
-          hasSelectedCell: !!finalSelectedCell,
-          hasSelectedTable: !!finalSelectedTable,
-          selectedTableMatchesOurTable: finalSelectedTable === table,
-          activeElementTag: finalActiveElement?.tagName,
-          activeElementClass: (finalActiveElement as HTMLElement)?.className,
-          activeElementInOurTable:
-            !!finalActiveElement?.closest(".bloom-table") && finalActiveElement?.closest(".bloom-table") === table,
-        });
-
-        if (!finalSelectedCell || finalSelectedTable !== table) {
-          console.log("⚠️ Selection restoration may have failed!", {
-            expectedTable: table,
-            actualSelectedTable: finalSelectedTable,
-            allSelectedCells: document.querySelectorAll(".bloom-cell.cell--selected").length,
-            allSelectedTables: document.querySelectorAll(".bloom-table.table--selected").length,
-          });
-        }
-
-        // Now that drag is complete and selection is restored, reposition overlays
-        scheduleOverlayReposition();
-        console.log("📍 Scheduled overlay reposition after drag completion");
-      }, 10);
-    } catch (err) {
-      console.log("🔴 Error restoring selection:", err);
-    }
-  }
-
-  // Finalize to history as a single undoable action
-  if (saved) {
-    const info = getTableInfo(table);
-    const label = `Resize Table to ${info.rowCount}×${info.columnCount}`;
-    console.log("📝 Adding history entry:", label);
-    const noop = () => {};
-    const undoOp = (g: HTMLElement) => restoreTable(g, saved);
-    tableHistoryManager.addHistoryEntry(table, label, noop, undoOp);
-  } else {
-    console.log("🔴 No saved state for history");
-  }
-}
 
 // --- Hover preview overlay for delete actions ---
 let deletePreviewDiv: HTMLDivElement | null = null;
@@ -823,30 +415,22 @@ function stylePill(btn: HTMLButtonElement): void {
   btn.addEventListener("mousedown", (e) => e.preventDefault());
 }
 
-function makePill(label: string): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.textContent = "⋯"; // horizontal ellipsis "⋯"
-  btn.setAttribute("aria-label", label);
-  btn.title = label;
-  stylePill(btn);
-  return btn;
-}
-
-// A wider pill showing a 2x2 table glyph followed by the "..." affordance.
-function makeTablePill(label: string): HTMLButtonElement {
+// A pill showing an orientation glyph (table / row / column). `iconStyle` lets
+// each caller preserve its glyph's aspect ratio (the row glyph is wide, the
+// column glyph is tall).
+function makeGlyphPill(label: string, iconSrc: string, iconStyle: string): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.setAttribute("aria-label", label);
   btn.title = label;
-  btn.innerHTML = `<img src="${cellContentTableIcon}" width="16" height="16" alt="" style="display:block" /><span style="font-size:16px;line-height:1">⋯</span>`;
+  btn.innerHTML = `<img src="${iconSrc}" alt="" style="${iconStyle}" />`;
   stylePill(btn);
   return btn;
 }
 
 function ensureMenuPills(): void {
   if (!colMenuPill) {
-    colMenuPill = makePill("Column menu");
+    colMenuPill = makeGlyphPill("Column menu", menuColumnIcon, "display:block;height:16px;width:auto");
     colMenuPill.setAttribute("data-btable-menu-pill", "column");
     colMenuPill.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -854,7 +438,7 @@ function ensureMenuPills(): void {
     });
   }
   if (!rowMenuPill) {
-    rowMenuPill = makePill("Row menu");
+    rowMenuPill = makeGlyphPill("Row menu", menuRowIcon, "display:block;width:16px;height:auto");
     rowMenuPill.setAttribute("data-btable-menu-pill", "row");
     rowMenuPill.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -865,7 +449,7 @@ function ensureMenuPills(): void {
 
 function ensureTablePills(): void {
   const make = (id: string) => {
-    const pill = makeTablePill("Table menu");
+    const pill = makeGlyphPill("Table menu", cellContentTableIcon, "display:block;width:16px;height:16px");
     pill.setAttribute("data-btable-menu-pill", "table");
     pill.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1096,6 +680,140 @@ function makeIconToggle(icon: string, title: string, active: boolean, onClick: (
   return b;
 }
 
+// A text-labeled toggle button matching makeIconToggle (used for the "fixed
+// size" option in the Size control, where the label is a measurement).
+function makeTextToggle(text: string, title: string, active: boolean, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.textContent = text;
+  Object.assign(b.style, {
+    minWidth: "28px",
+    height: "24px",
+    padding: "0 6px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid transparent",
+    borderRadius: "5px",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: "12px",
+    color: kBloomBlue,
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  setToggleActive(b, active);
+  b.addEventListener("mousedown", (e) => e.preventDefault());
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// A corner-radius toggle: a small box with left+top borders and a rounded
+// top-left corner, mirroring the sidebar's corner sample buttons.
+function makeCornerToggle(radius: number, active: boolean, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.title = `${radius}`;
+  b.setAttribute("aria-label", `Corner radius ${radius}`);
+  Object.assign(b.style, {
+    width: "28px",
+    height: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid transparent",
+    borderRadius: "5px",
+    background: "transparent",
+    cursor: "pointer",
+    padding: "0",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  const sample = document.createElement("span");
+  const r = Math.max(0, Math.min(radius, 18));
+  Object.assign(sample.style, {
+    width: "18px",
+    height: "18px",
+    borderLeft: `2px solid ${kItemIconColor}`,
+    borderTop: `2px solid ${kItemIconColor}`,
+    borderTopLeftRadius: `${r}px`,
+    boxSizing: "border-box",
+    display: "block",
+  } as CSSStyleDeclaration);
+  b.appendChild(sample);
+  setToggleActive(b, active);
+  b.addEventListener("mousedown", (e) => e.preventDefault());
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  return b;
+}
+
+// "Size" control for the selected row or column: a 3-way choice — Grow (fill),
+// Hug (shrink to content), or a fixed measurement — mirroring the sidebar's
+// Size control. `dim` selects whether it drives column widths or row heights.
+function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
+  const table = ctx.table;
+  const growIcon = dim === "column" ? columnGrowIcon : rowGrowIcon;
+  const hugIcon = dim === "column" ? columnHugIcon : rowHugIcon;
+  const index = dim === "column" ? ctx.col : ctx.row;
+
+  const read = (): string => {
+    if (!table) return "hug";
+    try {
+      const c = new BloomTable(table);
+      const raw = (dim === "column" ? c.getColumnWidth(index) : c.getRowHeight(index)) || "hug";
+      return typeof raw === "string" ? raw.trim() : raw;
+    } catch {
+      return "hug";
+    }
+  };
+  const write = (value: string) => {
+    if (!table) return;
+    try {
+      const c = new BloomTable(table);
+      if (dim === "column") c.setColumnWidth(index, value);
+      else c.setRowHeight(index, value);
+      render(table);
+    } catch {}
+  };
+
+  const grow = makeIconToggle(growIcon, "Grow", false, () => {
+    write("fill");
+    refresh();
+  });
+  const hug = makeIconToggle(hugIcon, "Hug", false, () => {
+    write("hug");
+    refresh();
+  });
+  const fixed = makeTextToggle("mm", "Fixed size", false, () => {
+    // Keep an existing fixed value if present; otherwise default to 10mm.
+    const cur = read();
+    write(cur && /(px|mm)$/i.test(cur) ? cur : "10mm");
+    refresh();
+  });
+
+  // Re-derive the active option (and the fixed-size label) from the table after
+  // every change, since the menu stays open and isn't rebuilt on edit.
+  const refresh = () => {
+    const current = read();
+    const mode: "grow" | "hug" | "fixed" =
+      current === "fill" ? "grow" : /(px|mm)$/i.test(current) ? "fixed" : "hug";
+    const mmMatch = current.match(/^(\d+(?:\.\d+)?)mm$/i);
+    fixed.textContent = mode === "fixed" ? (mmMatch ? `${mmMatch[1]}mm` : current) : "mm";
+    setToggleActive(grow, mode === "grow");
+    setToggleActive(hug, mode === "hug");
+    setToggleActive(fixed, mode === "fixed");
+  };
+  refresh();
+
+  return makeControlRow("Size", [grow, hug, fixed]);
+}
+
 // Parse the leading number from a CSS length (e.g. "6px" -> 6). 0 if absent.
 function firstPx(s: string | null | undefined): number {
   const n = parseFloat((s ?? "").trim());
@@ -1126,6 +844,8 @@ function makeSliderRow(
   input.value = String(value);
   input.setAttribute("aria-label", label);
   input.style.flex = "1 1 auto";
+  // Tint the thumb/track with the Bloom primary color instead of the UA blue.
+  input.style.accentColor = kBloomBlue;
 
   const readout = document.createElement("span");
   readout.textContent = `${value}${unit}`;
@@ -1255,7 +975,7 @@ function buildCellSection(ctx: MenuCtx): HTMLElement[] {
     b.dataset.ctId = opt.id;
     ctButtons.push(b);
   }
-  els.push(makeControlRow("Content", ctButtons));
+  els.push(makeControlRow("Content Type", ctButtons));
 
   // Text alignment: label followed by left/center/right toggles.
   const aligns: { id: CellAlign; icon: string; title: string }[] = [
@@ -1281,12 +1001,64 @@ function buildCellSection(ctx: MenuCtx): HTMLElement[] {
   }
   els.push(makeControlRow("Alignment", alignButtons));
 
+  // Padding: same slider used for the table's cell-gap controls.
+  if (cell) {
+    els.push(
+      makeSliderRow(
+        "Padding between border and text",
+        0,
+        40,
+        firstPx(getCellPadding(cell)),
+        "px",
+        (v) => {
+          setCellPadding(cell, `${v}px`);
+          if (ctx.table) render(ctx.table);
+        },
+      ),
+    );
+  }
+
+  // Fill: cell background color (same color picker the table section uses).
+  if (cell) {
+    els.push(
+      makeColorRow("Fill", getCellBackground(cell) ?? "", (color) => {
+        setCellBackground(cell, color || null);
+        if (ctx.table) render(ctx.table);
+      }),
+    );
+  }
+
+  // Corners: per-cell corner radius (0/4/8/16), mirroring the sidebar's control.
+  if (cell) {
+    const cornerButtons: HTMLButtonElement[] = [];
+    const refreshCorners = () => {
+      const cur = getCellCorners(cell)?.radius ?? 0;
+      cornerButtons.forEach((b) => setToggleActive(b, Number(b.dataset.radius) === cur));
+    };
+    for (const radius of [0, 4, 8, 16]) {
+      const cur = getCellCorners(cell)?.radius ?? 0;
+      const b = makeCornerToggle(radius, cur === radius, () => {
+        setCellCorners(cell, radius ? { radius } : null);
+        if (ctx.table) render(ctx.table);
+        refreshCorners();
+      });
+      b.dataset.radius = String(radius);
+      cornerButtons.push(b);
+    }
+    els.push(makeControlRow("Corners", cornerButtons));
+  }
+
+  // Divider, then the span commands.
+  els.push(makeDivider());
+
   // Merge / Split (cell span). Merge needs a column to the right to absorb;
   // Split needs an existing horizontal span to reduce.
   const spanX = cell ? getSpan(cell).x || 1 : 1;
   const canMerge = !!cell && ctx.col + spanX < ctx.colCount;
   const canSplit = spanX > 1;
-  els.push(makeMenuItem("Merge", () => menuMergeCell(), undefined, !canMerge, cellMergeIcon));
+  els.push(
+    makeMenuItem("Merge with cell to the right", () => menuMergeCell(), undefined, !canMerge, cellMergeIcon),
+  );
   els.push(makeMenuItem("Split", () => menuSplitCell(), undefined, !canSplit, cellSplitIcon));
   return els;
 }
@@ -1295,8 +1067,8 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
   return [
     makeMenuHeader("Row"),
     // 1) adds
-    makeMenuItem("Add Row Above", () => menuAddRow(0), undefined, false, kAddItemIconSvg),
-    makeMenuItem("Add Row Below", () => menuAddRow(1), undefined, false, kAddItemIconSvg),
+    makeMenuItem("Add Row Above", () => menuAddRow(0), undefined, false, kAddRowAboveIconSvg),
+    makeMenuItem("Add Row Below", () => menuAddRow(1), undefined, false, kAddRowBelowIconSvg),
     // 2) moves
     makeMenuItem("Move Row Up", () => menuMoveRow(-1), undefined, ctx.row <= 0, kMoveUpIconSvg),
     makeMenuItem(
@@ -1309,7 +1081,10 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
     // 3) divider, 4) delete
     makeDivider(),
     makeMenuItem("Delete Row", tryRemoveRow, "row", false, kTrashIconSvg),
-    // 5) hint
+    // 5) size, separated from the commands above
+    makeDivider(),
+    buildSizeControl(ctx, "row"),
+    // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
 }
@@ -1318,8 +1093,8 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
   return [
     makeMenuHeader("Column"),
     // 1) adds
-    makeMenuItem("Add Column Left", () => menuAddColumn(0), undefined, false, kAddItemIconSvg),
-    makeMenuItem("Add Column Right", () => menuAddColumn(1), undefined, false, kAddItemIconSvg),
+    makeMenuItem("Add Column Left", () => menuAddColumn(0), undefined, false, kAddColumnLeftIconSvg),
+    makeMenuItem("Add Column Right", () => menuAddColumn(1), undefined, false, kAddColumnRightIconSvg),
     // 2) moves
     makeMenuItem("Move Left", () => menuMoveColumn(-1), undefined, ctx.col <= 0, kMoveLeftIconSvg),
     makeMenuItem(
@@ -1332,7 +1107,10 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
     // 3) divider, 4) delete
     makeDivider(),
     makeMenuItem("Delete Column", tryRemoveColumn, "column", false, columnDeleteIcon),
-    // 5) hint
+    // 5) size, separated from the commands above
+    makeDivider(),
+    buildSizeControl(ctx, "column"),
+    // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
 }
@@ -1623,7 +1401,6 @@ function showEdgeOverlays(table: HTMLElement) {
   if (tablePillTL) tablePillTL.style.display = "flex";
   if (colAddBtn) colAddBtn.style.display = "flex";
   if (rowAddBtn) rowAddBtn.style.display = "flex";
-  if (cornerHandle) cornerHandle.style.display = "block";
   // Apply anchor-based positioning
   applyAnchorPositioning(table);
 }
@@ -1634,7 +1411,6 @@ function hideEdgeOverlays() {
   if (tablePillTL) tablePillTL.style.display = "none";
   if (colAddBtn) colAddBtn.style.display = "none";
   if (rowAddBtn) rowAddBtn.style.display = "none";
-  if (cornerHandle) cornerHandle.style.display = "none";
   closeMenuPopup();
   overlayTable = null;
   hideDeletePreview();
@@ -1642,12 +1418,6 @@ function hideEdgeOverlays() {
 }
 
 function scheduleOverlayReposition() {
-  // Skip overlay repositioning during corner drag to avoid DOM access issues
-  if (cornerDragging) {
-    console.log("⏸️ Skipping overlay reposition during corner drag");
-    return;
-  }
-
   if (repositionRaf) cancelAnimationFrame(repositionRaf);
   repositionRaf = requestAnimationFrame(() => {
     repositionEdgeOverlays();
@@ -1655,16 +1425,9 @@ function scheduleOverlayReposition() {
 }
 
 function repositionEdgeOverlays() {
-  // During corner drag, always use the stored cornerDragTable to avoid selection issues
   let targetTable = overlayTable;
 
-  if (cornerDragging && cornerDragTable) {
-    console.log("🎯 Using stored cornerDragTable for overlay positioning during drag");
-    targetTable = cornerDragTable;
-    // During active drag, skip complex repositioning to avoid DOM timing issues
-    return;
-  } else if (!targetTable) {
-    // Only derive from selected cell when not dragging
+  if (!targetTable) {
     const table =
       (document.querySelector(".bloom-cell.cell--selected") as HTMLElement | null)?.closest(".bloom-table") ||
       (document.querySelector(".bloom-table") as HTMLElement | null);
@@ -1698,8 +1461,8 @@ function repositionEdgeOverlays() {
 // ===== Pointer-proximity visibility gate (expanded "active zone") =====
 // We want the affordances hidden whenever the cursor isn't at the table — but the
 // affordances themselves live in a gutter *outside* the table's cell content
-// (corner pills sit ~14px out and span ~50px, edge "+" buttons ~8px out, the
-// resize handle straddles the lower-right corner). Hiding on a literal table
+// (corner pills sit ~14px out and span ~50px, edge "+" buttons ~8px out).
+// Hiding on a literal table
 // `mouseleave` would fire the instant the cursor crossed into that gutter to reach
 // one — the classic "reach gap".
 //
@@ -1745,10 +1508,10 @@ function pointerInActiveZone(table: HTMLElement, x: number, y: number): boolean 
 }
 
 function updateProximityGate(): void {
-  // Don't fight an in-progress corner drag, and keep the affordances up while a
-  // menu is open — the popup commonly extends past the active zone, so the cursor
-  // would read as "outside" while the user is still interacting with it.
-  if (cornerDragging || menuPopup) return;
+  // Keep the affordances up while a menu is open — the popup commonly extends
+  // past the active zone, so the cursor would read as "outside" while the user
+  // is still interacting with it.
+  if (menuPopup) return;
 
   // Prefer the table already targeted (cheap, and avoids re-running showEdgeOverlays
   // every frame while hovering). Otherwise scan all tables so a first hover — before
@@ -1919,7 +1682,7 @@ function applyAnchorPositioning(table: HTMLElement) {
     el.style.top = `${Math.round(top)}px`;
     el.style.transform = transform;
   };
-  // The table-level affordances (corner pills, "+" buttons, resize handle) are
+  // The table-level affordances (corner pills, "+" buttons) are
   // only meaningful when the table has rendered cells. Hide them when bounds are
   // degenerate so they don't strand mid-viewport during a transient relayout.
   if (tablePillTL) tablePillTL.style.display = haveBounds ? "flex" : "none";
@@ -1953,18 +1716,6 @@ function applyAnchorPositioning(table: HTMLElement) {
     placePill(proxTablePillTL, tablePillX, maxB + gap, "translate(-50%, 0)");
   }
 
-  // Corner (resize) handle straddles the bottom-right corner of the cell content.
-  if (proxCornerHandle && haveBounds) {
-    const el = proxCornerHandle.element;
-    el.style.position = "fixed";
-    el.style.removeProperty("position-anchor");
-    (el.style as any).positionAnchor = "";
-    el.style.right = "";
-    el.style.bottom = "";
-    el.style.left = `${Math.round(maxR - 8)}px`;
-    el.style.top = `${Math.round(maxB - 8)}px`;
-    el.style.transform = "translate(0, 0)";
-  }
 }
 
 // The table-edge "+" buttons always append at the far edge of the table,

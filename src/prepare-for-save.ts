@@ -4,8 +4,8 @@
 // renderer writes).
 //
 // Host apps that persist document.body.innerHTML (e.g. Bloom) MUST call this
-// before saving: the edge add/delete buttons, the corner drag handle, and the
-// hover preview bars are appended to document.body (not inside the table), so
+// before saving: the edge add/delete buttons and the hover preview bars are
+// appended to document.body (not inside the table), so
 // they would otherwise be captured in the saved HTML. The per-cell hint colors
 // and selection classes are also edit-only and are cleared here.
 
@@ -17,11 +17,11 @@ const kHintColorProps = [
 ];
 
 export function removeTableEditingArtifacts(root: ParentNode = document): void {
-  // Edge add/delete button groups and the corner drag handle. Both are wrapped
-  // by a ProximityDiv (a position:absolute wrapper appended to <body>), so we
-  // remove the wrapper too if it is left empty.
+  // Edge add/delete button groups. These are wrapped by a ProximityDiv (a
+  // position:absolute wrapper appended to <body>), so we remove the wrapper too
+  // if it is left empty.
   root
-    .querySelectorAll("[data-overlay-group], [data-btable-corner-handle]")
+    .querySelectorAll("[data-overlay-group]")
     .forEach((el) => removeWithProximityWrapper(el));
 
   // Other tagged overlays appended directly to <body> (hover preview bars, the

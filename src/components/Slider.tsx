@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { kBloomBlue } from "../constants";
 
 type Props = {
   /** Optional short label shown before the track (e.g. "X"). */
@@ -66,7 +67,7 @@ const Slider: React.FC<Props> = ({
         disabled={disabled}
         aria-label={rest["aria-label"] ?? label}
         onChange={(e) => handle(parseFloat(e.target.value))}
-        style={{ flex: 1, accentColor: "#2D8294", cursor: disabled ? "not-allowed" : "pointer" }}
+        style={{ flex: 1, accentColor: kBloomBlue, cursor: disabled ? "not-allowed" : "pointer" }}
       />
       <span className="text-sm tabular-nums" style={{ minWidth: 46, textAlign: "right" }}>
         {local}
