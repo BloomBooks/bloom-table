@@ -239,7 +239,10 @@ function createCell(): HTMLElement {
   return newCell;
 }
 
-export const defaultColumnWidth = "hug";
+// A new table, and a new column in an old one, grows to share the width of the
+// page. A table the user has just made is nearly always meant to span the
+// space it sits in, and a column that hugs its text leaves that space empty.
+export const defaultColumnWidth = "fill";
 export const defaultRowHeight = "hug";
 
 export const getTargetTable = (): HTMLElement | null => {

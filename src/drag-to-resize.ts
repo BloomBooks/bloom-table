@@ -93,6 +93,52 @@ export class DragToResize {
     }
   }
 
+  /**
+   * Which resize a press at this point would begin, or null for none.
+   *
+   * The two methods here are for a host that gets the press before the table
+   * does, and whose own layer may be painted over the table so that the press
+   * never reaches it at all: Bloom listens on an ancestor in the capture phase,
+   * and its Comical canvas covers the table. Such a host asks this on each
+   * mouse move to show the resize cursor, and calls beginResizeAtPoint on a
+   * press. They work from the point rather than the event's target, since the
+   * target is whatever the host has painted on top.
+   */
+  resizeEdgeAtPoint(event: MouseEvent): "row" | "column" | null {
+    const resizeInfo = this.getResizeInfoAtPoint(event);
+    return resizeInfo ? resizeInfo.type : null;
+  }
+
+  /**
+   * Begin a row or column resize at this point, as a press on the table itself
+   * would; the document-level handlers here carry it through. Answers whether a
+   * resize began, so the host can leave the press alone when it did not.
+   */
+  beginResizeAtPoint(event: MouseEvent): boolean {
+    const resizeInfo = this.getResizeInfoAtPoint(event);
+    if (!resizeInfo) {
+      return false;
+    }
+    this.startResize(resizeInfo, event);
+    return true;
+  }
+
+  private getResizeInfoAtPoint(event: MouseEvent) {
+    if (this.attachedTables.size === 0) {
+      return null; // nothing on this page to resize
+    }
+    const target = event.target as HTMLElement | null;
+    const cell =
+      target?.closest?.<HTMLElement>(".bloom-cell") ??
+      (target?.ownerDocument ?? document)
+        .elementsFromPoint(event.clientX, event.clientY)
+        .find((element) => element.classList.contains("bloom-cell"));
+    if (!cell) {
+      return null;
+    }
+    return this.getResizeInfo(cell as HTMLElement, event);
+  }
+
   private updateCursorOnMouseMove = (event: MouseEvent): void => {
     if (this.dragState.isDragging) {
       // If dragging, the cursor is already set and latched, so do nothing here.
@@ -114,8 +160,18 @@ export class DragToResize {
     const resizeInfo = this.getResizeInfo(target, event);
 
     if (resizeInfo) {
-      event.preventDefault(); // Capture the appropriate edge position based on resize type
+      event.preventDefault();
       event.stopPropagation();
+      this.startResize(resizeInfo, event);
+    }
+  };
+
+  private startResize(
+    resizeInfo: NonNullable<ReturnType<DragToResize["getResizeInfo"]>>,
+    event: MouseEvent,
+  ): void {
+    {
+      // Capture the appropriate edge position based on resize type
       let columnLeftEdge: number | undefined;
       let rowTopEdge: number | undefined;
       if (resizeInfo.type === "column") {
@@ -149,7 +205,7 @@ export class DragToResize {
             : undefined,
       };
     }
-  };
+  }
 
   private handleMouseLeave = (event: MouseEvent): void => {
     const target = event.target as HTMLElement;

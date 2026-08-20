@@ -90,6 +90,20 @@ export function registerCellContentType(
   }
 }
 
+// Remove a cell content type, so it no longer appears in the content-type menu.
+// A host uses this for the types it cannot support: Bloom, for example, has no
+// place for the library's plain <video> cell, because its videos need Bloom's own
+// video container and recording tools. Removing the type the host cannot honour
+// is better than leaving a menu entry that inserts content the host breaks on.
+// Cells that already carry the removed type keep their content; only the menu
+// entry and the ability to switch a cell to it go away.
+export function unregisterCellContentType(id: string): void {
+  const index = defaultCellContentsForEachType.findIndex((c) => c.id === id);
+  if (index >= 0) {
+    defaultCellContentsForEachType.splice(index, 1);
+  }
+}
+
 export function setDefaultCellContentTypeId(id: string): void {
   defaultCellContentTypeId = id;
 }

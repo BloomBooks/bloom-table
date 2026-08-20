@@ -22,6 +22,7 @@ export { BloomTable } from "./BloomTable";
 // helpers and the event a host listens for to wire new content.
 export {
   registerCellContentType,
+  unregisterCellContentType,
   setDefaultCellContentTypeId,
   getDefaultCellContentTypeId,
   getCurrentContentTypeId,

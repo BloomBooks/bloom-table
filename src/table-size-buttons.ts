@@ -446,7 +446,15 @@ function makeGlyphPill(label: string, iconSrc: string, iconStyle: string): HTMLB
   btn.type = "button";
   btn.setAttribute("aria-label", label);
   btn.title = label;
-  btn.innerHTML = `<img src="${iconSrc}" alt="" style="${iconStyle}" />`;
+  // Build the image with the DOM rather than an HTML string: the bundler can
+  // inline an .svg as a `data:image/svg+xml,` URL that still contains double
+  // quotes, and those end the src attribute early and spill the rest of the
+  // markup into the pill as visible text.
+  const img = document.createElement("img");
+  img.src = iconSrc;
+  img.alt = "";
+  img.setAttribute("style", iconStyle);
+  btn.replaceChildren(img);
   stylePill(btn);
   return btn;
 }
@@ -518,6 +526,25 @@ function makeDivider(): HTMLDivElement {
 // Color for the black line icons in the left gutter of menu items.
 const kItemIconColor = "#333";
 
+// Make a URL safe to put inside a CSS url("..."). A bundler can inline an .svg
+// as a `data:image/svg+xml,` URL that still holds literal double quotes, angle
+// brackets and newlines. Any of those ends the CSS string early, so the whole
+// declaration is rejected and the caller gets a flat colored box, not an icon.
+function cssUrl(url: string): string {
+  const unsafeInACssString: Record<string, string> = {
+    '"': "%22",
+    "<": "%3C",
+    ">": "%3E",
+    "\r": "%0D",
+    "\n": "%0A",
+  };
+  let escaped = url;
+  for (const [character, replacement] of Object.entries(unsafeInACssString)) {
+    escaped = escaped.split(character).join(replacement);
+  }
+  return `url("${escaped}")`;
+}
+
 // Fill an element with an icon recolored to `color`. Accepts inline SVG markup
 // (uses currentColor) or a URL (recolored via CSS mask, since the toolbar SVGs
 // are white and would otherwise be invisible on the white menu).
@@ -536,8 +563,8 @@ function setIconSlot(el: HTMLElement, icon: string | undefined, color: string): 
     height: "16px",
     backgroundColor: color,
   } as CSSStyleDeclaration);
-  m.style.setProperty("mask-image", `url("${icon}")`);
-  m.style.setProperty("-webkit-mask-image", `url("${icon}")`);
+  m.style.setProperty("mask-image", cssUrl(icon));
+  m.style.setProperty("-webkit-mask-image", cssUrl(icon));
   for (const prop of ["mask-size", "-webkit-mask-size"]) m.style.setProperty(prop, "contain");
   for (const prop of ["mask-repeat", "-webkit-mask-repeat"]) m.style.setProperty(prop, "no-repeat");
   for (const prop of ["mask-position", "-webkit-mask-position"]) m.style.setProperty(prop, "center");
