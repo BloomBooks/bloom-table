@@ -19,6 +19,7 @@ import {
 } from "./table-model";
 import { getTableCells } from "./structure";
 import { resolveEdgeDefault } from "./table-renderer";
+import { splitV, splitH, hasPositiveGap } from "./edge-entries";
 
 // Simple converters between UI-friendly types and model BorderSpec
 export type UIStyle = "none" | "solid" | "dashed" | "dotted" | "double";
@@ -35,46 +36,8 @@ const toSpec = (u?: UIBorder | null, fallbackColor = "#444"): BorderSpec | null 
   return { weight: u.weight, style: u.style, color } as BorderSpec;
 };
 
-// Is this edge entry a single shared BorderSpec (vs. a sided west/east|north/south object)?
-const isSpec = (e: unknown): e is BorderSpec => {
-  if (!e || typeof e !== "object") return false;
-  const o = e as Record<string, unknown>;
-  return (
-    typeof o.weight === "number" ||
-    Object.prototype.hasOwnProperty.call(o, "style") ||
-    Object.prototype.hasOwnProperty.call(o, "color")
-  );
-};
-
-// Decompose an edge entry into its two sides, mirroring the renderer: a single spec
-// applies to both sides; a sided object keeps each side; null/absent => both null.
-const splitV = (e: VEdgeEntry | undefined): HVVerticalEdgeCellSides => {
-  if (isSpec(e)) return { west: e, east: e };
-  if (e && typeof e === "object") {
-    const s = e as HVVerticalEdgeCellSides;
-    return { west: s.west ?? null, east: s.east ?? null };
-  }
-  return { west: null, east: null };
-};
-const splitH = (e: HEdgeEntry | undefined): HVHorizontalEdgeCellSides => {
-  if (isSpec(e)) return { north: e, south: e };
-  if (e && typeof e === "object") {
-    const s = e as HVHorizontalEdgeCellSides;
-    return { north: s.north ?? null, south: s.south ?? null };
-  }
-  return { north: null, south: null };
-};
-
-// Does the boundary at the given gap index have a positive gap? Mirrors the
-// renderer's hasPositiveGap logic so the writer and renderer agree.
-const gapPositive = (tokens: string[], i: number): boolean => {
-  const gi = Math.min(Math.max(0, i), Math.max(0, (tokens.length || 1) - 1));
-  const token = (tokens[gi] || "").trim();
-  if (!token) return false;
-  const n = parseFloat(token);
-  if (!isNaN(n)) return n > 0;
-  return token !== "0" && token !== "0px";
-};
+// Edge-entry decoding (splitV/splitH, hasPositiveGap) is shared with the
+// renderer via edge-entries, so the writer and renderer agree by construction.
 
 // Read current sizes
 export function getTableSize(table: HTMLElement): { rows: number; cols: number } {
@@ -277,7 +240,7 @@ export function applyCellPerimeter(
     for (let rr = r; rr < Math.min(r + sy, v.length); rr++) {
       if (c === 0) {
         v[rr][0] = outerSpec;
-      } else if (gapPositive(gapX, c - 1)) {
+      } else if (hasPositiveGap(gapX, c - 1)) {
         v[rr][c] = { west: splitV(v[rr][c]).west, east: innerSpec };
       } else if (isRemoval(innerSpec)) {
         v[rr][c] = { west: splitV(v[rr][c]).west ?? dflt(), east: innerSpec };
@@ -296,7 +259,7 @@ export function applyCellPerimeter(
     for (let rr = r; rr < Math.min(r + sy, v.length); rr++) {
       if (rc === cols - 1) {
         v[rr][cols] = outerSpec;
-      } else if (gapPositive(gapX, rc)) {
+      } else if (hasPositiveGap(gapX, rc)) {
         v[rr][rc + 1] = { west: innerSpec, east: splitV(v[rr][rc + 1]).east };
       } else if (isRemoval(innerSpec)) {
         v[rr][rc + 1] = { west: innerSpec, east: splitV(v[rr][rc + 1]).east ?? dflt() };
@@ -316,7 +279,7 @@ export function applyCellPerimeter(
     for (let cc = c; cc < Math.min(c + sx, h[boundaryRow]?.length ?? 0); cc++) {
       if (r === 0) {
         h[0][cc] = outerSpec;
-      } else if (gapPositive(gapY, r - 1)) {
+      } else if (hasPositiveGap(gapY, r - 1)) {
         h[boundaryRow][cc] = { north: splitH(h[boundaryRow][cc]).north, south: innerSpec };
       } else if (isRemoval(innerSpec)) {
         h[boundaryRow][cc] = { north: splitH(h[boundaryRow][cc]).north ?? dflt(), south: innerSpec };
@@ -336,7 +299,7 @@ export function applyCellPerimeter(
     for (let cc = c; cc < Math.min(c + sx, h[boundaryRow]?.length ?? 0); cc++) {
       if (rrBottom === rows - 1) {
         h[boundaryRow][cc] = outerSpec;
-      } else if (gapPositive(gapY, rrBottom)) {
+      } else if (hasPositiveGap(gapY, rrBottom)) {
         h[boundaryRow][cc] = { north: innerSpec, south: splitH(h[boundaryRow][cc]).south };
       } else if (isRemoval(innerSpec)) {
         h[boundaryRow][cc] = { north: innerSpec, south: splitH(h[boundaryRow][cc]).south ?? dflt() };

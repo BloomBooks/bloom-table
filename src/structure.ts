@@ -61,6 +61,7 @@
 import { tableHistoryManager } from "./history";
 import { setupContentsOfCell, getCurrentContentTypeId } from "./cell-contents";
 import type { HEdgeEntry, VEdgeEntry } from "./table-model";
+import { isBorderSpec } from "./edge-entries";
 import {
   getEdgesH,
   setEdgesH,
@@ -71,6 +72,11 @@ import {
   getGapY,
   setGapY,
 } from "./table-model";
+import { buildGrid, type GridView, type SpanCover } from "./grid";
+
+// SpanCover lives in grid.ts now (built by buildGrid's one-pass cover matrix);
+// re-exported here so existing importers keep working.
+export type { SpanCover } from "./grid";
 
 /**
  * Per-cell appearance settings that a newly inserted row/column should inherit
@@ -139,22 +145,11 @@ function blankEdges(n: number): EdgeRow {
   return Array.from({ length: n }, () => ({}));
 }
 
-// Is this entry a single BorderSpec shared by both sides, rather than a sided
-// west/east | north/south object? Same test the renderer and edge-utils use.
-function isSharedSpec(entry: unknown): boolean {
-  if (!entry || typeof entry !== "object") return false;
-  const o = entry as Record<string, unknown>;
-  return (
-    typeof o.weight === "number" ||
-    Object.prototype.hasOwnProperty.call(o, "style") ||
-    Object.prototype.hasOwnProperty.call(o, "color")
-  );
-}
-
 // One side of an edge entry; a shared spec answers for both sides.
+// (isBorderSpec is the shared shape test from edge-entries.)
 function edgeSide(entry: unknown, side: "north" | "south" | "west" | "east"): unknown {
   if (!entry || typeof entry !== "object") return null;
-  if (isSharedSpec(entry)) return entry;
+  if (isBorderSpec(entry)) return entry;
   return (entry as Record<string, unknown>)[side] ?? null;
 }
 
@@ -887,34 +882,6 @@ function cloneCellForDuplicate(cell: HTMLElement): HTMLElement {
   return clone;
 }
 
-// The spanning (anchor) cell covering a grid position, with its position and
-// span, or null when the position is out of range.
-type SpanCover = {
-  anchor: HTMLElement;
-  row: number;
-  column: number;
-  spanX: number;
-  spanY: number;
-};
-
-function findSpanCover(table: HTMLElement, row: number, column: number): SpanCover | null {
-  for (const cell of getTableCells(table)) {
-    if (cell.classList.contains("bloom-skip")) continue;
-    const pos = getRowAndColumn(table, cell);
-    const spanX = parseInt(cell.getAttribute("data-span-x") || "1") || 1;
-    const spanY = parseInt(cell.getAttribute("data-span-y") || "1") || 1;
-    if (
-      row >= pos.row &&
-      row < pos.row + spanY &&
-      column >= pos.column &&
-      column < pos.column + spanX
-    ) {
-      return { anchor: cell, row: pos.row, column: pos.column, spanX, spanY };
-    }
-  }
-  return null;
-}
-
 // Give a clone fresh default contents. Used where a duplicate's cell is
 // covered by (or freed from) a merge: carrying the source's content into it
 // would duplicate that content — hidden inside a skip cell (and resurrected on
@@ -970,8 +937,8 @@ const lineAxisOps = {
     sizes: (info: TableInfo) => info.rowHeights,
     lineCount: (info: TableInfo) => info.rowCount,
     perpCount: (info: TableInfo) => info.columnCount,
-    cellAt: (table: HTMLElement, line: number, perp: number) => getCell(table, line, perp),
-    coverAt: (table: HTMLElement, line: number, perp: number) => findSpanCover(table, line, perp),
+    cellAt: (grid: GridView, line: number, perp: number) => grid.cellAt(line, perp),
+    coverAt: (grid: GridView, line: number, perp: number) => grid.coverAt(line, perp),
     lineOf: (cover: SpanCover) => cover.row,
     spanAlong: (cover: SpanCover) => cover.spanY,
     growAnchor: (cover: SpanCover) => writeSpan(cover.anchor, cover.spanX, cover.spanY + 1),
@@ -1002,6 +969,34 @@ const lineAxisOps = {
     lineOfPos: (pos: { row: number; column: number }) => pos.row,
     writeSpans: (cell: HTMLElement, along: number, across: number) =>
       writeSpan(cell, across, along),
+    // Moving a row reorders whole R-row blocks of cells.
+    reorderCells: (cells: HTMLElement[], from: number, to: number, R: number, C: number) => {
+      const grid: HTMLElement[][] = [];
+      for (let r = 0; r < R; r++) grid.push(cells.slice(r * C, (r + 1) * C));
+      const [movedRowCells] = grid.splice(from, 1);
+      grid.splice(to, 0, movedRowCells);
+      return grid;
+    },
+    // Vertical edges (R x C+1): travel with their row.
+    travelingEdges: (table: HTMLElement, from: number, to: number, R: number, _C: number) => {
+      const v = getEdgesV(table);
+      if (v && v.length === R) {
+        const [mv] = v.splice(from, 1);
+        v.splice(to, 0, mv);
+        setEdgesV(table, v);
+      }
+    },
+    // Horizontal edges (R+1 x C): move the row-top boundaries, keep table bottom fixed.
+    boundaryEdges: (table: HTMLElement, from: number, to: number, R: number, _C: number) => {
+      const h = getEdgesH(table);
+      if (h && h.length === R + 1) {
+        const tops = h.slice(0, R);
+        const bottom = h[R];
+        const [mt] = tops.splice(from, 1);
+        tops.splice(to, 0, mt);
+        setEdgesH(table, [...tops, bottom]);
+      }
+    },
   },
   column: {
     sizeAttr: "data-column-widths",
@@ -1009,8 +1004,8 @@ const lineAxisOps = {
     sizes: (info: TableInfo) => info.columnWidths,
     lineCount: (info: TableInfo) => info.columnCount,
     perpCount: (info: TableInfo) => info.rowCount,
-    cellAt: (table: HTMLElement, line: number, perp: number) => getCell(table, perp, line),
-    coverAt: (table: HTMLElement, line: number, perp: number) => findSpanCover(table, perp, line),
+    cellAt: (grid: GridView, line: number, perp: number) => grid.cellAt(perp, line),
+    coverAt: (grid: GridView, line: number, perp: number) => grid.coverAt(perp, line),
     lineOf: (cover: SpanCover) => cover.column,
     spanAlong: (cover: SpanCover) => cover.spanX,
     growAnchor: (cover: SpanCover) => writeSpan(cover.anchor, cover.spanX + 1, cover.spanY),
@@ -1049,6 +1044,42 @@ const lineAxisOps = {
     lineOfPos: (pos: { row: number; column: number }) => pos.column,
     writeSpans: (cell: HTMLElement, along: number, across: number) =>
       writeSpan(cell, along, across),
+    // Moving a column reorders one cell within each row.
+    reorderCells: (cells: HTMLElement[], from: number, to: number, R: number, C: number) => {
+      const grid: HTMLElement[][] = [];
+      for (let r = 0; r < R; r++) {
+        const rowCells = cells.slice(r * C, (r + 1) * C);
+        const [mc] = rowCells.splice(from, 1);
+        rowCells.splice(to, 0, mc);
+        grid.push(rowCells);
+      }
+      return grid;
+    },
+    // Horizontal edges (R+1 x C): travel with their column.
+    travelingEdges: (table: HTMLElement, from: number, to: number, R: number, C: number) => {
+      const h = getEdgesH(table);
+      if (h && h.length === R + 1 && h.every((row) => Array.isArray(row) && row.length === C)) {
+        for (const row of h) {
+          const [m] = row.splice(from, 1);
+          row.splice(to, 0, m);
+        }
+        setEdgesH(table, h);
+      }
+    },
+    // Vertical edges (R x C+1): move the column-left boundaries, keep table right fixed.
+    boundaryEdges: (table: HTMLElement, from: number, to: number, R: number, C: number) => {
+      const v = getEdgesV(table);
+      if (v && v.length === R && v.every((row) => Array.isArray(row) && row.length === C + 1)) {
+        const next = v.map((row) => {
+          const lefts = row.slice(0, C);
+          const right = row[C];
+          const [m] = lefts.splice(from, 1);
+          lefts.splice(to, 0, m);
+          return [...lefts, right];
+        });
+        setEdgesV(table, next as typeof v);
+      }
+    },
   },
 } as const;
 
@@ -1081,21 +1112,24 @@ function insertLineAt(
   // Build the new cells, and find the merge covering each grid position on
   // the line just before the insertion boundary — all BEFORE mutating the
   // table (content resets happen on detached nodes, so no host events fire).
+  // One grid model serves every per-position lookup in the loop; rescanning
+  // the DOM per position made this O(lines * perp^2).
+  const grid = buildGrid(table);
   const newCells: HTMLElement[] = [];
   const covers: (SpanCover | null)[] = [];
   const boundaryLine = insertIndex - 1;
   for (let p = 0; p < perpCount; p++) {
     if (mode === "clone") {
-      newCells.push(cloneCellForDuplicate(ops.cellAt(table, sourceIndex!, p)));
+      newCells.push(cloneCellForDuplicate(ops.cellAt(grid, sourceIndex!, p)!));
     } else {
       const cell = createCell();
       if (mode === "skeleton" && sourceIndex != null) {
-        applyCellSettings(cell, snapshotCellSettings(ops.cellAt(table, sourceIndex, p)));
+        applyCellSettings(cell, snapshotCellSettings(ops.cellAt(grid, sourceIndex, p)!));
       }
       newCells.push(cell);
     }
     covers.push(
-      boundaryLine >= 0 && boundaryLine < lineCount ? ops.coverAt(table, boundaryLine, p) : null,
+      boundaryLine >= 0 && boundaryLine < lineCount ? ops.coverAt(grid, boundaryLine, p) : null,
     );
   }
   const referenceNodes = ops.referenceNodes(table, info, insertIndex);
@@ -1153,19 +1187,24 @@ function removeLineAt(table: HTMLElement, axis: LineAxis, index: number): void {
 
   normalizeEdgeArrays(table, info.rowCount, info.columnCount);
 
+  // Cell positions don't move until the actual removal below, so one grid
+  // model serves every lookup here (the loops change skip classes and span
+  // attributes, which the grid's cellAt doesn't depend on).
+  const grid = buildGrid(table);
+
   // A merge ANCHORED in the line being removed hands its coverage to the cell
   // on the next line: the anchor's data-span-* is the only record that the
   // covered cells are covered, so deleting it with the line would leave them
   // skipped (display:none) with nothing left that could ever unmerge them.
   for (let p = 0; p < perpCount; p++) {
-    const cell = ops.cellAt(table, index, p);
+    const cell = ops.cellAt(grid, index, p)!;
     if (cell.classList.contains("bloom-skip")) continue;
     const along = ops.spanAlongOf(cell);
     // A span reaching past the end of the table is already broken data; there
     // is no cell to hand the coverage to, so just let it go with the line.
     if (along <= 1 || index + 1 >= lineCount) continue;
     const across = ops.spanAcrossOf(cell);
-    const heir = ops.cellAt(table, index + 1, p);
+    const heir = ops.cellAt(grid, index + 1, p)!;
     heir.classList.remove("bloom-skip");
     ops.writeSpans(heir, along - 1, across);
   }
@@ -1182,7 +1221,7 @@ function removeLineAt(table: HTMLElement, axis: LineAxis, index: number): void {
   // Collect the cells to remove BEFORE the size attributes change (positions
   // are derived from the declared column count).
   const cellsToRemove: HTMLElement[] = [];
-  for (let p = 0; p < perpCount; p++) cellsToRemove.push(ops.cellAt(table, index, p));
+  for (let p = 0; p < perpCount; p++) cellsToRemove.push(ops.cellAt(grid, index, p)!);
 
   const sizes = ops.sizes(info);
   sizes.splice(index, 1);
@@ -1192,6 +1231,35 @@ function removeLineAt(table: HTMLElement, axis: LineAxis, index: number): void {
   spliceGapForRemovedLine(table, axis, index, lineCount);
 
   cellsToRemove.forEach((cell) => table.removeChild(cell));
+}
+
+// The shared move core. Runs inside the caller's history entry. Borders model:
+// each line "owns" its leading boundary (a row its top, a column its left);
+// the table's final trailing boundary (bottom/right) stays fixed. Edges on the
+// other axis travel with the line. Spans that straddle the moved boundary are
+// not specially handled (best-effort for simple grids).
+function moveLineAt(table: HTMLElement, axis: LineAxis, from: number, to: number): void {
+  const ops = lineAxisOps[axis];
+  const info = getTableInfo(table);
+  const R = info.rowCount;
+  const C = info.columnCount;
+
+  normalizeEdgeArrays(table, R, C);
+  reorderGapForMovedLine(table, axis, from, to, ops.lineCount(info));
+
+  // Sizes travel with the line.
+  const sizes = (table.getAttribute(ops.sizeAttr) || "").split(",");
+  const [movedSize] = sizes.splice(from, 1);
+  sizes.splice(to, 0, movedSize);
+  table.setAttribute(ops.sizeAttr, sizes.join(","));
+
+  // DOM cells: a full R*C grid in DOM order, reordered along the axis, then
+  // re-appended in the new order.
+  const grid = ops.reorderCells(getTableCells(table), from, to, R, C);
+  grid.flat().forEach((cell) => table.appendChild(cell));
+
+  ops.travelingEdges(table, from, to, R, C);
+  ops.boundaryEdges(table, from, to, R, C);
 }
 
 /**
@@ -1310,46 +1378,12 @@ export const moveRowAt = (table: HTMLElement, from: number, to: number, skipHist
   if (!table) return;
   const info = getTableInfo(table);
   const R = info.rowCount;
-  const C = info.columnCount;
   if (from === to) return;
   assert(from >= 0 && from < R, `Row index ${from} is out of bounds`);
   assert(to >= 0 && to < R, `Row index ${to} is out of bounds`);
 
   const description = `Move Row ${from} to ${to}`;
-  const performOperation = () => {
-    normalizeEdgeArrays(table, R, C);
-    reorderGapForMovedLine(table, "row", from, to, R);
-    // Row heights
-    const heights = (table.getAttribute("data-row-heights") || "").split(",");
-    const [movedHeight] = heights.splice(from, 1);
-    heights.splice(to, 0, movedHeight);
-    table.setAttribute("data-row-heights", heights.join(","));
-
-    // DOM cells: a full R*C grid in DOM order; reorder whole row blocks.
-    const cells = getTableCells(table);
-    const grid: HTMLElement[][] = [];
-    for (let r = 0; r < R; r++) grid.push(cells.slice(r * C, (r + 1) * C));
-    const [movedRowCells] = grid.splice(from, 1);
-    grid.splice(to, 0, movedRowCells);
-    grid.flat().forEach((cell) => table.appendChild(cell));
-
-    // Vertical edges (R x C+1): travel with their row.
-    const v = getEdgesV(table);
-    if (v && v.length === R) {
-      const [mv] = v.splice(from, 1);
-      v.splice(to, 0, mv);
-      setEdgesV(table, v);
-    }
-    // Horizontal edges (R+1 x C): move the row-top boundaries, keep table bottom fixed.
-    const h = getEdgesH(table);
-    if (h && h.length === R + 1) {
-      const tops = h.slice(0, R);
-      const bottom = h[R];
-      const [mt] = tops.splice(from, 1);
-      tops.splice(to, 0, mt);
-      setEdgesH(table, [...tops, bottom]);
-    }
-  };
+  const performOperation = () => moveLineAt(table, "row", from, to);
 
   if (skipHistory) {
     performOperation();
@@ -1370,55 +1404,13 @@ export const moveRowAt = (table: HTMLElement, from: number, to: number, skipHist
 export const moveColumnAt = (table: HTMLElement, from: number, to: number, skipHistory = false): void => {
   if (!table) return;
   const info = getTableInfo(table);
-  const R = info.rowCount;
   const C = info.columnCount;
   if (from === to) return;
   assert(from >= 0 && from < C, `Column index ${from} is out of bounds`);
   assert(to >= 0 && to < C, `Column index ${to} is out of bounds`);
 
   const description = `Move Column ${from} to ${to}`;
-  const performOperation = () => {
-    normalizeEdgeArrays(table, R, C);
-    reorderGapForMovedLine(table, "column", from, to, C);
-    // Column widths
-    const widths = (table.getAttribute("data-column-widths") || "").split(",");
-    const [movedWidth] = widths.splice(from, 1);
-    widths.splice(to, 0, movedWidth);
-    table.setAttribute("data-column-widths", widths.join(","));
-
-    // DOM cells: reorder the cell at `from` to `to` within each row.
-    const cells = getTableCells(table);
-    const grid: HTMLElement[][] = [];
-    for (let r = 0; r < R; r++) {
-      const rowCells = cells.slice(r * C, (r + 1) * C);
-      const [mc] = rowCells.splice(from, 1);
-      rowCells.splice(to, 0, mc);
-      grid.push(rowCells);
-    }
-    grid.flat().forEach((cell) => table.appendChild(cell));
-
-    // Horizontal edges (R+1 x C): travel with their column.
-    const h = getEdgesH(table);
-    if (h && h.length === R + 1 && h.every((row) => Array.isArray(row) && row.length === C)) {
-      for (const row of h) {
-        const [m] = row.splice(from, 1);
-        row.splice(to, 0, m);
-      }
-      setEdgesH(table, h);
-    }
-    // Vertical edges (R x C+1): move the column-left boundaries, keep table right fixed.
-    const v = getEdgesV(table);
-    if (v && v.length === R && v.every((row) => Array.isArray(row) && row.length === C + 1)) {
-      const next = v.map((row) => {
-        const lefts = row.slice(0, C);
-        const right = row[C];
-        const [m] = lefts.splice(from, 1);
-        lefts.splice(to, 0, m);
-        return [...lefts, right];
-      });
-      setEdgesV(table, next as typeof v);
-    }
-  };
+  const performOperation = () => moveLineAt(table, "column", from, to);
 
   if (skipHistory) {
     performOperation();

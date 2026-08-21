@@ -6,12 +6,8 @@
 // Formatting a cell and then its row overwrites that cell along with the rest
 // of the row; formatting the row and then one cell changes only that cell.
 
-import {
-  getRowAndColumn,
-  snapshotCellSettings,
-  applyCellSettings,
-  type CellSettings,
-} from "./structure";
+import { snapshotCellSettings, applyCellSettings, type CellSettings } from "./structure";
+import { buildGrid } from "./grid";
 import { render } from "./table-renderer";
 import { tableHistoryManager } from "./history";
 import {
@@ -78,22 +74,19 @@ export function getCellsInScope(
   if (scope === "table") return cells;
   if (!cell) return [];
   if (scope === "cell") return cells.includes(cell) ? [cell] : [];
-  let target: { row: number; column: number };
-  try {
-    target = getRowAndColumn(table, cell);
-  } catch {
-    return [];
-  }
+  // One grid model instead of a per-cell getRowAndColumn rescan. A cell with
+  // no posOf entry (not a direct child, or outside the declared grid) is
+  // filtered out, just as getRowAndColumn's throw used to be caught.
+  const grid = buildGrid(table);
+  const target = grid.posOf.get(cell);
+  if (!target) return [];
   return cells.filter((c) => {
-    try {
-      const pos = getRowAndColumn(table, c);
-      const span = getSpan(c);
-      return scope === "row"
-        ? target.row >= pos.row && target.row < pos.row + Math.max(1, span.y)
-        : target.column >= pos.column && target.column < pos.column + Math.max(1, span.x);
-    } catch {
-      return false;
-    }
+    const pos = grid.posOf.get(c);
+    if (!pos) return false;
+    const span = getSpan(c);
+    return scope === "row"
+      ? target.row >= pos.row && target.row < pos.row + Math.max(1, span.y)
+      : target.column >= pos.column && target.column < pos.column + Math.max(1, span.x);
   });
 }
 

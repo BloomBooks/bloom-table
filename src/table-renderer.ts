@@ -10,12 +10,8 @@ import {
   type BorderSpec,
 } from "./table-model";
 import { EDGE_DEFAULT } from "./defaults";
-import type {
-  HEdgeEntry,
-  VEdgeEntry,
-  HVHorizontalEdgeCellSides,
-  HVVerticalEdgeCellSides,
-} from "./table-model";
+import type { HEdgeEntry, VEdgeEntry } from "./table-model";
+import { entryAtV, entryAtH, splitV, splitH, hasPositiveGap } from "./edge-entries";
 
 const MIN_COLUMN_WIDTH = "60px";
 const MIN_ROW_HEIGHT = "20px";
@@ -226,23 +222,9 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   const gapX = getGapX(table);
   const gapY = getGapY(table);
 
-  function hasPositiveGapX(c: number): boolean {
-    // Allow a single value to apply to all boundaries, or provide per-boundary values
-    const gi = Math.min(Math.max(0, c), Math.max(0, (gapX.length || 1) - 1));
-    const token = (gapX[gi] || "").trim();
-    if (!token) return false;
-    const n = parseFloat(token);
-    if (!isNaN(n)) return n > 0;
-    return token !== "0" && token !== "0px"; // basic fallback
-  }
-  function hasPositiveGapY(r: number): boolean {
-    const gi = Math.min(Math.max(0, r), Math.max(0, (gapY.length || 1) - 1));
-    const token = (gapY[gi] || "").trim();
-    if (!token) return false;
-    const n = parseFloat(token);
-    if (!isNaN(n)) return n > 0;
-    return token !== "0" && token !== "0px";
-  }
+  // Wrappers close over the parsed gap arrays; a single value applies to all boundaries.
+  const hasPositiveGapX = (c: number): boolean => hasPositiveGap(gapX, c);
+  const hasPositiveGapY = (r: number): boolean => hasPositiveGap(gapY, r);
 
   function borderScore(spec: BorderSpec | null | undefined): number[] {
     // Higher tuple wins lexicographically: [visible, weight, stylePrec].
@@ -273,84 +255,18 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     return tieFavor === "leftTop" ? "a" : "b";
   }
 
-  // Helper to read a vertical edge entry at row r, at boundary c (0..cols)
+  // Helper to read a vertical edge entry at row r, at boundary c (0..cols).
+  // Decoding lives in edge-entries (shared with the writers); normalize stays
+  // renderer-local because the writers must NOT normalize what they store.
   function readV(r: number, c: number): { west: BorderSpec | null; east: BorderSpec | null } {
-    const row: VEdgeEntry[] | undefined = (edgesV && (edgesV[r] as VEdgeEntry[])) || undefined;
-    let e: VEdgeEntry | undefined;
-    if (row) {
-      // Support either full (cols+1) entries including perimeters
-      // or concise interior-only arrays of length (cols-1)
-      if (row.length === cols + 1) {
-        e = row[c];
-      } else if (row.length === Math.max(0, cols - 1)) {
-        // interior boundaries map c in [1..cols-1] to row[c-1]
-        if (c >= 1 && c <= cols - 1) e = row[c - 1];
-      } else if (row.length === 1 && cols >= 2) {
-        // Special case: single interior boundary (e.g., 1x2 table)
-        if (c === 1) e = row[0];
-      }
-    }
-    let west: BorderSpec | null = null;
-    let east: BorderSpec | null = null;
-    const isBorderSpec =
-      e &&
-      typeof e === "object" &&
-      (typeof (e as any).weight === "number" ||
-        Object.prototype.hasOwnProperty.call(e as any, "style") ||
-        Object.prototype.hasOwnProperty.call(e as any, "color"));
-    if (isBorderSpec) {
-      const spec = normalize(e as BorderSpec);
-      west = spec;
-      east = spec;
-    } else {
-      const sv = (e as HVVerticalEdgeCellSides | undefined) ?? undefined;
-      west = normalize(sv?.west ?? null);
-      east = normalize(sv?.east ?? null);
-    }
-    return { west, east };
+    const s = splitV(entryAtV(edgesV, cols, r, c));
+    return { west: normalize(s.west), east: normalize(s.east) };
   }
 
   // Helper to read a horizontal edge entry at boundary r (0..rows), column c
   function readH(r: number, c: number): { north: BorderSpec | null; south: BorderSpec | null } {
-    const rowsCount = rowHeights.length;
-    let e: HEdgeEntry | undefined;
-    if (edgesH) {
-      const full = edgesH.length === rowsCount + 1;
-      const interiorOnly = edgesH.length === Math.max(0, rowsCount - 1);
-      const singleInterior = edgesH.length === 1 && rowsCount >= 2;
-      if (full) {
-        e = (edgesH[r] && (edgesH[r][c] as HEdgeEntry)) as HEdgeEntry | undefined;
-      } else if (interiorOnly) {
-        // interior boundaries map r in [1..rows-1] to edgesH[r-1]
-        if (r >= 1 && r <= rowsCount - 1) {
-          const rr = r - 1;
-          e = (edgesH[rr] && (edgesH[rr][c] as HEdgeEntry)) as HEdgeEntry | undefined;
-        }
-      } else if (singleInterior) {
-        // Single interior boundary row, applies when r===1
-        if (r === 1) {
-          e = (edgesH[0] && (edgesH[0][c] as HEdgeEntry)) as HEdgeEntry | undefined;
-        }
-      }
-    }
-    let north: BorderSpec | null = null;
-    let south: BorderSpec | null = null;
-    const isBorderSpec =
-      e &&
-      typeof e === "object" &&
-      (typeof (e as any).weight === "number" ||
-        Object.prototype.hasOwnProperty.call(e as any, "style") ||
-        Object.prototype.hasOwnProperty.call(e as any, "color"));
-    if (isBorderSpec) {
-      const spec = normalize(e as BorderSpec);
-      north = spec;
-      south = spec;
-    } else {
-      const sh = (e as HVHorizontalEdgeCellSides | undefined) ?? undefined;
-      north = normalize(sh?.north ?? null);
-      south = normalize(sh?.south ?? null);
-    }
-    return { north, south };
+    const s = splitH(entryAtH(edgesH, rows, r, c));
+    return { north: normalize(s.north), south: normalize(s.south) };
   }
 
   function paintedSpec(spec: BorderSpec | null | undefined): boolean {

@@ -11,8 +11,6 @@ interface DragState {
   startY: number;
   originalValue: string;
   hasStartedOperation: boolean;
-  columnLeftEdge?: number;
-  rowTopEdge?: number;
   baseDimension?: number; // Store the original width/height for "hug" values
 }
 
@@ -212,14 +210,9 @@ export class DragToResize {
     event: MouseEvent,
   ): void {
     {
-      // Capture the appropriate edge position based on resize type
-      let columnLeftEdge: number | undefined;
-      let rowTopEdge: number | undefined;
       if (resizeInfo.type === "column") {
-        columnLeftEdge = this.getColumnLeftEdge(resizeInfo.element, resizeInfo.index);
         document.body.style.cursor = "ew-resize"; // Latch cursor
       } else if (resizeInfo.type === "row") {
-        rowTopEdge = this.getRowTopEdge(resizeInfo.element, resizeInfo.index);
         document.body.style.cursor = "ns-resize"; // Latch cursor
         // Mark active row being resized so UI can reflect this row
         try {
@@ -235,8 +228,6 @@ export class DragToResize {
         startY: event.clientY,
         originalValue: resizeInfo.currentValue,
         hasStartedOperation: false,
-        columnLeftEdge: columnLeftEdge,
-        rowTopEdge: rowTopEdge,
         // Measure the current size whenever the stored value is not a length we
         // can parse ("hug", "fill", a percentage, an empty entry); otherwise the
         // preview would have nothing to add the drag delta to.
@@ -481,8 +472,6 @@ export class DragToResize {
       startY: 0,
       originalValue: "",
       hasStartedOperation: false,
-      columnLeftEdge: undefined,
-      rowTopEdge: undefined,
       baseDimension: undefined,
     };
   }
@@ -633,84 +622,6 @@ export class DragToResize {
       tableHistoryManager.addHistoryEntry(table, description, performOperation, undoOperation);
     }
   };
-  private getColumnLeftEdge(table: HTMLElement, columnIndex: number): number {
-    // Force layout to ensure we get current measurements
-    table.offsetHeight;
-
-    // Try to find a cell in the target column to get its position
-    const tableInfo = getTableInfo(table);
-
-    // Look for a cell in the first row at the target column
-    if (tableInfo.rowCount > 0 && columnIndex < tableInfo.columnCount) {
-      try {
-        const cells = getTableCells(table);
-        const targetCellIndex = columnIndex; // First row, target column
-
-        if (targetCellIndex < cells.length) {
-          const cellElement = cells[targetCellIndex];
-          const rect = cellElement.getBoundingClientRect();
-          const tableRect = table.getBoundingClientRect();
-          return rect.left - tableRect.left;
-        }
-      } catch (error) {
-        console.warn("Could not get cell position, falling back to computed style");
-      }
-    }
-
-    // Fallback: calculate based on table computed style
-    const computedStyle = window.getComputedStyle(table);
-    const gridTemplateColumns = computedStyle.gridTemplateColumns;
-
-    if (gridTemplateColumns && gridTemplateColumns !== "none") {
-      const columnWidths = gridTemplateColumns.split(" ");
-      let leftPosition = 0;
-
-      for (let i = 0; i < columnIndex && i < columnWidths.length; i++) {
-        const match = columnWidths[i].match(/([0-9.]+)px/);
-        if (match) {
-          leftPosition += parseFloat(match[1]);
-        }
-      }
-
-      return leftPosition;
-    } // Ultimate fallback
-    return 0;
-  }
-
-  private getRowTopEdge(table: HTMLElement, rowIndex: number): number {
-    // Force layout to ensure we get current measurements
-    table.offsetHeight;
-
-    // Get the computed table template rows
-    const computedStyle = window.getComputedStyle(table);
-    const gridTemplateRows = computedStyle.gridTemplateRows;
-
-    if (gridTemplateRows && gridTemplateRows !== "none") {
-      const rowHeights = gridTemplateRows.split(" ");
-
-      let topPosition = 0;
-
-      // Sum up the heights of all rows before the target row
-      for (let i = 0; i < rowIndex && i < rowHeights.length; i++) {
-        const heightValue = rowHeights[i];
-        let height = 0;
-
-        // Extract pixel value from computed style
-        const match = heightValue.match(/([0-9.]+)px/);
-        if (match) {
-          height = parseFloat(match[1]);
-        }
-
-        topPosition += height;
-      }
-
-      return topPosition;
-    }
-
-    console.warn(`getRowTopEdge: Could not parse table template rows, returning 0`);
-    return 0;
-  }
-
   private getCurrentColumnWidth(table: HTMLElement, columnIndex: number): number {
     // Force layout to ensure we get current measurements
     table.offsetHeight;

@@ -1,8 +1,19 @@
 // Four edge "+" buttons shown around the visible bounds of the selected table.
 // Right/Left insert columns; Top/Bottom insert rows.
+//
+// This module has been partially decomposed: icon constants live in
+// menu-icons.ts, stateless menu element factories in menu-widgets.ts, and
+// Paint Format mode in paint-format.ts (re-exported below). What remains here
+// shares the menuPopup / overlayTable / cluster module state and is a
+// candidate for a next extraction as one or more units: the overlay/cluster
+// lifecycle (ensureEdgeOverlays, show/hide/reposition, the proximity gate),
+// the menu sections and popup lifecycle (sectionBuilders, openMenu,
+// makeMenuItem), the menu command handlers (menuAddRow etc.), and the
+// delete/add hover previews.
 
 import { BloomTable } from "./BloomTable";
 import { getTableInfo, getRowAndColumn } from "./structure";
+import { buildGrid } from "./grid";
 import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
 import { render } from "./table-renderer";
@@ -37,10 +48,13 @@ import {
   copyProperties,
   pasteProperties,
   hasCopiedProperties,
-  snapshotCellProperties,
-  paintProperties,
-  type CopiedCellProperties,
 } from "./formatting-commands";
+import {
+  enterPaintFormatMode,
+  exitPaintFormatMode,
+  isPaintFormatModeActive,
+  setPaintFormatOverlayHider,
+} from "./paint-format";
 // Toolbar icons reused on the menu (imported as URLs).
 import columnDeleteIcon from "./components/icons/column-delete.svg";
 import cellMergeIcon from "./components/icons/cell-merge.svg";
@@ -56,33 +70,44 @@ import columnHugIcon from "./components/icons/column-hug.svg";
 import rowGrowIcon from "./components/icons/row-grow.svg";
 import rowHugIcon from "./components/icons/row-hug.svg";
 
-// Inline SVG icons (MUI "Add" and "Delete" glyph paths) so the core attach
-// path stays free of React / MUI. fill:currentColor lets the button color
-// drive the glyph color.
-const kAddIconSvg = `<svg viewBox="0 0 24 24" width="18" height="18" style="width:18px;height:18px;display:block;fill:currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
-// Inline glyphs (16px, fill:currentColor) for menu items that have no toolbar
-// icon: directional move arrows, copy, and delete-table.
-const kIconAttr = `viewBox="0 0 24 24" width="16" height="16" style="width:16px;height:16px;display:block;fill:currentColor"`;
-// Directional "add" glyphs: a "+" paired with the edge line the new row/column
-// lands against. The "+" sits on the side the line is being added.
-const kAddRowAboveIconSvg = `<svg ${kIconAttr}><rect x="10.5" y="2" width="3" height="11" rx="0.5"/><rect x="6" y="6" width="12" height="3" rx="0.5"/><rect x="3" y="19" width="18" height="2.5" rx="1"/></svg>`;
-const kAddRowBelowIconSvg = `<svg ${kIconAttr}><rect x="3" y="2.5" width="18" height="2.5" rx="1"/><rect x="10.5" y="11" width="3" height="11" rx="0.5"/><rect x="6" y="15" width="12" height="3" rx="0.5"/></svg>`;
-const kAddColumnLeftIconSvg = `<svg ${kIconAttr}><rect x="6" y="6" width="3" height="12" rx="0.5"/><rect x="1.5" y="10.5" width="12" height="3" rx="0.5"/><rect x="19" y="3" width="2.5" height="18" rx="1"/></svg>`;
-const kAddColumnRightIconSvg = `<svg ${kIconAttr}><rect x="2.5" y="3" width="2.5" height="18" rx="1"/><rect x="15" y="6" width="3" height="12" rx="0.5"/><rect x="10.5" y="10.5" width="12" height="3" rx="0.5"/></svg>`;
-const kMoveUpIconSvg = `<svg ${kIconAttr}><path d="M12 4l-7 7h4v7h6v-7h4z"/></svg>`;
-const kMoveDownIconSvg = `<svg ${kIconAttr}><path d="M12 20l7-7h-4V6H9v7H5z"/></svg>`;
-const kMoveLeftIconSvg = `<svg ${kIconAttr}><path d="M4 12l7-7v4h7v6h-7v4z"/></svg>`;
-const kMoveRightIconSvg = `<svg ${kIconAttr}><path d="M20 12l-7-7v4H6v6h7v4z"/></svg>`;
-const kCopyIconSvg = `<svg ${kIconAttr}><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>`;
-// MUI "ContentPaste" glyph, for Paste properties.
-const kPasteIconSvg = `<svg ${kIconAttr}><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>`;
-const kCutIconSvg = `<svg ${kIconAttr}><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z"/></svg>`;
-const kTrashIconSvg = `<svg ${kIconAttr}><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
-const kInfoIconSvg = `<svg ${kIconAttr}><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
-// MUI "FormatPaint" glyph (paint roller), for Paint format.
-const kPaintRollerPath =
-  "M18 4V3c0-.55-.45-1-1-1H5c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V6h1v4H9v11c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-9h8V4z";
-const kPaintIconSvg = `<svg ${kIconAttr}><path d="${kPaintRollerPath}"/></svg>`;
+// Inline SVG icons (see menu-icons.ts) so the core attach path stays free of
+// React / MUI.
+import {
+  kAddIconSvg,
+  kAddRowAboveIconSvg,
+  kAddRowBelowIconSvg,
+  kAddColumnLeftIconSvg,
+  kAddColumnRightIconSvg,
+  kMoveUpIconSvg,
+  kMoveDownIconSvg,
+  kMoveLeftIconSvg,
+  kMoveRightIconSvg,
+  kCopyIconSvg,
+  kPasteIconSvg,
+  kCutIconSvg,
+  kTrashIconSvg,
+  kPaintIconSvg,
+} from "./menu-icons";
+// Stateless element factories for the menus (see menu-widgets.ts).
+import {
+  kIconSlotPx,
+  kItemIconColor,
+  makeGlyphPill,
+  makeMenuHeader,
+  makeDivider,
+  setIconSlot,
+  makeInfoNote,
+  makeControlRow,
+  setToggleActive,
+  makeIconToggle,
+  makeTextToggle,
+  makeBorderStyleToggle,
+  makeBorderWeightToggle,
+  makeCornerToggle,
+  firstPx,
+  makeSliderRow,
+  makeColorPairRow,
+} from "./menu-widgets";
 
 let installed = false;
 // Unique ID source for anchor names, plus the set of names minted this
@@ -161,7 +186,7 @@ function onFocusInForOverlays(event: Event): void {
   showEdgeOverlays(table);
 }
 
-// Right-click on a cell opens the combined Cell/Row/Column/Table menu.
+// Right-click on a cell opens the Cell menu.
 function onContextMenuForOverlays(event: Event): void {
   const target = event.target as HTMLElement | null;
   const cell = target?.closest(".bloom-cell") as HTMLElement | null;
@@ -272,7 +297,6 @@ html { anchor-scope: all; }
   overlayStylesInstalled = true;
 }
 
-type OverlayKind = "add";
 type OverlaySide = "right" | "left" | "top" | "bottom";
 
 const kAddOverlayLabel: Record<OverlaySide, string> = {
@@ -285,7 +309,6 @@ const kAddOverlayLabel: Record<OverlaySide, string> = {
 function makeOverlay(
   onClick: () => void,
   iconSvg: string,
-  kind: OverlayKind,
   side: OverlaySide,
 ): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -314,7 +337,6 @@ function makeOverlay(
   } as CSSStyleDeclaration);
 
   // Add buttons are bigger targets: a pill along the edge they insert on.
-  void kind;
   if (side === "right" || side === "left") {
     // Tall rounded rectangle for columns
     btn.style.width = "24px";
@@ -360,8 +382,8 @@ function makeClusterContainer(kind: MenuKind): HTMLDivElement {
 function ensureEdgeOverlays() {
   ensureOverlayStyles();
   // One "+" per axis; reshaped to a small pill so it pairs neatly with the menu.
-  if (!colAddBtn) colAddBtn = makeOverlay(tryInsertColumnRight, kAddIconSvg, "add", "right");
-  if (!rowAddBtn) rowAddBtn = makeOverlay(tryInsertRowBelow, kAddIconSvg, "add", "bottom");
+  if (!colAddBtn) colAddBtn = makeOverlay(tryInsertColumnRight, kAddIconSvg, "right");
+  if (!rowAddBtn) rowAddBtn = makeOverlay(tryInsertRowBelow, kAddIconSvg, "bottom");
   for (const b of [colAddBtn, rowAddBtn]) {
     if (!b) continue;
     b.style.width = "";
@@ -425,76 +447,6 @@ function ensureEdgeOverlays() {
   ensureAddHover(rowAddBtn, "row", "below");
 }
 
-// ===== "..." pill menus =====
-// A menu is composed of one or more of these sections. Pills open a single
-// section; right-clicking a cell opens all four (Cell, Row, Column, Table).
-type SectionName = "cell" | "row" | "column" | "table";
-// Pills are triggered for the row/column/table sections only.
-type MenuKind = "row" | "column" | "table";
-
-// Context the section builders compute against (the cell the menu acts on).
-type MenuCtx = {
-  table: HTMLElement | null;
-  cell: HTMLElement | null;
-  row: number;
-  col: number;
-  rowCount: number;
-  colCount: number;
-};
-
-const kIconSlotPx = 22; // reserved left gutter so labels align with/without icons
-
-// Base pill styling shared by the row/column "..." pills and the table pill.
-function stylePill(btn: HTMLButtonElement): void {
-  Object.assign(btn.style, {
-    position: "static",
-    height: "20px",
-    minWidth: "30px",
-    padding: "0 8px",
-    borderRadius: "10px",
-    border: "1px solid rgba(0,0,0,0.3)",
-    backgroundColor: "#2D8294",
-    color: "#fff",
-    fontSize: "16px",
-    fontWeight: "700",
-    lineHeight: "1",
-    letterSpacing: "1px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-    cursor: "pointer",
-    display: "none",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "5px",
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  btn.setAttribute("aria-haspopup", "menu");
-  // Don't steal selection/focus from the current cell when opening the menu.
-  btn.addEventListener("mousedown", (e) => e.preventDefault());
-}
-
-// A pill showing an orientation glyph (table / row / column). `iconStyle` lets
-// each caller preserve its glyph's aspect ratio (the row glyph is wide, the
-// column glyph is tall).
-function makeGlyphPill(label: string, iconSrc: string, iconStyle: string): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.setAttribute("aria-label", label);
-  btn.title = label;
-  // Build the image with the DOM rather than an HTML string: the bundler can
-  // inline an .svg as a `data:image/svg+xml,` URL that still contains double
-  // quotes, and those end the src attribute early and spill the rest of the
-  // markup into the pill as visible text.
-  const img = document.createElement("img");
-  img.src = iconSrc;
-  img.alt = "";
-  img.setAttribute("style", iconStyle);
-  btn.replaceChildren(img);
-  stylePill(btn);
-  // Edit-time chrome living outside the table; prepare-for-save strips it.
-  btn.setAttribute("data-table-overlay", "menu-pill");
-  return btn;
-}
-
 function ensureMenuPills(): void {
   if (!colMenuPill) {
     colMenuPill = makeGlyphPill("Column menu", menuColumnIcon, "display:block;height:16px;width:auto");
@@ -533,79 +485,22 @@ function ensureTablePills(): void {
   }
 }
 
-// Bold, no-op section header. Indented to align with item labels (past gutter).
-function makeMenuHeader(text: string): HTMLDivElement {
-  const h = document.createElement("div");
-  h.textContent = text;
-  Object.assign(h.style, {
-    padding: `8px 14px 3px ${14 + kIconSlotPx}px`,
-    fontSize: "11px",
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-    color: "#888",
-  } as CSSStyleDeclaration);
-  return h;
-}
+// ===== "..." pill menus =====
+// A menu is composed of one or more of these sections. Pills open a single
+// section (row/column/table); right-clicking a cell opens the Cell section.
+type SectionName = "cell" | "row" | "column" | "table";
+// Pills are triggered for the row/column/table sections only.
+type MenuKind = "row" | "column" | "table";
 
-// A thin horizontal divider between sections.
-function makeDivider(): HTMLDivElement {
-  const d = document.createElement("div");
-  Object.assign(d.style, {
-    height: "1px",
-    background: "rgba(0,0,0,0.1)",
-    margin: "4px 0",
-  } as CSSStyleDeclaration);
-  return d;
-}
-
-// Color for the black line icons in the left gutter of menu items.
-const kItemIconColor = "#333";
-
-// Make a URL safe to put inside a CSS url("..."). A bundler can inline an .svg
-// as a `data:image/svg+xml,` URL that still holds literal double quotes, angle
-// brackets and newlines. Any of those ends the CSS string early, so the whole
-// declaration is rejected and the caller gets a flat colored box, not an icon.
-function cssUrl(url: string): string {
-  const unsafeInACssString: Record<string, string> = {
-    '"': "%22",
-    "<": "%3C",
-    ">": "%3E",
-    "\r": "%0D",
-    "\n": "%0A",
-  };
-  let escaped = url;
-  for (const [character, replacement] of Object.entries(unsafeInACssString)) {
-    escaped = escaped.split(character).join(replacement);
-  }
-  return `url("${escaped}")`;
-}
-
-// Fill an element with an icon recolored to `color`. Accepts inline SVG markup
-// (uses currentColor) or a URL (recolored via CSS mask, since the toolbar SVGs
-// are white and would otherwise be invisible on the white menu).
-function setIconSlot(el: HTMLElement, icon: string | undefined, color: string): void {
-  el.innerHTML = "";
-  if (!icon) return;
-  if (icon.trim().startsWith("<svg")) {
-    el.style.color = color;
-    el.innerHTML = icon;
-    return;
-  }
-  const m = document.createElement("span");
-  Object.assign(m.style, {
-    display: "block",
-    width: "16px",
-    height: "16px",
-    backgroundColor: color,
-  } as CSSStyleDeclaration);
-  m.style.setProperty("mask-image", cssUrl(icon));
-  m.style.setProperty("-webkit-mask-image", cssUrl(icon));
-  for (const prop of ["mask-size", "-webkit-mask-size"]) m.style.setProperty(prop, "contain");
-  for (const prop of ["mask-repeat", "-webkit-mask-repeat"]) m.style.setProperty(prop, "no-repeat");
-  for (const prop of ["mask-position", "-webkit-mask-position"]) m.style.setProperty(prop, "center");
-  el.appendChild(m);
-}
+// Context the section builders compute against (the cell the menu acts on).
+type MenuCtx = {
+  table: HTMLElement | null;
+  cell: HTMLElement | null;
+  row: number;
+  col: number;
+  rowCount: number;
+  colCount: number;
+};
 
 function makeMenuItem(
   label: string,
@@ -667,272 +562,6 @@ function makeMenuItem(
     });
   }
   return item;
-}
-
-// A non-interactive hint row: a Bloom-blue info icon followed by muted text.
-// Does nothing on click (it's a plain div, not a menuitem button).
-function makeInfoNote(text: string): HTMLDivElement {
-  const row = document.createElement("div");
-  Object.assign(row.style, {
-    display: "flex",
-    alignItems: "center",
-    width: "100%",
-    padding: "6px 14px",
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  const slot = document.createElement("span");
-  Object.assign(slot.style, {
-    flex: `0 0 ${kIconSlotPx}px`,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  } as CSSStyleDeclaration);
-  setIconSlot(slot, kInfoIconSvg, kBloomBlue);
-  const label = document.createElement("span");
-  label.textContent = text;
-  Object.assign(label.style, {
-    flex: "1 1 auto",
-    fontSize: "12px",
-    color: "#666",
-  } as CSSStyleDeclaration);
-  row.appendChild(slot);
-  row.appendChild(label);
-  return row;
-}
-
-// A control group: the command label on one line, then its chooser buttons on
-// the line below (indented to align under the label text).
-function makeControlRow(label: string, controls: HTMLElement[]): HTMLDivElement {
-  const wrap = document.createElement("div");
-  wrap.style.padding = "4px 14px";
-  wrap.style.boxSizing = "border-box";
-
-  const labelLine = document.createElement("div");
-  Object.assign(labelLine.style, { display: "flex", alignItems: "center" } as CSSStyleDeclaration);
-  const slot = document.createElement("span");
-  slot.style.flex = `0 0 ${kIconSlotPx}px`;
-  const text = document.createElement("span");
-  text.textContent = label;
-  Object.assign(text.style, { fontSize: "13px", color: "#222" } as CSSStyleDeclaration);
-  labelLine.appendChild(slot);
-  labelLine.appendChild(text);
-
-  const controlsLine = document.createElement("div");
-  Object.assign(controlsLine.style, {
-    display: "flex",
-    gap: "4px",
-    paddingLeft: `${kIconSlotPx}px`,
-    marginTop: "2px",
-  } as CSSStyleDeclaration);
-  controls.forEach((c) => controlsLine.appendChild(c));
-
-  wrap.appendChild(labelLine);
-  wrap.appendChild(controlsLine);
-  return wrap;
-}
-
-function setToggleActive(btn: HTMLButtonElement, active: boolean): void {
-  btn.style.background = active ? "#d7ecf1" : "transparent";
-  btn.style.borderColor = active ? "#2D8294" : "transparent";
-  btn.setAttribute("aria-pressed", active ? "true" : "false");
-}
-
-// A small icon button used inside control rows (content type, alignment).
-function makeIconToggle(icon: string, title: string, active: boolean, onClick: () => void): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.title = title;
-  b.setAttribute("aria-label", title);
-  Object.assign(b.style, {
-    width: "28px",
-    height: "24px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "1px solid transparent",
-    borderRadius: "5px",
-    background: "transparent",
-    cursor: "pointer",
-    padding: "0",
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  setIconSlot(b, icon, kBloomBlue);
-  setToggleActive(b, active);
-  b.addEventListener("mousedown", (e) => e.preventDefault());
-  b.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onClick();
-  });
-  return b;
-}
-
-// A text-labeled toggle button matching makeIconToggle (used for the "fixed
-// size" option in the Size control, where the label is a measurement).
-function makeTextToggle(text: string, title: string, active: boolean, onClick: () => void): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.title = title;
-  b.setAttribute("aria-label", title);
-  b.textContent = text;
-  Object.assign(b.style, {
-    minWidth: "28px",
-    height: "24px",
-    padding: "0 6px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "1px solid transparent",
-    borderRadius: "5px",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: "12px",
-    color: kBloomBlue,
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  setToggleActive(b, active);
-  b.addEventListener("mousedown", (e) => e.preventDefault());
-  b.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onClick();
-  });
-  return b;
-}
-
-// Shared shell for the border style/weight sample-line toggles.
-function makeSampleToggle(title: string, sample: HTMLElement, onClick: () => void): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.title = title;
-  b.setAttribute("aria-label", title);
-  Object.assign(b.style, {
-    width: "32px",
-    height: "24px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "1px solid transparent",
-    borderRadius: "5px",
-    background: "transparent",
-    cursor: "pointer",
-    padding: "0",
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  b.appendChild(sample);
-  setToggleActive(b, false);
-  b.addEventListener("mousedown", (e) => e.preventDefault());
-  b.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onClick();
-  });
-  return b;
-}
-
-// The "none" indicator's stroke: the same gray used for the swatch box
-// outline, so the diagonal reads as part of the box.
-const kNoneStroke = "rgba(0,0,0,0.2)";
-
-// A white background crossed by a 1px diagonal from bottom-left to top-right
-// (gradient bands run perpendicular to the gradient direction, so "to bottom
-// right" yields a bottom-left -> top-right line).
-const noneDiagonal = `linear-gradient(to bottom right, #fff calc(50% - 0.5px), ${kNoneStroke} calc(50% - 0.5px), ${kNoneStroke} calc(50% + 0.5px), #fff calc(50% + 0.5px))`;
-
-// The classic "none" sample: an outlined white box with a diagonal line in
-// the same gray and width as its outline. Shared by the fill swatch and the
-// border style/weight "none" toggles.
-function makeNoneSample(width: number, height: number): HTMLElement {
-  const box = document.createElement("span");
-  Object.assign(box.style, {
-    width: `${width}px`,
-    height: `${height}px`,
-    display: "block",
-    boxSizing: "border-box",
-    border: `1px solid ${kNoneStroke}`,
-    borderRadius: "2px",
-    background: noneDiagonal,
-  } as CSSStyleDeclaration);
-  return box;
-}
-
-// A border-style toggle showing a sample line in that style ("none" shows the
-// crossed-out box), mirroring the sidebar's Style choices.
-function makeBorderStyleToggle(style: string, onClick: () => void): HTMLButtonElement {
-  let sample: HTMLElement;
-  if (style === "none") {
-    sample = makeNoneSample(22, 14);
-  } else {
-    sample = document.createElement("span");
-    Object.assign(sample.style, {
-      width: "22px",
-      height: "0",
-      borderTop: `2px ${style} ${kItemIconColor}`,
-      display: "block",
-    } as CSSStyleDeclaration);
-  }
-  const title = style === "none" ? "None" : style[0].toUpperCase() + style.slice(1);
-  const b = makeSampleToggle(title, sample, onClick);
-  b.dataset.style = style;
-  return b;
-}
-
-// A border-weight toggle showing a line of that thickness ("0" shows the
-// crossed-out box), mirroring the sidebar's Weight choices.
-function makeBorderWeightToggle(weight: number, onClick: () => void): HTMLButtonElement {
-  let sample: HTMLElement;
-  if (weight) {
-    sample = document.createElement("span");
-    Object.assign(sample.style, {
-      width: "22px",
-      height: `${weight}px`,
-      background: kItemIconColor,
-      display: "block",
-    } as CSSStyleDeclaration);
-  } else {
-    sample = makeNoneSample(22, 14);
-  }
-  const b = makeSampleToggle(weight ? `${weight}` : "0 (None)", sample, onClick);
-  b.dataset.weight = String(weight);
-  return b;
-}
-
-// A corner-radius toggle: a small box with left+top borders and a rounded
-// top-left corner, mirroring the sidebar's corner sample buttons.
-function makeCornerToggle(radius: number, active: boolean, onClick: () => void): HTMLButtonElement {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.title = `${radius}`;
-  b.setAttribute("aria-label", `Corner radius ${radius}`);
-  Object.assign(b.style, {
-    width: "28px",
-    height: "24px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "1px solid transparent",
-    borderRadius: "5px",
-    background: "transparent",
-    cursor: "pointer",
-    padding: "0",
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  const sample = document.createElement("span");
-  const r = Math.max(0, Math.min(radius, 18));
-  Object.assign(sample.style, {
-    width: "18px",
-    height: "18px",
-    borderLeft: `2px solid ${kItemIconColor}`,
-    borderTop: `2px solid ${kItemIconColor}`,
-    borderTopLeftRadius: `${r}px`,
-    boxSizing: "border-box",
-    display: "block",
-  } as CSSStyleDeclaration);
-  b.appendChild(sample);
-  setToggleActive(b, active);
-  b.addEventListener("mousedown", (e) => e.preventDefault());
-  b.addEventListener("click", (e) => {
-    e.stopPropagation();
-    onClick();
-  });
-  return b;
 }
 
 // "Size" control for the selected row or column: a 3-way choice — Grow (fill),
@@ -1005,125 +634,6 @@ function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
   refresh();
 
   return makeControlRow("Size", [grow, hug, fixed]);
-}
-
-// Parse the leading number from a CSS length (e.g. "6px" -> 6). 0 if absent.
-function firstPx(s: string | null | undefined): number {
-  const n = parseFloat((s ?? "").trim());
-  return isNaN(n) ? 0 : n;
-}
-
-
-// A labeled range slider on its own row. Interacting with it does not close the
-// menu (the slider lives inside the popup, which the outside-click guard skips).
-function makeSliderRow(
-  label: string,
-  min: number,
-  max: number,
-  value: number,
-  unit: string,
-  onInput: (v: number) => void,
-): HTMLDivElement {
-  const input = document.createElement("input");
-  input.type = "range";
-  input.min = String(min);
-  input.max = String(max);
-  input.value = String(value);
-  input.setAttribute("aria-label", label);
-  input.style.flex = "1 1 auto";
-  // Tint the thumb/track with the Bloom primary color instead of the UA blue.
-  input.style.accentColor = kBloomBlue;
-
-  const readout = document.createElement("span");
-  readout.textContent = `${value}${unit}`;
-  Object.assign(readout.style, {
-    fontSize: "12px",
-    color: "#555",
-    minWidth: "34px",
-    textAlign: "right",
-  } as CSSStyleDeclaration);
-
-  input.addEventListener("input", () => {
-    const v = Number(input.value);
-    readout.textContent = `${v}${unit}`;
-    onInput(v);
-  });
-  return makeControlRow(label, [input, readout]);
-}
-
-// A native color picker input. Does not close the menu. A native color input
-// cannot display "no color", so when the value is unset (empty or non-hex)
-// the swatch is covered with the classic no-color indicator — white with a
-// red diagonal line — until the user picks a color.
-function makeColorInput(label: string, value: string, onInput: (v: string) => void): HTMLElement {
-  const isSet = /^#[0-9a-fA-F]{6}$/.test(value);
-  const input = document.createElement("input");
-  input.type = "color";
-  input.value = isSet ? value : "#ffffff";
-  input.setAttribute("aria-label", label);
-  Object.assign(input.style, {
-    width: "40px",
-    height: "24px",
-    padding: "0",
-    border: "1px solid rgba(0,0,0,0.2)",
-    borderRadius: "4px",
-    cursor: "pointer",
-    background: "transparent",
-  } as CSSStyleDeclaration);
-  const wrap = document.createElement("div");
-  Object.assign(wrap.style, {
-    position: "relative",
-    display: "inline-flex",
-    width: "40px",
-    height: "24px",
-  } as CSSStyleDeclaration);
-  wrap.appendChild(input);
-  const noColor = document.createElement("div");
-  Object.assign(noColor.style, {
-    position: "absolute",
-    inset: "1px",
-    borderRadius: "3px",
-    pointerEvents: "none", // clicks fall through to the input
-    background: noneDiagonal,
-    display: isSet ? "none" : "block",
-  } as CSSStyleDeclaration);
-  wrap.appendChild(noColor);
-  input.addEventListener("input", () => {
-    noColor.style.display = "none";
-    onInput(input.value);
-  });
-  return wrap;
-}
-
-type ColorEntry = { label: string; value: string; onInput: (v: string) => void };
-
-// Two labeled color pickers side by side on one row (Fill | Border color).
-function makeColorPairRow(entries: [ColorEntry, ColorEntry]): HTMLDivElement {
-  const wrap = document.createElement("div");
-  wrap.style.padding = "4px 14px";
-  wrap.style.boxSizing = "border-box";
-  const line = document.createElement("div");
-  Object.assign(line.style, {
-    display: "flex",
-    gap: "16px",
-    paddingLeft: `${kIconSlotPx}px`,
-  } as CSSStyleDeclaration);
-  for (const e of entries) {
-    const col = document.createElement("div");
-    Object.assign(col.style, {
-      display: "flex",
-      flexDirection: "column",
-      gap: "2px",
-    } as CSSStyleDeclaration);
-    const caption = document.createElement("span");
-    caption.textContent = e.label;
-    Object.assign(caption.style, { fontSize: "13px", color: "#222" } as CSSStyleDeclaration);
-    col.appendChild(caption);
-    col.appendChild(makeColorInput(e.label, e.value, e.onInput));
-    line.appendChild(col);
-  }
-  wrap.appendChild(line);
-  return wrap;
 }
 
 // ----- Section builders -----
@@ -1365,153 +875,9 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
   ];
 }
 
-// ===== Paint Format mode =====
-// Entered from a Cell/Row/Column menu's "Paint format". Every subsequent
-// click stamps the snapshot onto the clicked cell's matching scope, in any
-// bloom-table on the page (a row/column pattern cycles when sizes differ).
-// Escape or the slashed-roller badge at the source table's top-left exits.
-let paintMode: {
-  scope: "cell" | "row" | "column";
-  pattern: CopiedCellProperties[];
-  table: HTMLElement;
-  badge: HTMLDivElement;
-} | null = null;
-
-export function isPaintFormatModeActive(): boolean {
-  return !!paintMode;
-}
-
-// Roller cursor while the mode is active. Cells carry inline cursor styles,
-// so the rule needs !important to win; the badge opts back out to a pointer.
-const kPaintCursorUrl = `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24'><path d='${kPaintRollerPath}' fill='%23222' stroke='%23fff' stroke-width='0.75'/></svg>") 4 4, copy`;
-let paintStyleInstalled = false;
-function ensurePaintFormatStyle(): void {
-  if (paintStyleInstalled) return;
-  paintStyleInstalled = true;
-  const style = document.createElement("style");
-  style.setAttribute("data-table-overlay", "paint-format-style");
-  style.textContent = `
-    body.bloom-paint-format, body.bloom-paint-format * { cursor: ${kPaintCursorUrl} !important; }
-    body.bloom-paint-format .bloom-paint-format-badge, body.bloom-paint-format .bloom-paint-format-badge * { cursor: pointer !important; }
-  `;
-  document.head.appendChild(style);
-}
-
-function makePaintFormatBadge(): HTMLDivElement {
-  const badge = document.createElement("div");
-  badge.className = "bloom-paint-format-badge";
-  // Appended to <body>; tag it so prepare-for-save strips it.
-  badge.setAttribute("data-table-overlay", "paint-format-badge");
-  badge.title = "Exit Paint Format (Esc)";
-  badge.setAttribute("role", "button");
-  badge.setAttribute("aria-label", "Exit Paint Format");
-  Object.assign(badge.style, {
-    position: "absolute",
-    width: "28px",
-    height: "28px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#fff",
-    border: "1px solid #bbb",
-    borderRadius: "6px",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
-    zIndex: "2147483647",
-    boxSizing: "border-box",
-  } as CSSStyleDeclaration);
-  // The roller with a red slash: "you are painting; click to stop".
-  badge.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" style="display:block"><path d="${kPaintRollerPath}" fill="#444"/><line x1="3" y1="3" x2="21" y2="21" stroke="#d32f2f" stroke-width="2.5" stroke-linecap="round"/></svg>`;
-  badge.addEventListener("mousedown", (e) => e.preventDefault());
-  badge.addEventListener("click", (e) => {
-    e.stopPropagation();
-    exitPaintFormatMode();
-  });
-  return badge;
-}
-
-// The badge sits just outside the source table's top-left corner (clamped to
-// the viewport when the table touches the page edge).
-function positionPaintBadge(): void {
-  if (!paintMode) return;
-  if (!document.body.contains(paintMode.table)) {
-    exitPaintFormatMode();
-    return;
-  }
-  const rect = paintMode.table.getBoundingClientRect();
-  const size = 28;
-  const margin = 4;
-  const left = Math.max(0, window.scrollX + rect.left - size - margin);
-  const top = Math.max(0, window.scrollY + rect.top - size - margin);
-  paintMode.badge.style.left = `${left}px`;
-  paintMode.badge.style.top = `${top}px`;
-}
-
-// Capture-phase handler for pointerdown/mousedown/click while painting: a
-// click on any cell is consumed entirely (no selection change, no caret) and
-// stamps the pattern once, on pointerdown. Clicks elsewhere behave normally
-// and leave the mode active.
-function onPaintPointerDown(e: Event): void {
-  if (!paintMode) return;
-  const target = e.target as HTMLElement | null;
-  if (!target || !(target instanceof Element)) return;
-  if (paintMode.badge.contains(target)) return;
-  const cell = target.closest?.(".bloom-cell") as HTMLElement | null;
-  const table = cell?.closest(".bloom-table") as HTMLElement | null;
-  if (!cell || !table || cell.classList.contains("bloom-skip")) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.type !== "pointerdown") return;
-  const targets =
-    paintMode.scope === "cell" ? [cell] : getCellsInScope(table, paintMode.scope, cell);
-  paintProperties(table, targets, paintMode.pattern);
-  positionPaintBadge();
-}
-
-function onPaintKeyDown(e: KeyboardEvent): void {
-  if (e.key !== "Escape") return;
-  e.stopPropagation();
-  exitPaintFormatMode();
-}
-
-export function enterPaintFormatMode(
-  table: HTMLElement,
-  scope: "cell" | "row" | "column",
-  sourceCells: HTMLElement[],
-): void {
-  if (!sourceCells.length) return;
-  exitPaintFormatMode();
-  ensurePaintFormatStyle();
-  const badge = makePaintFormatBadge();
-  document.body.appendChild(badge);
-  paintMode = {
-    scope,
-    pattern: sourceCells.map((c) => snapshotCellProperties(c)),
-    table,
-    badge,
-  };
-  document.body.classList.add("bloom-paint-format");
-  document.addEventListener("pointerdown", onPaintPointerDown, true);
-  document.addEventListener("mousedown", onPaintPointerDown, true);
-  document.addEventListener("click", onPaintPointerDown, true);
-  document.addEventListener("keydown", onPaintKeyDown, true);
-  window.addEventListener("scroll", positionPaintBadge, true);
-  window.addEventListener("resize", positionPaintBadge);
-  hideEdgeOverlays(); // pills stay out of the way while painting
-  positionPaintBadge();
-}
-
-export function exitPaintFormatMode(): void {
-  if (!paintMode) return;
-  paintMode.badge.remove();
-  paintMode = null;
-  document.body.classList.remove("bloom-paint-format");
-  document.removeEventListener("pointerdown", onPaintPointerDown, true);
-  document.removeEventListener("mousedown", onPaintPointerDown, true);
-  document.removeEventListener("click", onPaintPointerDown, true);
-  document.removeEventListener("keydown", onPaintKeyDown, true);
-  window.removeEventListener("scroll", positionPaintBadge, true);
-  window.removeEventListener("resize", positionPaintBadge);
-}
+// Paint Format mode lives in paint-format.ts; re-exported here so existing
+// importers (attach.ts, tests) keep working.
+export { enterPaintFormatMode, exitPaintFormatMode, isPaintFormatModeActive } from "./paint-format";
 
 function buildCellSection(ctx: MenuCtx): HTMLElement[] {
   const els: HTMLElement[] = [makeMenuHeader("Cell")];
@@ -1906,7 +1272,7 @@ const kPointerNearClass = "bloom-pointer-near";
 function showEdgeOverlays(table: HTMLElement) {
   // While painting formats, the pills stay hidden no matter which path
   // (focusin, contextmenu, proximity gate) tries to raise them.
-  if (paintMode) return;
+  if (isPaintFormatModeActive()) return;
   if (overlayTable && overlayTable !== table) overlayTable.classList.remove(kPointerNearClass);
   table.classList.add(kPointerNearClass);
   overlayTable = table;
@@ -1925,6 +1291,12 @@ function showEdgeOverlays(table: HTMLElement) {
   // Apply anchor-based positioning
   applyAnchorPositioning(table);
 }
+
+// Entering Paint Format must drop the pills; paint-format.ts can't import
+// hideEdgeOverlays directly (that would be a circular import), so it takes
+// the callback. Function declarations hoist, so registering here at module
+// scope is safe.
+setPaintFormatOverlayHider(hideEdgeOverlays);
 
 function hideEdgeOverlays() {
   overlayTable?.classList.remove(kPointerNearClass);
@@ -1992,8 +1364,9 @@ let gateMouseY = 0;
 let gateRaf = 0;
 let gateInstalled = false; // independent of `installed` so the listener is added exactly once
 
-// Union of the table's visible cell rects (viewport coords). Mirrors the bounds
-// math in applyAnchorPositioning; null when the table has no laid-out cells.
+// Union of the table's visible cell rects (viewport coords); null when the
+// table has no laid-out cells. Shared by the proximity gate,
+// applyAnchorPositioning, and the add-preview geometry.
 function visibleCellBounds(
   table: HTMLElement,
 ): { minL: number; minT: number; maxR: number; maxB: number } | null {
@@ -2023,7 +1396,7 @@ function pointerInActiveZone(table: HTMLElement, x: number, y: number): boolean 
 
 function updateProximityGate(): void {
   // While painting formats, the pills stay out of the way entirely.
-  if (paintMode) {
+  if (isPaintFormatModeActive()) {
     if (overlayTable) hideEdgeOverlays();
     return;
   }
@@ -2135,15 +1508,9 @@ function ownSelectedCell(table: HTMLElement): HTMLElement | null {
 }
 
 function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
-  const children = Array.from(table.children) as HTMLElement[];
-  for (const el of children) {
-    if (!el.classList || !el.classList.contains("bloom-cell")) continue;
-    try {
-      const { row, column } = getRowAndColumn(table, el);
-      if (row === targetRow && column === targetCol) return el;
-    } catch {}
-  }
-  return null;
+  // One grid model instead of a per-child getRowAndColumn rescan; null on
+  // miss (out of range, or the DOM has no cell at that position).
+  return buildGrid(table).cellAt(targetRow, targetCol) ?? null;
 }
 
 // Anchor the two contextual clusters (and the corner handle) to the current
@@ -2152,7 +1519,7 @@ function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HT
 function applyAnchorPositioning(table: HTMLElement) {
   // Repositioning re-decides visibility; while Paint Format is active the
   // overlays must stay hidden no matter what triggers a reposition.
-  if (paintMode) {
+  if (isPaintFormatModeActive()) {
     hideEdgeOverlays();
     return;
   }
@@ -2223,23 +1590,11 @@ function applyAnchorPositioning(table: HTMLElement) {
 
   // The table-level affordances are positioned relative to the table's *cell
   // content* bounds (not the layout box, which can be much larger than the
-  // hugging cells). Compute the union rect of the visible cells; a spanning
-  // cell's rect covers the area its skipped neighbours would, so this is robust
-  // to spans too.
-  let minL = Infinity,
-    minT = Infinity,
-    maxR = -Infinity,
-    maxB = -Infinity;
-  for (const child of Array.from(table.children)) {
-    if (!(child instanceof HTMLElement) || !child.classList.contains("bloom-cell")) continue;
-    const r = child.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) continue;
-    if (r.left < minL) minL = r.left;
-    if (r.top < minT) minT = r.top;
-    if (r.right > maxR) maxR = r.right;
-    if (r.bottom > maxB) maxB = r.bottom;
-  }
-  const haveBounds = isFinite(minL) && isFinite(maxR);
+  // hugging cells): the union rect of the visible cells. A spanning cell's
+  // rect covers the area its skipped neighbours would, so this is robust to
+  // spans too.
+  const b = visibleCellBounds(table);
+  const haveBounds = b !== null;
   const placePill = (prox: ProximityDiv | null, left: number, top: number, transform: string) => {
     if (!prox) return;
     const el = prox.element;
@@ -2258,7 +1613,8 @@ function applyAnchorPositioning(table: HTMLElement) {
   if (tablePillTL) tablePillTL.style.display = haveBounds ? "flex" : "none";
   if (colAddBtn) colAddBtn.style.display = haveBounds ? "flex" : "none";
   if (rowAddBtn) rowAddBtn.style.display = haveBounds ? "flex" : "none";
-  if (haveBounds) {
+  if (b) {
+    const { minL, minT, maxR, maxB } = b;
     // "+" add buttons hug the table edges, centered on the table's content box.
     const midX = (minL + maxR) / 2;
     const midY = (minT + maxB) / 2;
@@ -2499,25 +1855,12 @@ function updateAddPreviewGeometry() {
   // spans the whole table and sits on the table's own boundary. Measuring the
   // selected row/column instead drew the bar in the wrong place, and threw when
   // the selected cell belonged to a different table than overlayTable.
-  const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("bloom-cell"),
-  );
-  let minLeft = Infinity,
-    maxRight = -Infinity,
-    minTop = Infinity,
-    maxBottom = -Infinity;
-  for (const cell of cells) {
-    const rect = cell.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) continue;
-    if (rect.left < minLeft) minLeft = rect.left;
-    if (rect.right > maxRight) maxRight = rect.right;
-    if (rect.top < minTop) minTop = rect.top;
-    if (rect.bottom > maxBottom) maxBottom = rect.bottom;
-  }
-  if (!isFinite(minLeft) || !isFinite(maxRight) || !isFinite(minTop) || !isFinite(maxBottom)) {
+  const b = visibleCellBounds(overlayTable);
+  if (!b) {
     hideAddPreview();
     return;
   }
+  const { minL: minLeft, maxR: maxRight, minT: minTop, maxB: maxBottom } = b;
 
   if (currentAddKind === "row") {
     const boundary = currentAddPosition === "above" ? minTop : maxBottom;
