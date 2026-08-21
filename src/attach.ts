@@ -2,7 +2,7 @@ import { dragToResize } from "./drag-to-resize";
 import { tableHistoryManager } from "./history";
 import { addColumn, addRow } from "./structure";
 import { migrateTable } from "./migrate";
-import { attachTextEditing } from "./text-editing";
+import { attachTextEditing, detachTextEditing } from "./text-editing";
 import { render } from "./table-renderer";
 import { ensureSelectionHighlighting } from "./selection-highlight";
 import { ensureTableSizeButtons, scrubStaleAnchorNames } from "./table-size-buttons";
@@ -58,4 +58,6 @@ export function detachTable(tableDiv: HTMLElement): void {
   tableHistoryManager.detachTable(tableDiv);
   // Detach resize handlers
   dragToResize.detach(tableDiv);
+  // Stop rewriting Enter keypresses
+  detachTextEditing(tableDiv);
 }

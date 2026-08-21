@@ -39,6 +39,9 @@ function formatMm(px: number): string {
 
 export class DragToResize {
   private attachedTables = new Set<HTMLElement>();
+  // The one element whose inline cursor we last set, so we can clear it when the
+  // hover moves on instead of leaving stale cursor styles all over the content.
+  private cursorStyledElement: HTMLElement | null = null;
   private dragState: DragState = {
     isDragging: false,
     dragType: null,
@@ -85,6 +88,18 @@ export class DragToResize {
     div.removeEventListener("mousedown", this.handleMouseDown);
     div.removeEventListener("dblclick", this.handleDoubleClick);
     div.removeEventListener("mouseleave", this.handleMouseLeave);
+
+    // A drag on the table being detached can never see its mouseup, so end it
+    // here: otherwise the drag state stays live (pointing at a removed element)
+    // and the latched body cursor is never released.
+    if (
+      this.dragState.isDragging &&
+      (this.dragState.targetElement === div ||
+        div.contains(this.dragState.targetElement) ||
+        this.attachedTables.size === 0)
+    ) {
+      this.cancelDrag();
+    }
 
     // If no tables are attached, remove global listeners
     if (this.attachedTables.size === 0) {
@@ -149,12 +164,38 @@ export class DragToResize {
     const resizeInfo = this.getResizeInfo(target, event);
 
     if (resizeInfo) {
-      target.style.cursor = resizeInfo.type === "row" ? "ns-resize" : "ew-resize";
-      event.stopPropagation();
+      // Note: deliberately no stopPropagation() here. Setting a cursor needs no
+      // exclusivity, and swallowing the move would starve the document-level
+      // listeners that ProximityDiv and the proximity gate use to track the
+      // pointer, freezing them whenever the cursor sat in a cell's edge band.
+      this.setHoverCursor(target, resizeInfo.type === "row" ? "ns-resize" : "ew-resize");
     } else {
-      target.style.cursor = "default";
+      this.setHoverCursor(null, null);
     }
   };
+
+  /**
+   * Put a resize cursor on one element, clearing whatever element we last put
+   * one on. Pass (null, null) to clear without setting a new one, so elements
+   * we merely passed over do not keep an inline cursor style (which would
+   * otherwise end up in saved content).
+   */
+  private setHoverCursor(element: HTMLElement | null, cursor: string | null): void {
+    if (this.cursorStyledElement && this.cursorStyledElement !== element) {
+      this.cursorStyledElement.style.removeProperty("cursor");
+      this.cursorStyledElement = null;
+    }
+    if (!element) {
+      return;
+    }
+    if (cursor) {
+      element.style.cursor = cursor;
+      this.cursorStyledElement = element;
+    } else {
+      element.style.removeProperty("cursor");
+      this.cursorStyledElement = null;
+    }
+  }
   private handleMouseDown = (event: MouseEvent): void => {
     const target = event.target as HTMLElement;
     const resizeInfo = this.getResizeInfo(target, event);
@@ -179,7 +220,6 @@ export class DragToResize {
         document.body.style.cursor = "ew-resize"; // Latch cursor
       } else if (resizeInfo.type === "row") {
         rowTopEdge = this.getRowTopEdge(resizeInfo.element, resizeInfo.index);
-        console.info(`handleMouseDown: Row top edge is ${rowTopEdge}`);
         document.body.style.cursor = "ns-resize"; // Latch cursor
         // Mark active row being resized so UI can reflect this row
         try {
@@ -197,8 +237,11 @@ export class DragToResize {
         hasStartedOperation: false,
         columnLeftEdge: columnLeftEdge,
         rowTopEdge: rowTopEdge,
+        // Measure the current size whenever the stored value is not a length we
+        // can parse ("hug", "fill", a percentage, an empty entry); otherwise the
+        // preview would have nothing to add the drag delta to.
         baseDimension:
-          resizeInfo.currentValue === "hug"
+          parseSizeToPx(resizeInfo.currentValue) === null
             ? resizeInfo.type === "column"
               ? this.getCurrentColumnWidth(resizeInfo.element, resizeInfo.index)
               : this.getCurrentRowHeight(resizeInfo.element, resizeInfo.index)
@@ -208,8 +251,10 @@ export class DragToResize {
   }
 
   private handleMouseLeave = (event: MouseEvent): void => {
-    const target = event.target as HTMLElement;
-    target.style.cursor = "default";
+    // mouseleave does not bubble, so event.target is the table div itself; the
+    // element we actually styled may be a content node inside a cell.
+    this.setHoverCursor(null, null);
+    (event.target as HTMLElement).style.removeProperty("cursor");
   };
 
   private handleGlobalMouseMove = (event: MouseEvent): void => {
@@ -257,6 +302,14 @@ export class DragToResize {
       // Commit the operation through table-history
       this.commitResizeOperation();
     }
+    this.cancelDrag();
+  };
+
+  /**
+   * End the current drag without committing: clear the active-row marker, drop
+   * the drag state and release the latched body cursor.
+   */
+  private cancelDrag(): void {
     // Clear active row marker if any
     try {
       if (this.dragState.dragType === "row" && this.dragState.targetElement) {
@@ -264,8 +317,9 @@ export class DragToResize {
       }
     } catch {}
     this.resetDragState();
+    this.setHoverCursor(null, null);
     document.body.style.cursor = "default"; // Release cursor
-  };
+  }
   private commitResizeOperation(): void {
     //console.info("commitResizeOperation: Invoked.");
     if (!this.dragState.targetElement || !this.dragState.dragType) {
@@ -363,18 +417,14 @@ export class DragToResize {
     const currentWidths = table.getAttribute("data-column-widths") || "";
     const widthArray = currentWidths.split(",");
 
-    // Get the base width (original width when dragging started)
-    let baseWidth: number;
-    if (this.dragState.originalValue === "hug") {
-      // Use the stored base dimension calculated at drag start
-      baseWidth =
-        this.dragState.baseDimension ||
-        this.getCurrentColumnWidth(table, this.dragState.targetIndex);
-    } else {
-      // For fixed-width columns, parse the original value
-      const match = this.dragState.originalValue.match(/([0-9.]+)px/);
-      baseWidth = match ? parseFloat(match[1]) : 50;
-    }
+    // Get the base width (original width when dragging started). The stored
+    // value may be px or mm; "hug", "fill" and anything else unparseable use the
+    // width measured at drag start.
+    const parsedBase = parseSizeToPx(this.dragState.originalValue);
+    const baseWidth =
+      parsedBase ??
+      this.dragState.baseDimension ??
+      this.getCurrentColumnWidth(table, this.dragState.targetIndex);
 
     // Apply the delta to the base width
     const newWidth = Math.max(50, baseWidth + deltaX);
@@ -388,17 +438,13 @@ export class DragToResize {
     }
   }
   private updateRowHeightPreview(table: HTMLElement, deltaY: number): void {
-    // Get the base height (original height when dragging started)
-    let baseHeight: number;
-    if (this.dragState.originalValue === "hug") {
-      // Use the stored base dimension calculated at drag start
-      baseHeight =
-        this.dragState.baseDimension || this.getCurrentRowHeight(table, this.dragState.targetIndex);
-    } else {
-      // For fixed-height rows, parse the original value (supports px or mm)
-      const parsed = parseSizeToPx(this.dragState.originalValue);
-      baseHeight = parsed ?? 20;
-    }
+    // Get the base height (original height when dragging started); px and mm are
+    // parsed, anything else falls back to the height measured at drag start.
+    const parsedBase = parseSizeToPx(this.dragState.originalValue);
+    const baseHeight =
+      parsedBase ??
+      this.dragState.baseDimension ??
+      this.getCurrentRowHeight(table, this.dragState.targetIndex);
 
     // Apply the delta to the base height
     const newHeightPx = Math.max(20, baseHeight + deltaY);
@@ -423,15 +469,6 @@ export class DragToResize {
 
       // Re-render the table to update the visual layout during drag
       render(table);
-
-      // Debug preview write
-      // eslint-disable-next-line no-console
-      console.log(
-        "[drag-to-resize] preview row",
-        this.dragState.targetIndex,
-        "->",
-        rowHeights[this.dragState.targetIndex],
-      );
     }
   }
   private resetDragState(): void {
@@ -474,10 +511,16 @@ export class DragToResize {
     // console.info(`getResizeInfo: target=${this.tagInfo(target)}`);
     // console.info(`boudingClientRect:${JSON.stringify(rect)} x:${x}, y:${y}`);
 
+    // A merged cell's rect covers several tracks, so its visible right/bottom
+    // edge belongs to the last track it covers, not the one it starts in.
+    const spanX = Math.max(1, parseInt(cell.getAttribute("data-span-x") || "1", 10) || 1);
+    const spanY = Math.max(1, parseInt(cell.getAttribute("data-span-y") || "1", 10) || 1);
+
     const edgeThreshold = 5; // pixels from edge to trigger resize    // Check if we're near the bottom edge (row resize)
     if (y >= rect.height - edgeThreshold && y <= rect.height) {
-      // Determine which row this cell is in
-      const { row: rowIndex } = getRowAndColumn(table, cell);
+      // Determine which row this cell's bottom edge belongs to
+      const { row: startRow } = getRowAndColumn(table, cell);
+      const rowIndex = startRow + spanY - 1;
       if (rowIndex >= 0) {
         // For row resizing, we need to get/set data-row-height on the table itself
         // but track which row we're resizing
@@ -496,7 +539,8 @@ export class DragToResize {
 
     // Check if we're near the right edge (column resize)
     if (x >= rect.width - edgeThreshold && x <= rect.width) {
-      const { column: columnIndex } = getRowAndColumn(table, cell);
+      const { column: startColumn } = getRowAndColumn(table, cell);
+      const columnIndex = startColumn + spanX - 1;
       const columnWidths = table.getAttribute("data-column-widths") || "";
       const widthArray = columnWidths.split(",");
 
@@ -634,19 +678,15 @@ export class DragToResize {
   }
 
   private getRowTopEdge(table: HTMLElement, rowIndex: number): number {
-    console.info(`getRowTopEdge: Called for table with row index:`, rowIndex);
-
     // Force layout to ensure we get current measurements
     table.offsetHeight;
 
     // Get the computed table template rows
     const computedStyle = window.getComputedStyle(table);
     const gridTemplateRows = computedStyle.gridTemplateRows;
-    console.info(`getRowTopEdge: Table template rows:`, gridTemplateRows);
 
     if (gridTemplateRows && gridTemplateRows !== "none") {
       const rowHeights = gridTemplateRows.split(" ");
-      console.info(`getRowTopEdge: Parsed row heights:`, rowHeights);
 
       let topPosition = 0;
 
@@ -661,11 +701,9 @@ export class DragToResize {
           height = parseFloat(match[1]);
         }
 
-        console.info(`getRowTopEdge: Row ${i} height from table template:`, height);
         topPosition += height;
       }
 
-      console.info(`getRowTopEdge: Calculated top position:`, topPosition);
       return topPosition;
     }
 

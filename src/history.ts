@@ -51,6 +51,10 @@ class TableHistoryManager {
       attributes,
     };
   }
+  // Returns true if the operation ran to completion (and so was recorded in
+  // history). If the operation throws, the table is put back the way it was and
+  // false is returned, so callers can skip whatever they would have done on
+  // success (e.g. notifying the host that a cell's contents changed).
   addHistoryEntry(
     table: HTMLElement,
     description: string,
@@ -58,7 +62,7 @@ class TableHistoryManager {
     performOperation: () => void, // The function that actually performs the DOM change
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     undoOperation?: (table: HTMLElement, prevState: TableState) => void,
-  ): void {
+  ): boolean {
     // Find the top-level table - we may have been handed a child table, but our history is for the top-level table
     const topLevelTable = this.findTopLevelTable(table);
 
@@ -66,13 +70,13 @@ class TableHistoryManager {
       console.warn(
         "TableHistoryManager: Attempted to add history entry for a detached or null table.",
       );
-      return;
+      return false;
     }
     if (this.operationInProgress) {
       console.warn(
         "TableHistoryManager: Operation already in progress. Skipping new history entry.",
       );
-      return;
+      return false;
     }
 
     // Capture the state of the table
@@ -98,6 +102,17 @@ class TableHistoryManager {
       }
     } catch (error) {
       console.error("TableHistoryManager: Error during operation execution:", error);
+      // The operation may have mutated the table before it threw. We captured
+      // the pre-operation state for exactly this case, so put the table back
+      // rather than leaving it half-changed with no history entry to undo.
+      try {
+        this.defaultUndoOperation(topLevelTable, stateBeforeOperation);
+      } catch (restoreError) {
+        console.error(
+          "TableHistoryManager: Failed to restore the table after a failed operation:",
+          restoreError,
+        );
+      }
     } finally {
       this.operationInProgress = false;
       if (operationSuccess) {
@@ -107,11 +122,32 @@ class TableHistoryManager {
         document.dispatchEvent(event);
       }
     }
+    return operationSuccess;
   }
   undo(table: HTMLElement): boolean {
     if (!this.canUndo()) {
       console.warn(
         "TableHistoryManager: Cannot undo. Either history is empty or an operation is in progress.",
+      );
+      return false;
+    }
+
+    // Find the top-level table to ensure we're undoing on the same table level that was captured
+    const topLevelTable = this.findTopLevelTable(table);
+    if (!topLevelTable || !this.isAttached(topLevelTable)) {
+      console.warn("TableHistoryManager: Cannot undo. Top-level table not found or not attached.");
+      return false;
+    }
+
+    // Every attached table shares this one undo stack, so the newest entry may
+    // belong to a different table than the one the caller handed us. Applying
+    // its snapshot here would replace this table's entire contents with another
+    // table's markup, and that replacement would not itself be in history. So
+    // refuse, leaving the entry for the table it was captured from.
+    const newestEntry = this.history[this.history.length - 1];
+    if (newestEntry.table && newestEntry.table !== topLevelTable) {
+      console.warn(
+        "TableHistoryManager: Cannot undo. The most recent operation belongs to a different table.",
       );
       return false;
     }
@@ -122,21 +158,14 @@ class TableHistoryManager {
       return false;
     }
 
-    // Find the top-level table to ensure we're undoing on the same table level that was captured
-    const topLevelTable = this.findTopLevelTable(table);
-    if (!topLevelTable || !this.isAttached(topLevelTable)) {
-      console.warn("TableHistoryManager: Cannot undo. Top-level table not found or not attached.");
-      // Put the entry back since we couldn't undo
-      this.history.push(entry);
-      return false;
-    }
-
     this.operationInProgress = true;
     let undoSuccess = false;
     try {
       const undoOp =
         entry.undoOperation || ((table, state) => this.defaultUndoOperation(table, state));
-      undoOp(topLevelTable, entry.state);
+      // Apply to the table the snapshot came from (checked above to be the
+      // caller's top-level table).
+      undoOp(entry.table ?? topLevelTable, entry.state);
       undoSuccess = true;
     } catch (error) {
       console.error("TableHistoryManager: Error during undo operation:", error);
@@ -157,21 +186,25 @@ class TableHistoryManager {
   }
 
   // Undo the most recent operation without the caller needing to hold a table
-  // reference. Uses the table recorded on the entry (falling back to any
-  // attached table). Convenient for host apps wiring table undo into an app-wide
-  // undo command.
+  // reference. Acts on the table recorded on the entry. Convenient for host apps
+  // wiring table undo into an app-wide undo command.
   undoLast(): boolean {
     if (!this.canUndo()) return false;
-    const entry = this.history[this.history.length - 1];
-    const target =
-      entry.table && this.isAttached(entry.table)
-        ? entry.table
-        : this.attachedTables.values().next().value;
-    if (!target) {
-      console.warn("TableHistoryManager: No attached table available to undo against.");
-      return false;
+    // An entry whose table is gone (detached, or never recorded) cannot be
+    // undone anywhere: its snapshot is that table's markup, so applying it to
+    // some other attached table would destroy that table. Discard such entries
+    // and move on to the newest one that still has its table.
+    while (this.history.length > 0) {
+      const entry = this.history[this.history.length - 1];
+      if (entry.table && this.isAttached(entry.table)) {
+        return this.undo(entry.table);
+      }
+      console.warn(
+        `TableHistoryManager: Dropping history entry "${entry.label}" because its table is no longer attached.`,
+      );
+      this.history.pop();
     }
-    return this.undo(target);
+    return false;
   }
 
   attachTable(table: HTMLElement): void {

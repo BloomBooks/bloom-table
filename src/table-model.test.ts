@@ -102,4 +102,15 @@ describe("table-model", () => {
     setEdgeDefault(g, null);
     expect(getEdgeDefault(g)).toBeNull();
   });
+
+  it("treats malformed JSON attributes as absent instead of throwing", () => {
+    const g = makeTable();
+    g.setAttribute("data-edges-h", "[[{");
+    g.setAttribute("data-edges-v", "not json at all");
+    g.setAttribute("data-border-default", '{"weight":1,');
+
+    expect(getEdgesH(g)).toBeNull();
+    expect(getEdgesV(g)).toBeNull();
+    expect(getEdgeDefault(g)).toBeNull();
+  });
 });

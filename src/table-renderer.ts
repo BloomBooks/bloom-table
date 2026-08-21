@@ -177,6 +177,48 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     return r * cols + c;
   }
 
+  // Map every grid position to the index of the cell that actually paints
+  // there: itself normally, or the merge anchor when the position is covered by
+  // a span. Covered positions hold .bloom-skip cells, which are display:none,
+  // so a border written to one of them never appears on screen.
+  const coverOf: number[] = [];
+  for (let i = 0; i < rows * cols; i++) coverOf[i] = i;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = idx(r, c);
+      const cell = cells[i];
+      if (!cell || cell.classList.contains("bloom-skip")) continue;
+      const sx = spans[i] ? spans[i].x : 1;
+      const sy = spans[i] ? spans[i].y : 1;
+      if (sx === 1 && sy === 1) continue;
+      for (let dr = 0; dr < sy && r + dr < rows; dr++) {
+        for (let dc = 0; dc < sx && c + dc < cols; dc++) {
+          coverOf[idx(r + dr, c + dc)] = i;
+        }
+      }
+    }
+  }
+  const rowOf = (i: number): number => Math.floor(i / cols);
+  const colOf = (i: number): number => i % cols;
+
+  // Write a left/right side for grid position `pos`, routed to the cell that
+  // paints there. A vertically merged region meets a vertical boundary in
+  // several rows; only the anchor's own row writes, so the rows below cannot
+  // overwrite what the anchor row resolved.
+  function writeVSide(pos: number, side: "left" | "right", spec: BorderSpec | null): void {
+    const t = coverOf[pos];
+    if (!cells[t]) return;
+    if (rowOf(pos) !== rowOf(t)) return;
+    cellBorders[t][side] = spec;
+  }
+  // Same for top/bottom sides: only the anchor's own column writes.
+  function writeHSide(pos: number, side: "top" | "bottom", spec: BorderSpec | null): void {
+    const t = coverOf[pos];
+    if (!cells[t]) return;
+    if (colOf(pos) !== colOf(t)) return;
+    cellBorders[t][side] = spec;
+  }
+
   // Edge inputs
   const edgesH = getEdgesH(table) as HEdgeEntry[][] | null; // (R+1) x C of entries: interior rows 1..R-1, perimeters at 0 (top) and R (bottom)
   const edgesV = getEdgesV(table) as VEdgeEntry[][] | null; // R x (C+1) of entries: interior cols 1..C-1, perimeters at 0 (left) and C (right)
@@ -347,20 +389,20 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     for (let c = 0; c < cols - 1; c++) {
       const iLeft = idx(r, c);
       const iRight = idx(r, c + 1);
-      const leftCell = cells[iLeft];
-      const rightCell = cells[iRight];
-      if (!leftCell || !rightCell) {
+      if (!cells[iLeft] || !cells[iRight]) {
         // No corresponding cells (e.g., empty table shell): skip
         continue;
       }
-      const leftIsSkip = leftCell.classList.contains("bloom-skip");
-      const rightIsSkip = rightCell.classList.contains("bloom-skip");
+      if (coverOf[iLeft] === coverOf[iRight]) {
+        // Boundary interior to a merged region: no stroke belongs here.
+        continue;
+      }
       const { west, east } = readV(r, c + 1);
       const gap = hasPositiveGapX(c);
       if (gap) {
         // Sided painting: each side draws independently; use default for unspecified sides
-        if (!leftIsSkip) cellBorders[iLeft].right = (west ?? edgeDefault) || null;
-        if (!rightIsSkip) cellBorders[iRight].left = (east ?? edgeDefault) || null;
+        writeVSide(iLeft, "right", (west ?? edgeDefault) || null);
+        writeVSide(iRight, "left", (east ?? edgeDefault) || null);
       } else {
         // Zero gap: resolve to a single stroke. On a tie, paint it on the
         // cell whose top/bottom sides are also stroked, so a corner radius
@@ -386,11 +428,11 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         // border UI read "this cell declined this side" instead of borrowing
         // the neighbor's line.
         if (side === "a") {
-          if (!leftIsSkip) cellBorders[iLeft].right = winner;
-          if (!rightIsSkip) cellBorders[iRight].left = b && b.style === "none" ? b : null;
+          writeVSide(iLeft, "right", winner);
+          writeVSide(iRight, "left", b && b.style === "none" ? b : null);
         } else {
-          if (!rightIsSkip) cellBorders[iRight].left = winner;
-          if (!leftIsSkip) cellBorders[iLeft].right = a && a.style === "none" ? a : null;
+          writeVSide(iRight, "left", winner);
+          writeVSide(iLeft, "right", a && a.style === "none" ? a : null);
         }
       }
     }
@@ -401,19 +443,19 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     for (let c = 0; c < cols; c++) {
       const iTop = idx(r, c);
       const iBottom = idx(r + 1, c);
-      const topCell = cells[iTop];
-      const bottomCell = cells[iBottom];
-      if (!topCell || !bottomCell) {
+      if (!cells[iTop] || !cells[iBottom]) {
         continue;
       }
-      const topIsSkip = topCell.classList.contains("bloom-skip");
-      const bottomIsSkip = bottomCell.classList.contains("bloom-skip");
+      if (coverOf[iTop] === coverOf[iBottom]) {
+        // Boundary interior to a merged region: no stroke belongs here.
+        continue;
+      }
       const { north, south } = readH(r + 1, c);
       const gap = hasPositiveGapY(r);
       if (gap) {
         // Use default for unspecified sides across gaps
-        if (!topIsSkip) cellBorders[iTop].bottom = (north ?? edgeDefault) || null;
-        if (!bottomIsSkip) cellBorders[iBottom].top = (south ?? edgeDefault) || null;
+        writeHSide(iTop, "bottom", (north ?? edgeDefault) || null);
+        writeHSide(iBottom, "top", (south ?? edgeDefault) || null);
       } else {
         const a = north || null;
         const b = south || null;
@@ -429,11 +471,11 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         if (!winner) continue;
         // As with vertical edges: keep an explicit 'none' on the losing side.
         if (side === "a") {
-          if (!topIsSkip) cellBorders[iTop].bottom = winner;
-          if (!bottomIsSkip) cellBorders[iBottom].top = b && b.style === "none" ? b : null;
+          writeHSide(iTop, "bottom", winner);
+          writeHSide(iBottom, "top", b && b.style === "none" ? b : null);
         } else {
-          if (!bottomIsSkip) cellBorders[iBottom].top = winner;
-          if (!topIsSkip) cellBorders[iTop].bottom = a && a.style === "none" ? a : null;
+          writeHSide(iBottom, "top", winner);
+          writeHSide(iTop, "bottom", a && a.style === "none" ? a : null);
         }
       }
     }
@@ -445,72 +487,28 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   // edges in the H/V arrays, we honor those perimeters (without falling back to
   // edgeDefault for missing sides). Interior edges of the nested table are still
   // resolved above.
-  if (!isNestedTable) {
+  {
+    // Nested tables honor explicit perimeters only (no default fallback).
+    const fallback = isNestedTable ? null : edgeDefault ?? null;
     // Top perimeter: H at r=0 - use south side (faces the cells)
     for (let c = 0; c < cols; c++) {
       const { south } = readH(0, c);
-      const i = idx(0, c);
-      if (cells[i]) {
-        cellBorders[i].top = south ?? edgeDefault ?? null;
-      }
+      writeHSide(idx(0, c), "top", south ?? fallback);
     }
     // Bottom perimeter: H at r=rows - use north side (faces the cells)
     for (let c = 0; c < cols; c++) {
       const { north } = readH(rows, c);
-      const i = idx(Math.max(0, rows - 1), c);
-      if (cells[i]) {
-        cellBorders[i].bottom = north ?? edgeDefault ?? null;
-      }
+      writeHSide(idx(Math.max(0, rows - 1), c), "bottom", north ?? fallback);
     }
     // Left perimeter: V at c=0 - use east side (faces the cells)
     for (let r = 0; r < rows; r++) {
       const { east } = readV(r, 0);
-      const i = idx(r, 0);
-      if (cells[i]) {
-        cellBorders[i].left = east ?? edgeDefault ?? null;
-      }
+      writeVSide(idx(r, 0), "left", east ?? fallback);
     }
     // Right perimeter: V at c=cols - use west side (faces the cells)
     for (let r = 0; r < rows; r++) {
       const { west } = readV(r, cols);
-      const i = idx(r, Math.max(0, cols - 1));
-      if (cells[i]) {
-        cellBorders[i].right = west ?? edgeDefault ?? null;
-      }
-    }
-  } else {
-    // Honor explicit perimeters only (no default fallback)
-    // Top perimeter: H at r=0 - use south side (faces the cells)
-    for (let c = 0; c < cols; c++) {
-      const { south } = readH(0, c);
-      const i = idx(0, c);
-      if (cells[i]) {
-        cellBorders[i].top = south ?? null;
-      }
-    }
-    // Bottom perimeter: H at r=rows - use north side (faces the cells)
-    for (let c = 0; c < cols; c++) {
-      const { north } = readH(rows, c);
-      const i = idx(Math.max(0, rows - 1), c);
-      if (cells[i]) {
-        cellBorders[i].bottom = north ?? null;
-      }
-    }
-    // Left perimeter: V at c=0 - use east side (faces the cells)
-    for (let r = 0; r < rows; r++) {
-      const { east } = readV(r, 0);
-      const i = idx(r, 0);
-      if (cells[i]) {
-        cellBorders[i].left = east ?? null;
-      }
-    }
-    // Right perimeter: V at c=cols - use west side (faces the cells)
-    for (let r = 0; r < rows; r++) {
-      const { west } = readV(r, cols);
-      const i = idx(r, Math.max(0, cols - 1));
-      if (cells[i]) {
-        cellBorders[i].right = west ?? null;
-      }
+      writeVSide(idx(r, Math.max(0, cols - 1)), "right", west ?? fallback);
     }
   }
 

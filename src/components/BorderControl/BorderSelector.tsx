@@ -1,5 +1,6 @@
-import { InnerEdges, BorderValueMap, EdgeKey, SelectedEdges } from "./logic/types";
+import { BorderValueMap, EdgeKey, SelectedEdges } from "./logic/types";
 import type { SelectorLook } from "./logic/types";
+import { toggleSelectedEdge } from "./logic/selectionToggle";
 import { kBloomBlue } from "../../constants";
 
 export function BorderSelector(props: {
@@ -16,19 +17,7 @@ export function BorderSelector(props: {
   const look: SelectorLook = props.look ?? "flat";
 
   const isSel = (e: EdgeKey) => selected.has(e);
-  const toggle = (e: EdgeKey | "inner") => {
-    const next = new Set(selected);
-    if (e === "inner") {
-      for (const ie of InnerEdges) {
-        if (next.has(ie)) next.delete(ie);
-        else next.add(ie);
-      }
-    } else {
-      if (next.has(e)) next.delete(e);
-      else next.add(e);
-    }
-    onChange(next);
-  };
+  const toggle = (e: EdgeKey | "inner") => onChange(toggleSelectedEdge(selected, e));
 
   const w = size;
   const h = size;

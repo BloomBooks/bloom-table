@@ -17,7 +17,7 @@ import { tableHistoryManager } from "./history";
 import {
   setupContentsOfCell,
   dispatchCellContentChanged,
-  getCurrentContentTypeId,
+  getExistingContentTypeId,
 } from "./cell-contents";
 import {
   getSpan,
@@ -36,6 +36,7 @@ import {
 } from "./border-state";
 import { representativeBorderColorHex } from "./color-utils";
 import type { BorderStyle, BorderWeight } from "./components/BorderControl/logic/types";
+import { normalizeEdgeChange } from "./components/BorderControl/logic/normalize";
 import {
   applyCellPerimeter,
   applyOuterBorders,
@@ -105,15 +106,20 @@ export function applyContentType(
   // one whole-table snapshot per cell, making undo multi-step and lossy).
   // Host notification is deferred until the entry closes so handlers may
   // safely run further table operations.
-  const wasDifferent = cells.filter((c) => getCurrentContentTypeId(c) !== contentTypeId);
+  // getExistingContentTypeId, not getCurrentContentTypeId: an empty untyped
+  // cell has no existing type, so setupContentsOfCell rebuilds it even when the
+  // type being applied is the default one — and the host has to hear about the
+  // contenteditable that rebuild just created.
+  const wasDifferent = cells.filter((c) => getExistingContentTypeId(c) !== contentTypeId);
   withHistory(table, "Change Content Type", () => {
     for (const c of cells) setupContentsOfCell(c, contentTypeId, false, false);
     render(table);
   });
   for (const c of wasDifferent) {
     // Notify only for cells that actually changed (none did if the history
-    // manager refused the operation, e.g. on a detached table).
-    if (getCurrentContentTypeId(c) === contentTypeId) dispatchCellContentChanged(c, contentTypeId);
+    // manager refused the operation, e.g. on a detached table). A rebuild
+    // always writes the data attribute, so that is what says it happened.
+    if (c.dataset.contentType === contentTypeId) dispatchCellContentChanged(c, contentTypeId);
   }
 }
 
@@ -170,15 +176,12 @@ function resolveEdge(
   props: BorderProps,
   color: string,
 ): { weight: number; style: BorderStyle; color: string } {
-  let weight = props.weight ?? current.weight;
-  let style = props.style ?? current.style;
-  if (props.style !== undefined) {
-    if (props.style === "none") weight = 0;
-    else if (weight === 0) weight = 1;
-  } else if (props.weight !== undefined) {
-    if (props.weight === 0) style = "none";
-    else if (style === "none") style = "solid";
-  }
+  // Shared with the Borders panel's BorderControl, so the two edit paths keep
+  // weight and style consistent in exactly the same way.
+  const { weight, style } = normalizeEdgeChange(current, {
+    weight: props.weight,
+    style: props.style,
+  });
   return { weight, style, color };
 }
 
@@ -326,7 +329,9 @@ function stampProperties(
   const wasDifferent: Array<[HTMLElement, string]> = [];
   cells.forEach((c, i) => {
     const t = propsFor(i).settings.contentType;
-    if (t && getCurrentContentTypeId(c) !== t) wasDifferent.push([c, t]);
+    // See applyContentType: the comparison has to ignore the default-type
+    // fallback, or an empty untyped cell gets rebuilt without the host hearing.
+    if (t && getExistingContentTypeId(c) !== t) wasDifferent.push([c, t]);
   });
   withHistory(table, label, () => {
     cells.forEach((c, i) => {
@@ -342,7 +347,7 @@ function stampProperties(
     render(table);
   });
   for (const [c, t] of wasDifferent) {
-    if (getCurrentContentTypeId(c) === t) dispatchCellContentChanged(c, t);
+    if (c.dataset.contentType === t) dispatchCellContentChanged(c, t);
   }
 }
 

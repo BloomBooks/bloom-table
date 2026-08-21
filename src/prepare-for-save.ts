@@ -4,10 +4,14 @@
 // renderer writes).
 //
 // Host apps that persist document.body.innerHTML (e.g. Bloom) MUST call this
-// before saving: the edge add/delete buttons and the hover preview bars are
-// appended to document.body (not inside the table), so
-// they would otherwise be captured in the saved HTML. The per-cell hint colors
-// and selection classes are also edit-only and are cleared here.
+// before saving: the "+" add buttons, the row/column/table menu pills and their
+// clusters, each pill's ProximityDiv wrapper, an open menu popup, the paint-format
+// badge and the hover preview bars are all appended to document.body (not inside
+// the table), so they would otherwise be captured in the saved HTML. The per-cell
+// hint colors and selection classes are also edit-only and are cleared here.
+//
+// Anything appended outside the table must be tagged data-table-overlay at
+// creation time; that attribute is the whole contract this function relies on.
 
 // Legacy: older renderer versions wrote per-cell hint colors inline (boundary
 // hints are pure CSS now). Keep stripping them so content saved by an old
@@ -20,16 +24,18 @@ const kHintColorProps = [
 ];
 
 export function removeTableEditingArtifacts(root: ParentNode = document): void {
-  // Edge add/delete button groups. These are wrapped by a ProximityDiv (a
-  // position:absolute wrapper appended to <body>), so we remove the wrapper too
-  // if it is left empty.
-  root
-    .querySelectorAll("[data-overlay-group]")
-    .forEach((el) => removeWithProximityWrapper(el));
-
-  // Other tagged overlays appended directly to <body> (hover preview bars, the
-  // delete-preview X, etc.).
+  // Every piece of edit-time chrome outside the table is tagged
+  // data-table-overlay at creation: the ProximityDiv wrappers appended to
+  // <body> (which carry the "+" add buttons, the row/column/table menu pills
+  // and the pill clusters), the open menu popup, the paint-format badge and
+  // <style>, the hover preview bars and the pulse overlay. Removing a wrapper
+  // takes its child with it; removing an already-detached child is a no-op.
   root.querySelectorAll("[data-table-overlay]").forEach((el) => el.remove());
+
+  // Paint Format mode paints the cursor via a class on <body>. `root` may be
+  // the document, the body itself, or a container above the table.
+  root.querySelectorAll("body").forEach((b) => b.classList.remove("bloom-paint-format"));
+  if (root instanceof Element) root.classList.remove("bloom-paint-format");
 
   // Transient per-cell hint colors and selection classes left by the renderer
   // and the selection highlighter.
@@ -49,13 +55,4 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
   root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
     table.classList.remove("table--selected", "bloom-pointer-near");
   });
-}
-
-function removeWithProximityWrapper(el: Element): void {
-  const parent = el.parentElement;
-  el.remove();
-  // The ProximityDiv wrapper holds exactly this one child; drop it once empty.
-  if (parent && parent !== document.body && parent.children.length === 0) {
-    parent.remove();
-  }
 }

@@ -11,6 +11,7 @@ import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
 // import Slider from "./Slider"; // disabled: columns are sized by dragging dividers
 import { clearPulse, pulseColumn } from "../pulse-highlight";
+import { useClearPulseOnUnmount } from "./useClearPulseOnUnmount";
 
 type Props = {
   table?: HTMLElement;
@@ -18,6 +19,9 @@ type Props = {
   onInsertLeft: () => void;
   onInsertRight: () => void;
   onDelete: () => void;
+  /** True when there is no selected cell to act on. The buttons stay visible
+   *  but must be genuinely inoperable, keyboard included. */
+  disabled?: boolean;
 };
 
 // styles now come from sectionStyles.ts for consistency
@@ -30,8 +34,10 @@ export const ColumnSection: React.FC<Props> = ({
   onInsertLeft,
   onInsertRight,
   onDelete,
+  disabled,
 }) => {
   const api = useTableApi();
+  useClearPulseOnUnmount(table);
   // Determine current column width and map to radio value
   let selectedSize: "grow" | "hug" | "fixed" = "hug";
   let fixedLabel = "mm";
@@ -85,14 +91,31 @@ export const ColumnSection: React.FC<Props> = ({
         onMouseDown={(e) => e.preventDefault()}
       >
         <div className="flex gap-3">
-          <IconButton icon={addColumnLeftIcon} alt="Insert Column Left" onClick={onInsertLeft} />
-          <IconButton icon={addColumnRightIcon} alt="Insert Column Right" onClick={onInsertRight} />
+          <IconButton
+            icon={addColumnLeftIcon}
+            alt="Insert Column Left"
+            onClick={onInsertLeft}
+            disabled={disabled}
+          />
+          <IconButton
+            icon={addColumnRightIcon}
+            alt="Insert Column Right"
+            onClick={onInsertRight}
+            disabled={disabled}
+          />
         </div>
-        <IconButton icon={deleteColumnIcon} alt="Delete Column" onClick={onDelete} />
+        <IconButton
+          icon={deleteColumnIcon}
+          alt="Delete Column"
+          onClick={onDelete}
+          disabled={disabled}
+        />
       </div>{" "}
       <div className={subTitleStyle}>Size</div>
       <RadioGroup
         className="px-4"
+        label="Column size"
+        disabled={disabled}
         options={sizeOptions}
         value={selectedSize}
         onChange={onChangeSize}

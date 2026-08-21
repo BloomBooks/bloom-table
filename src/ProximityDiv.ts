@@ -43,6 +43,11 @@ export class ProximityDiv {
 
     const wrapper = document.createElement("div");
     this.element = wrapper;
+    // Edit-time chrome: the wrapper is usually appended to <body>, so tag it for
+    // removeTableEditingArtifacts (prepare-for-save) to strip before a host
+    // persists document.body.innerHTML. Removing the wrapper takes the child
+    // (add button / menu pill / cluster) with it.
+    wrapper.setAttribute("data-table-overlay", "proximity-wrapper");
     Object.assign(wrapper.style, {
       position: "absolute",
       pointerEvents: "none", // allow the child to be clickable without the wrapper intercepting

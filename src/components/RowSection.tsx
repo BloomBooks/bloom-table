@@ -11,6 +11,7 @@ import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
 // import Slider from "./Slider"; // disabled: rows are sized by dragging dividers
 import { clearPulse, pulseRow } from "../pulse-highlight";
+import { useClearPulseOnUnmount } from "./useClearPulseOnUnmount";
 
 type Props = {
   table?: HTMLElement;
@@ -18,6 +19,9 @@ type Props = {
   onInsertAbove: () => void;
   onInsertBelow: () => void;
   onDelete: () => void;
+  /** True when there is no selected cell to act on. The buttons stay visible
+   *  but must be genuinely inoperable, keyboard included. */
+  disabled?: boolean;
 };
 
 // IconButton now comes from ./IconButton and defaults to 64x64.
@@ -28,15 +32,25 @@ export const RowSection: React.FC<Props> = ({
   onInsertAbove,
   onInsertBelow,
   onDelete,
+  disabled,
 }) => {
   const api = useTableApi();
+  useClearPulseOnUnmount(table);
+  // Which row the Size radios read *and* write. While a row divider is being
+  // dragged, data-ui-active-row-index names the row being resized, which may not
+  // be the row the selected cell is in; both the display and the write have to
+  // follow the same row or the radios would report one row and change another.
+  const resolveRowIndex = (): number => {
+    const activeAttr = table?.getAttribute("data-ui-active-row-index");
+    const active = activeAttr ? parseInt(activeAttr, 10) : NaN;
+    return Number.isFinite(active) ? active : api.getRowIndex(currentCell!);
+  };
   // Determine current row height and map to radio value
   let selectedSize: "grow" | "hug" | "fixed" = "hug";
   let fixedLabel = "mm";
   try {
     if (table && currentCell) {
-      const activeAttr = table.getAttribute("data-ui-active-row-index");
-      const rowIndex = activeAttr ? parseInt(activeAttr, 10) : api.getRowIndex(currentCell);
+      const rowIndex = resolveRowIndex();
       const controller = new api.BloomTable(table);
       const raw = controller.getRowHeight(rowIndex) || "hug";
       const h = typeof raw === "string" ? raw.trim() : raw;
@@ -58,7 +72,7 @@ export const RowSection: React.FC<Props> = ({
 
   const onChangeSize = (id: string) => {
     if (!table || !currentCell) return;
-    const rowIndex = api.getRowIndex(currentCell);
+    const rowIndex = resolveRowIndex();
     const controller = new api.BloomTable(table);
     if (id === "grow") controller.setRowHeight(rowIndex, "fill");
     else if (id === "hug") controller.setRowHeight(rowIndex, "hug");
@@ -83,14 +97,26 @@ export const RowSection: React.FC<Props> = ({
         onMouseDown={(e) => e.preventDefault()}
       >
         <div className="flex gap-3">
-          <IconButton icon={addRowAboveIcon} alt="Insert Row Above" onClick={onInsertAbove} />
-          <IconButton icon={addRowBelowIcon} alt="Insert Row Below" onClick={onInsertBelow} />
+          <IconButton
+            icon={addRowAboveIcon}
+            alt="Insert Row Above"
+            onClick={onInsertAbove}
+            disabled={disabled}
+          />
+          <IconButton
+            icon={addRowBelowIcon}
+            alt="Insert Row Below"
+            onClick={onInsertBelow}
+            disabled={disabled}
+          />
         </div>
-        <IconButton icon={deleteRowIcon} alt="Delete Row" onClick={onDelete} />
+        <IconButton icon={deleteRowIcon} alt="Delete Row" onClick={onDelete} disabled={disabled} />
       </div>{" "}
       <div className={subTitleStyle}>Size</div>
       <RadioGroup
         className="px-4"
+        label="Row size"
+        disabled={disabled}
         options={sizeOptions}
         value={selectedSize}
         onChange={onChangeSize}

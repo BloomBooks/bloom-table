@@ -94,6 +94,7 @@ const mintedAnchorNames = new Set<string>();
 // Reset function for testing
 export function resetTableSizeButtons(): void {
   exitPaintFormatMode();
+  removeTableSizeButtonListeners();
   installed = false;
   overlayTable = null;
   // Fresh "session" for anchor names, so tests exercise the same collision
@@ -101,7 +102,13 @@ export function resetTableSizeButtons(): void {
   anchorCounter = 0;
   mintedAnchorNames.clear();
 
-  // Reset cluster elements
+  // Reset cluster elements. Each ProximityDiv must be destroy()ed: that is the
+  // only path that drops it from the module-global instance list the document
+  // mousemove handler walks, and the only one that removes its wrapper (and the
+  // buttons inside it) from the DOM.
+  for (const prox of [proxColCluster, proxRowCluster, proxColAdd, proxRowAdd, proxTablePillTL]) {
+    prox?.destroy();
+  }
   colAddBtn = null;
   rowAddBtn = null;
   colMenuPill = null;
@@ -118,11 +125,70 @@ export function resetTableSizeButtons(): void {
     menuPopup.remove();
     menuPopup = null;
   }
+  menuOpenId = null;
+  menuTargetCell = null;
+
+  // The hover previews are cached DOM nodes; keeping them across a reset means
+  // a host that replaced the body content gets a detached div forever after.
+  deletePreviewDiv?.remove();
+  deletePreviewDiv = null;
+  deletePreviewVisible = false;
+  currentPreviewKind = null;
+  addPreviewDiv?.remove();
+  addPreviewDiv = null;
+  addPreviewVisible = false;
+  currentAddKind = null;
+  currentAddPosition = null;
 
   if (repositionRaf) {
     cancelAnimationFrame(repositionRaf);
     repositionRaf = 0;
   }
+}
+
+// Named (not inline) so resetTableSizeButtons can remove them again. Anonymous
+// closures here would stack a fresh copy on every reset + re-attach cycle.
+function onFocusInForOverlays(event: Event): void {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+  const cell = target.closest(".bloom-cell") as HTMLElement | null;
+  if (!cell) {
+    scheduleOverlayReposition();
+    return;
+  }
+  const table = cell.closest(".bloom-table") as HTMLElement | null;
+  if (!table) return;
+  showEdgeOverlays(table);
+}
+
+// Right-click on a cell opens the combined Cell/Row/Column/Table menu.
+function onContextMenuForOverlays(event: Event): void {
+  const target = event.target as HTMLElement | null;
+  const cell = target?.closest(".bloom-cell") as HTMLElement | null;
+  if (!cell) return; // not on a table cell — leave the native menu alone
+  const table = cell.closest(".bloom-table") as HTMLElement | null;
+  if (!table) return;
+  event.preventDefault();
+  showEdgeOverlays(table);
+  openMenu(
+    ["cell"],
+    { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY },
+    "context",
+    cell,
+  );
+}
+
+// Scroll must be capture-phase: scroll events do not bubble, so a non-capture
+// window listener never hears an inner scroll container move, and the pills and
+// previews (placed in fixed/document coordinates) strand at their old spots.
+const kScrollListenerOptions = { capture: true, passive: true } as const;
+
+function removeTableSizeButtonListeners(): void {
+  document.removeEventListener("focusin", onFocusInForOverlays, true);
+  document.removeEventListener("contextmenu", onContextMenuForOverlays, true);
+  window.removeEventListener("resize", scheduleOverlayReposition);
+  window.removeEventListener("scroll", scheduleOverlayReposition, kScrollListenerOptions);
+  document.removeEventListener("tableHistoryUpdated", scheduleOverlayReposition as EventListener);
 }
 
 export function ensureTableSizeButtons(): void {
@@ -131,50 +197,13 @@ export function ensureTableSizeButtons(): void {
 
   ensureEdgeOverlays();
 
-  document.addEventListener(
-    "focusin",
-    (event) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const cell = target.closest(".bloom-cell") as HTMLElement | null;
-      if (!cell) {
-        scheduleOverlayReposition();
-        return;
-      }
-      const table = cell.closest(".bloom-table") as HTMLElement | null;
-      if (!table) return;
-      showEdgeOverlays(table);
-    },
-    true,
-  );
-
-  // Right-click on a cell opens the combined Cell/Row/Column/Table menu.
-  document.addEventListener(
-    "contextmenu",
-    (event) => {
-      const target = event.target as HTMLElement | null;
-      const cell = target?.closest(".bloom-cell") as HTMLElement | null;
-      if (!cell) return; // not on a table cell — leave the native menu alone
-      const table = cell.closest(".bloom-table") as HTMLElement | null;
-      if (!table) return;
-      event.preventDefault();
-      showEdgeOverlays(table);
-      openMenu(
-        ["cell"],
-        { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY },
-        "context",
-        cell,
-      );
-    },
-    true,
-  );
+  document.addEventListener("focusin", onFocusInForOverlays, true);
+  document.addEventListener("contextmenu", onContextMenuForOverlays, true);
 
   window.addEventListener("resize", scheduleOverlayReposition, {
     passive: true,
   });
-  window.addEventListener("scroll", scheduleOverlayReposition, {
-    passive: true,
-  });
+  window.addEventListener("scroll", scheduleOverlayReposition, kScrollListenerOptions);
   document.addEventListener("tableHistoryUpdated", scheduleOverlayReposition as EventListener);
 
   installProximityGate();
@@ -264,6 +293,8 @@ function makeOverlay(
   const label = kAddOverlayLabel[side];
   btn.setAttribute("aria-label", label);
   btn.title = label;
+  // Edit-time chrome living outside the table; prepare-for-save strips it.
+  btn.setAttribute("data-table-overlay", "add-button");
   Object.assign(btn.style, {
     position: "absolute",
     // base size; will be overridden per kind/side below
@@ -309,6 +340,9 @@ function makeOverlay(
 function makeClusterContainer(kind: MenuKind): HTMLDivElement {
   const div = document.createElement("div");
   div.setAttribute("data-overlay-cluster", kind);
+  // Also tagged for prepare-for-save: the cluster is appended to <body> here and
+  // later moved into a ProximityDiv wrapper, so it must be strippable either way.
+  div.setAttribute("data-table-overlay", "cluster");
   Object.assign(div.style, {
     position: "static",
     zIndex: "2147483647",
@@ -456,6 +490,8 @@ function makeGlyphPill(label: string, iconSrc: string, iconStyle: string): HTMLB
   img.setAttribute("style", iconStyle);
   btn.replaceChildren(img);
   stylePill(btn);
+  // Edit-time chrome living outside the table; prepare-for-save strips it.
+  btn.setAttribute("data-table-overlay", "menu-pill");
   return btn;
 }
 
@@ -1364,6 +1400,8 @@ function ensurePaintFormatStyle(): void {
 function makePaintFormatBadge(): HTMLDivElement {
   const badge = document.createElement("div");
   badge.className = "bloom-paint-format-badge";
+  // Appended to <body>; tag it so prepare-for-save strips it.
+  badge.setAttribute("data-table-overlay", "paint-format-badge");
   badge.title = "Exit Paint Format (Esc)";
   badge.setAttribute("role", "button");
   badge.setAttribute("aria-label", "Exit Paint Format");
@@ -1673,6 +1711,8 @@ function openMenu(
 
   const popup = document.createElement("div");
   popup.setAttribute("data-btable-menu", sections.join("+"));
+  // Appended to <body>; tag it so prepare-for-save strips it.
+  popup.setAttribute("data-table-overlay", "menu");
   popup.setAttribute("role", "menu");
   Object.assign(popup.style, {
     position: "fixed",
@@ -1907,20 +1947,12 @@ function scheduleOverlayReposition() {
 }
 
 function repositionEdgeOverlays() {
-  let targetTable = overlayTable;
-
-  if (!targetTable) {
-    const table =
-      (document.querySelector(".bloom-cell.cell--selected") as HTMLElement | null)?.closest(".bloom-table") ||
-      (document.querySelector(".bloom-table") as HTMLElement | null);
-    if (table) {
-      targetTable = table as HTMLElement;
-      overlayTable = targetTable; // Update the stored reference
-    } else {
-      return;
-    }
-  }
-
+  // Only ever reposition the table the overlays are already on. Adopting a
+  // table here (the selected cell's, or the document's first) made a plain
+  // scroll or resize reveal an arbitrary table's pills with the pointer nowhere
+  // near it; showEdgeOverlays (focus / proximity gate) is the only entry point
+  // allowed to decide which table is active.
+  const targetTable = overlayTable;
   if (!targetTable) return;
   if (!document.body.contains(targetTable)) {
     hideEdgeOverlays();
@@ -2022,8 +2054,7 @@ function updateProximityGate(): void {
 
   if (near) {
     // Re-show even for the current table if its pointer-near class is missing
-    // (repositionEdgeOverlays can adopt a table into overlayTable without
-    // going through showEdgeOverlays, e.g. on a scroll before any focus).
+    // (e.g. a re-render replaced the class list while the table stayed active).
     if (near !== overlayTable || !near.classList.contains(kPointerNearClass)) {
       showEdgeOverlays(near);
     }
@@ -2341,10 +2372,22 @@ function ensureDeletePreviewDiv(): HTMLDivElement {
   return div;
 }
 
+// The cell the delete preview must measure: the very cell tryRemoveRow /
+// tryRemoveColumn will act on, and only when it belongs to the table the
+// overlays are tracking. A document-wide `.cell--selected` lookup could return a
+// cell of another (e.g. nested) table, which getRowAndColumn then rejects with a
+// throw from inside a mouseenter handler.
+function deletePreviewCell(): HTMLElement | null {
+  const table = overlayTable;
+  if (!table) return null;
+  const cell = menuTargetCell ?? ownSelectedCell(table);
+  if (!cell || cell.parentElement !== table) return null;
+  return cell;
+}
+
 function showDeletePreview(kind: PreviewKind) {
   if (!overlayTable) return;
-  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  if (!selected) return;
+  if (!deletePreviewCell()) return;
   currentPreviewKind = kind;
   const div = ensureDeletePreviewDiv();
   deletePreviewVisible = true;
@@ -2360,12 +2403,12 @@ function hideDeletePreview() {
 
 function updateDeletePreviewGeometry() {
   if (!deletePreviewVisible || !overlayTable || !deletePreviewDiv) return;
-  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  if (!selected) {
+  const target = deletePreviewCell();
+  if (!target) {
     hideDeletePreview();
     return;
   }
-  const { row, column } = getRowAndColumn(overlayTable, selected);
+  const { row, column } = getRowAndColumn(overlayTable, target);
   // Find all visible cells and compute bounds for the target row/column
   const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
     (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("bloom-cell"),
@@ -2433,8 +2476,6 @@ function ensureAddPreviewDiv(): HTMLDivElement {
 
 function showAddPreview(kind: PreviewKind, position: "above" | "below" | "left" | "right") {
   if (!overlayTable) return;
-  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  if (!selected) return;
   currentAddKind = kind;
   currentAddPosition = position;
   const div = ensureAddPreviewDiv();
@@ -2453,12 +2494,11 @@ function hideAddPreview() {
 function updateAddPreviewGeometry() {
   if (!addPreviewVisible || !overlayTable || !addPreviewDiv) return;
   if (!currentAddKind || !currentAddPosition) return;
-  const selected = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  if (!selected) {
-    hideAddPreview();
-    return;
-  }
-  const { row, column } = getRowAndColumn(overlayTable, selected);
+  // The edge "+" buttons always append at the FAR edge of the table, whatever is
+  // selected (see tryInsertRowBelow / tryInsertColumnRight), so the preview bar
+  // spans the whole table and sits on the table's own boundary. Measuring the
+  // selected row/column instead drew the bar in the wrong place, and threw when
+  // the selected cell belonged to a different table than overlayTable.
   const cells: HTMLElement[] = Array.from(overlayTable.children).filter(
     (el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("bloom-cell"),
   );
@@ -2467,9 +2507,6 @@ function updateAddPreviewGeometry() {
     minTop = Infinity,
     maxBottom = -Infinity;
   for (const cell of cells) {
-    const { row: r, column: c } = getRowAndColumn(overlayTable, cell);
-    const match = currentAddKind === "row" ? r === row : c === column;
-    if (!match) continue;
     const rect = cell.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) continue;
     if (rect.left < minLeft) minLeft = rect.left;

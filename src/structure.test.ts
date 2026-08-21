@@ -1215,3 +1215,293 @@ describe("moveRowAt / moveColumnAt", () => {
     expect(table.getAttribute("data-column-widths")).toBe("100px,100px,200px,300px");
   });
 });
+
+describe("structural edits keep the edge and gap arrays aligned", () => {
+  function grid(cols: number, rows: number): HTMLDivElement {
+    const table = document.createElement("div");
+    table.className = "bloom-table";
+    table.setAttribute("data-column-widths", new Array(cols).fill("fill").join(","));
+    table.setAttribute("data-row-heights", new Array(rows).fill("hug").join(","));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = document.createElement("div");
+        cell.className = "bloom-cell";
+        table.appendChild(cell);
+      }
+    }
+    document.body.appendChild(table);
+    attachTable(table);
+    return table;
+  }
+
+  // Label every horizontal boundary line, and every row of vertical entries, so
+  // we can see where each one ended up after the edit.
+  const labelledH = (boundaries: number, cols: number) =>
+    Array.from({ length: boundaries }, (_, b) =>
+      Array.from({ length: cols }, () => ({ id: "b" + b })),
+    );
+  const labelledV = (rows: number, boundaries: number) =>
+    Array.from({ length: rows }, (_, r) =>
+      Array.from({ length: boundaries }, () => ({ id: "r" + r })),
+    );
+  const firstIds = (lines: { id?: string }[][]) => lines.map((line) => line[0]?.id);
+  const readH = (table: HTMLElement) => JSON.parse(table.getAttribute("data-edges-h")!);
+  const readV = (table: HTMLElement) => JSON.parse(table.getAttribute("data-edges-v")!);
+  const spec = (color: string) => ({ weight: 2, style: "solid", color });
+
+  it("removeRowAt(0) drops the removed row's edges and keeps the table's top perimeter", () => {
+    const table = grid(2, 3);
+    table.setAttribute("data-edges-h", JSON.stringify(labelledH(4, 2)));
+    table.setAttribute("data-edges-v", JSON.stringify(labelledV(3, 3)));
+
+    removeRowAt(table, 0);
+
+    // The sizes the renderer accepts: H is (R+1) x C, V is R x (C+1).
+    expect(readH(table)).lengthOf(3);
+    expect(readV(table)).lengthOf(2);
+    // The perimeter stays put; the interior boundary below the removed row goes.
+    expect(firstIds(readH(table))).toEqual(["b0", "b2", "b3"]);
+    // Each surviving row keeps its OWN vertical edges.
+    expect(firstIds(readV(table))).toEqual(["r1", "r2"]);
+  });
+
+  it("removeRowAt of the last row keeps the table's bottom perimeter", () => {
+    const table = grid(2, 3);
+    table.setAttribute("data-edges-h", JSON.stringify(labelledH(4, 2)));
+    table.setAttribute("data-edges-v", JSON.stringify(labelledV(3, 3)));
+
+    removeRowAt(table, 2);
+
+    expect(firstIds(readH(table))).toEqual(["b0", "b1", "b3"]);
+    expect(firstIds(readV(table))).toEqual(["r0", "r1"]);
+  });
+
+  it("removing an interior row merges its two boundaries, each neighbour keeping its face", () => {
+    const table = grid(1, 3);
+    const a = spec("#aaaaaa");
+    const b = spec("#bbbbbb");
+    const c = spec("#cccccc");
+    const d = spec("#dddddd");
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([[{}], [{ north: a, south: b }], [{ north: c, south: d }], [{}]]),
+    );
+
+    removeRowAt(table, 1);
+
+    const h = readH(table);
+    expect(h).lengthOf(3);
+    // Row 0 still shows the face it had; row 2 (now row 1) shows its own.
+    expect(h[1][0]).toEqual({ north: a, south: d });
+  });
+
+  it("removeColumnAt(0) drops the removed column's edges and keeps the left perimeter", () => {
+    const table = grid(3, 2);
+    // V is R x (C+1): label the boundaries so we can follow them.
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [{ id: "v0" }, { id: "v1" }, { id: "v2" }, { id: "v3" }],
+        [{ id: "v0" }, { id: "v1" }, { id: "v2" }, { id: "v3" }],
+      ]),
+    );
+    // H is (R+1) x C: label per column.
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify(Array.from({ length: 3 }, () => [{ id: "c0" }, { id: "c1" }, { id: "c2" }])),
+    );
+
+    removeColumnAt(table, 0);
+
+    const v = readV(table);
+    expect(v).lengthOf(2);
+    for (const line of v) {
+      expect(line).lengthOf(3); // C+1 for the two remaining columns
+      expect(line.map((e: { id?: string }) => e.id)).toEqual(["v0", "v2", "v3"]);
+    }
+    const h = readH(table);
+    expect(h).lengthOf(3);
+    for (const line of h) {
+      expect(line.map((e: { id?: string }) => e.id)).toEqual(["c1", "c2"]);
+    }
+  });
+
+  it("removeLastRow and removeLastColumn splice the edge arrays too", () => {
+    const table = grid(2, 2);
+    table.setAttribute("data-edges-h", JSON.stringify(labelledH(3, 2)));
+    table.setAttribute("data-edges-v", JSON.stringify(labelledV(2, 3)));
+
+    removeLastRow(table);
+
+    expect(firstIds(readH(table))).toEqual(["b0", "b2"]);
+    expect(firstIds(readV(table))).toEqual(["r0"]);
+
+    removeLastColumn(table);
+
+    expect(readH(table)[0]).lengthOf(1);
+    expect(readV(table)[0]).lengthOf(2);
+  });
+
+  it("a blank inserted row still splices the edge arrays", () => {
+    const table = grid(2, 3);
+    table.setAttribute("data-edges-h", JSON.stringify(labelledH(4, 2)));
+    table.setAttribute("data-edges-v", JSON.stringify(labelledV(3, 3)));
+
+    addRowAt(table, 1); // no source index: a blank row
+
+    const h = readH(table);
+    expect(h).lengthOf(5);
+    // The new row's boundary is unspecified, and every authored boundary keeps
+    // the rows it was authored between.
+    expect(firstIds(h)).toEqual(["b0", undefined, "b1", "b2", "b3"]);
+    const v = readV(table);
+    expect(v).lengthOf(4);
+    expect(firstIds(v)).toEqual(["r0", undefined, "r1", "r2"]);
+  });
+
+  it("a blank inserted column still splices the edge arrays", () => {
+    const table = grid(2, 2);
+    table.setAttribute(
+      "data-edges-v",
+      JSON.stringify([
+        [{ id: "v0" }, { id: "v1" }, { id: "v2" }],
+        [{ id: "v0" }, { id: "v1" }, { id: "v2" }],
+      ]),
+    );
+
+    addColumnAt(table, 0); // blank column at the left edge
+
+    const v = readV(table);
+    for (const line of v) {
+      expect(line).lengthOf(4);
+      // The left perimeter stays the left perimeter.
+      expect(line.map((e: { id?: string }) => e.id)).toEqual(["v0", undefined, "v1", "v2"]);
+    }
+  });
+
+  it("a concise interior-only edge array survives an insertion", () => {
+    const table = grid(2, 3);
+    // The documented concise form: interior boundaries only (R-1 lines).
+    table.setAttribute(
+      "data-edges-h",
+      JSON.stringify([
+        [{ id: "i1" }, { id: "i1" }],
+        [{ id: "i2" }, { id: "i2" }],
+      ]),
+    );
+
+    addRowAt(table, 3); // append a blank row
+
+    const h = readH(table);
+    // Normalized to the unified size the renderer can read, with the authored
+    // interior boundaries still on the boundaries they were authored on.
+    expect(h).lengthOf(5);
+    expect(firstIds(h)).toEqual([undefined, "i1", "i2", undefined, undefined]);
+  });
+
+  it("per-boundary gaps move with the boundaries they describe", () => {
+    const table = grid(3, 2);
+    table.setAttribute("data-gap-x", "0,20px");
+
+    addColumnAt(table, 0);
+    expect(table.getAttribute("data-gap-x")).toBe("0,0,20px");
+
+    removeColumnAt(table, 0);
+    expect(table.getAttribute("data-gap-x")).toBe("0,20px");
+
+    removeColumnAt(table, 0);
+    expect(table.getAttribute("data-gap-x")).toBe("20px");
+  });
+
+  it("a single gap value is left alone (it already applies to every boundary)", () => {
+    const table = grid(3, 2);
+    table.setAttribute("data-gap-x", "10px");
+    addColumnAt(table, 0);
+    expect(table.getAttribute("data-gap-x")).toBe("10px");
+  });
+});
+
+describe("removing the line a merge is anchored in", () => {
+  it("removeColumnAt promotes the covered cell instead of orphaning it", () => {
+    const table = newTable(); // 2x2
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 2, 1);
+    expectCellToBeSkipped(table, 0, 1);
+
+    removeColumnAt(table, 0);
+
+    expect(getTableInfo(table).columnCount).toBe(1);
+    // The cell the deleted anchor covered is an ordinary cell again — nothing
+    // else could ever have unskipped it.
+    expectCellToNotBeSkipped(table, 0, 0);
+    expect(getCell(table, 0, 0).getAttribute("data-span-x")).toBe(null);
+  });
+
+  it("removeRowAt promotes the covered cell instead of orphaning it", () => {
+    const table = newTable(); // 2x2
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 1, 2);
+    expectCellToBeSkipped(table, 1, 0);
+
+    removeRowAt(table, 0);
+
+    expect(getTableInfo(table).rowCount).toBe(1);
+    expectCellToNotBeSkipped(table, 0, 0);
+    expect(getCell(table, 0, 0).getAttribute("data-span-y")).toBe(null);
+  });
+
+  it("the promoted cell keeps the merge's other dimension", () => {
+    const table = newTable();
+    addColumn(table); // 3 columns x 2 rows
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 2, 2); // covers (0,1), (1,0), (1,1)
+
+    removeColumnAt(table, 0);
+
+    const promoted = getCell(table, 0, 0);
+    expect(promoted.getAttribute("data-span-x")).toBe(null); // 2 - 1 column
+    expect(promoted.getAttribute("data-span-y")).toBe("2"); // still 2 rows tall
+    expectCellToNotBeSkipped(table, 0, 0);
+    expectCellToBeSkipped(table, 1, 0);
+  });
+
+  it("removeLastRow drops a span that pointed into the removed row", () => {
+    const table = newTable(); // 2x2
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 1, 2);
+
+    removeLastRow(table);
+
+    expect(getTableInfo(table).rowCount).toBe(1);
+    expect(anchor.getAttribute("data-span-y")).toBe(null);
+    expect(anchor.style.getPropertyValue("--span-y")).toBe("");
+    // The stale span used to make any later span change throw.
+    expect(() => setCellSpan(anchor, 1, 1)).not.toThrow();
+  });
+
+  it("removeLastColumn drops a span that pointed into the removed column", () => {
+    const table = newTable(); // 2x2
+    const anchor = getCell(table, 0, 0);
+    setCellSpan(anchor, 2, 1);
+
+    removeLastColumn(table);
+
+    expect(getTableInfo(table).columnCount).toBe(1);
+    expect(anchor.getAttribute("data-span-x")).toBe(null);
+    expect(anchor.style.getPropertyValue("--span-x")).toBe("");
+  });
+});
+
+it("setCellSpan unmerges a span that exists only in data-* (never rendered)", () => {
+  const table = newTable(); // 2x2
+  const anchor = getCell(table, 0, 0);
+  // The state hand-authored HTML or table-model's setSpan leaves behind: the
+  // declared span plus skip classes, with no CSS-var mirror yet.
+  anchor.setAttribute("data-span-x", "2");
+  getCell(table, 0, 1).classList.add("bloom-skip");
+
+  setCellSpan(anchor, 1, 1);
+
+  expect(anchor.getAttribute("data-span-x")).toBe("1");
+  expectCellToNotBeSkipped(table, 0, 1);
+});

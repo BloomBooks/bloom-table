@@ -816,4 +816,90 @@ describe("table-renderer", () => {
     expect((only.style as any).borderLeftStyle).toBe("none");
     expect((only.style as any).borderLeftWidth).toBe("0px");
   });
+
+  describe("merged cells", () => {
+    function addSkip(table: HTMLElement): HTMLElement {
+      const cell = addCell(table);
+      cell.classList.add("bloom-skip");
+      return cell;
+    }
+
+    it("routes the bottom perimeter of a vertically merged cell to the anchor", () => {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,100px");
+      g.setAttribute("data-row-heights", "30px,30px");
+      const anchor = addCell(g, 1, 2); // (0,0), spans both rows
+      addCell(g); // (0,1)
+      const skip = addSkip(g); // (1,0), covered by the anchor
+      addCell(g); // (1,1)
+      const heavy = { weight: 3, style: "solid", color: "red" };
+      g.setAttribute(
+        "data-edges-h",
+        JSON.stringify([
+          [null, null], // top perimeter unspecified
+          [null, null], // interior boundary unspecified
+          [heavy, heavy], // bottom perimeter
+        ]),
+      );
+      const m = buildRenderModel(g);
+      // The anchor is the cell that paints at (1,0), so the bottom perimeter
+      // stroke belongs to it, not to the display:none skip cell.
+      expect(m.cellBorders[0].bottom).toEqual(heavy);
+      expect(m.cellBorders[2].bottom).toBeNull();
+      // And the boundary covered by the merge contributes nothing.
+      expect(m.cellBorders[2].top).toBeNull();
+      render(g);
+      expect((anchor.style as any).borderBottomWidth).toBe("3px");
+      expect((anchor.style as any).borderBottomColor).toBe("red");
+      expect((skip.style as any).borderBottomStyle).toBe("none");
+    });
+
+    it("routes a horizontally merged cell's trailing edge to the anchor", () => {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,100px,100px");
+      g.setAttribute("data-row-heights", "30px");
+      const anchor = addCell(g, 2, 1); // (0,0), spans columns 0-1
+      addSkip(g); // (0,1), covered by the anchor
+      addCell(g); // (0,2)
+      const heavy = { weight: 3, style: "solid", color: "red" };
+      g.setAttribute(
+        "data-edges-v",
+        JSON.stringify([[null, null, { west: heavy }, null]]),
+      );
+      const m = buildRenderModel(g);
+      // The west side of the boundary at c=2 belongs to the anchor.
+      expect(m.cellBorders[0].right).toEqual(heavy);
+      expect(m.cellBorders[1].right).toBeNull();
+      expect(m.cellBorders[2].left).toBeNull();
+      render(g);
+      expect((anchor.style as any).borderRightWidth).toBe("3px");
+      expect((anchor.style as any).borderRightColor).toBe("red");
+    });
+
+    it("gives a merged cell no stroke on boundaries interior to the merge", () => {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,100px");
+      g.setAttribute("data-row-heights", "30px,30px");
+      addCell(g, 2, 2); // one cell covering the whole 2x2 grid
+      addSkip(g);
+      addSkip(g);
+      addSkip(g);
+      g.setAttribute(
+        "data-border-default",
+        JSON.stringify({ weight: 1, style: "solid", color: "#000" }),
+      );
+      const m = buildRenderModel(g);
+      // Only the perimeter paints; the covered interior boundaries do not.
+      expect(m.cellBorders[0].top).toEqual({ weight: 1, style: "solid", color: "#000" });
+      expect(m.cellBorders[0].bottom).toEqual({ weight: 1, style: "solid", color: "#000" });
+      expect(m.cellBorders[0].left).toEqual({ weight: 1, style: "solid", color: "#000" });
+      expect(m.cellBorders[0].right).toEqual({ weight: 1, style: "solid", color: "#000" });
+      [1, 2, 3].forEach((i) => {
+        expect(m.cellBorders[i].top).toBeNull();
+        expect(m.cellBorders[i].right).toBeNull();
+        expect(m.cellBorders[i].bottom).toBeNull();
+        expect(m.cellBorders[i].left).toBeNull();
+      });
+    });
+  });
 });

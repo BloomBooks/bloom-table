@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import TableSection from "./TableSection";
 import RowSection from "./RowSection";
 import ColumnSection from "./ColumnSection";
 import CellSection from "./CellSection";
 import { TableApi, TableApiContext, defaultTableApi } from "./TableApiContext";
-import {
-  ColorPickerComponent,
-  ColorPickerContext,
-  DefaultColorPicker,
-} from "./ColorPickerContext";
+import { nextSplitSpan } from "./spanCommands";
+import { ColorPickerComponent, ColorPickerContext, DefaultColorPicker } from "./ColorPickerContext";
 
 const TableMenu: React.FC<{
   currentCell: HTMLElement | null | undefined;
@@ -34,8 +31,55 @@ const TableMenu: React.FC<{
   // real cell, so resolve to the nearest one. Null when not inside a cell.
   const currentCell = (props.currentCell?.closest(".bloom-cell") as HTMLElement | null) ?? null;
 
+  // Where the selected cell sat, remembered while it is still in the document.
+  // Undo replaces every cell element, so this is the only way back to it.
+  const lastCellLocation = useRef<{ table: HTMLElement; row: number; column: number } | null>(null);
+  useEffect(() => {
+    if (!currentCell || !currentCell.isConnected) return;
+    const t = currentCell.closest(".bloom-table") as HTMLElement | null;
+    if (!t) return;
+    try {
+      const { row, column } = api.getRowAndColumn(t, currentCell);
+      lastCellLocation.current = { table: t, row, column };
+    } catch {
+      // Cell isn't laid out (yet); leave the previous location alone.
+    }
+  }, [currentCell, api]);
+
+  // The cell now occupying a remembered position, or the table's first cell if
+  // that position no longer exists (e.g. undoing an insert removed the row).
+  const findCellAt = (table: HTMLElement, row: number, column: number): HTMLElement | null => {
+    const cells = Array.from(table.children).filter(
+      (c): c is HTMLElement =>
+        c instanceof HTMLElement &&
+        c.classList.contains("bloom-cell") &&
+        !c.classList.contains("bloom-skip"),
+    );
+    for (const c of cells) {
+      try {
+        const pos = api.getRowAndColumn(table, c);
+        if (pos.row === row && pos.column === column) return c;
+      } catch {
+        // ignore cells we can't place
+      }
+    }
+    return cells[0] ?? null;
+  };
+
   useEffect(() => {
     const handler = () => {
+      // Undo restores the table's innerHTML, which detaches every cell element,
+      // and nothing refocuses afterwards. The host learns about a selection only
+      // from a focusin, so without this the panel is left pointing at a detached
+      // node: it greys out and the Undo button disables while history still has
+      // entries, so a second undo is impossible until the user clicks a cell.
+      // Put the selection back on the cell that took the old one's place.
+      if (currentCell && !currentCell.isConnected) {
+        const loc = lastCellLocation.current;
+        const replacement =
+          loc && loc.table.isConnected ? findCellAt(loc.table, loc.row, loc.column) : null;
+        if (replacement) replacement.focus();
+      }
       // Force a re-render when the table history is updated
       forceUpdate((x) => x + 1);
     };
@@ -75,95 +119,99 @@ const TableMenu: React.FC<{
     };
   }, [currentCell]);
 
-  const getTargetTableFromSelection = (): HTMLElement => {
-    // Using currentCell is more reliable than document.activeElement,
-    // because focus can move to the menu itself when we click a menu item.
-    const table = currentCell!.closest(".bloom-table") as HTMLElement;
-    return table;
+  // Using currentCell is more reliable than document.activeElement, because
+  // focus can move to the menu itself when we click a menu item. Null when
+  // there is no selection to act on: every handler below returns early rather
+  // than throwing, since the controls can still be reached by keyboard.
+  const getTargetTableFromSelection = (): HTMLElement | null => {
+    return (currentCell?.closest(".bloom-table") as HTMLElement | null) ?? null;
   };
-  const getTargetTableFromCell = (cell: HTMLElement): HTMLElement => {
-    // Using currentCell is more reliable than document.activeElement,
-    // because focus can move to the menu itself when we click a menu item.
-    const table = cell.closest(".bloom-table") as HTMLElement;
-    return table;
+  const getTargetTableFromCell = (cell: HTMLElement): HTMLElement | null => {
+    return (cell.closest(".bloom-table") as HTMLElement | null) ?? null;
   };
   const handleSetCellContentType = (contentTypeId: string) => {
-    assert(!!currentCell, "No cell selected");
-    api.setupContentsOfCell(currentCell!, contentTypeId, true);
+    if (!currentCell) return;
+    api.setupContentsOfCell(currentCell, contentTypeId, true);
   };
 
   const handleExtendCell = () => {
-    assert(!!currentCell, "No cell selected");
-    const table = getTargetTableFromCell(currentCell!);
+    const table = currentCell ? getTargetTableFromCell(currentCell) : null;
+    if (!currentCell || !table) return;
     const controller = new api.BloomTable(table);
-    const current = controller.getSpan(currentCell!);
-    controller.setSpan(currentCell!, (current.x || 1) + 1, current.y || 1);
+    const current = controller.getSpan(currentCell);
+    controller.setSpan(currentCell, (current.x || 1) + 1, current.y || 1);
   };
 
   const handleContractCell = () => {
-    assert(!!currentCell, "No cell selected");
-    const table = getTargetTableFromCell(currentCell!);
+    const table = currentCell ? getTargetTableFromCell(currentCell) : null;
+    if (!currentCell || !table) return;
     const controller = new api.BloomTable(table);
-    const current = controller.getSpan(currentCell!);
-    const nextX = Math.max(1, (current.x || 1) - 1);
-    controller.setSpan(currentCell!, nextX, current.y || 1);
+    const current = controller.getSpan(currentCell);
+    const next = nextSplitSpan(current.x, current.y);
+    if (!next) return; // already 1x1; nothing to split
+    controller.setSpan(currentCell, next.x, next.y);
   };
   const handleInsertRowAbove = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = api.getRowIndex(currentCell!);
+    if (!table || !currentCell) return;
+    const rowIndex = api.getRowIndex(currentCell);
     const controller = new api.BloomTable(table);
     controller.addRowAt(rowIndex);
   };
   const handleInsertRowBelow = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = api.getRowIndex(currentCell!);
+    if (!table || !currentCell) return;
+    const rowIndex = api.getRowIndex(currentCell);
     const controller = new api.BloomTable(table);
     controller.addRowAt(rowIndex + 1);
   };
   const handleDeleteRow = () => {
     const table = getTargetTableFromSelection();
-    const rowIndex = api.getRowIndex(currentCell!);
+    if (!table || !currentCell) return;
+    const rowIndex = api.getRowIndex(currentCell);
     const controller = new api.BloomTable(table);
     controller.removeRowAt(rowIndex);
   };
   const handleInsertColumnLeft = () => {
-    const table = getTargetTableFromCell(currentCell!); // TODO doesn't have cell param
-    const columnIndex = api.getRowAndColumn(table, currentCell!).column;
+    const table = getTargetTableFromSelection();
+    if (!table || !currentCell) return;
+    const columnIndex = api.getRowAndColumn(table, currentCell).column;
     const controller = new api.BloomTable(table);
     controller.addColumnAt(columnIndex);
   };
 
   const handleInsertColumnRight = () => {
-    const cell = currentCell!;
-    const table = getTargetTableFromCell(cell);
-    const columnIndex = api.getRowAndColumn(table, cell).column;
+    const table = getTargetTableFromSelection();
+    if (!table || !currentCell) return;
+    const columnIndex = api.getRowAndColumn(table, currentCell).column;
     const controller = new api.BloomTable(table);
     controller.addColumnAt(columnIndex + 1);
   };
 
   const handleDeleteColumn = () => {
     const table = getTargetTableFromSelection();
-    const columnIndex = api.getRowAndColumn(table, currentCell!).column;
+    if (!table || !currentCell) return;
+    const columnIndex = api.getRowAndColumn(table, currentCell).column;
     const controller = new api.BloomTable(table);
     controller.removeColumnAt(columnIndex);
   };
 
   const handleSelectParentCell = () => {
     const table = getTargetTableFromSelection();
-    const parentCell = table.parentElement?.closest(".bloom-cell") as HTMLElement | null;
-    if (parentCell) {
-      parentCell.focus();
+    const parent = table?.parentElement?.closest(".bloom-cell") as HTMLElement | null;
+    if (parent) {
+      parent.focus();
     }
   };
   const handleUndo = () => {
-    const table = currentCell ? getTargetTableFromSelection() : null;
+    const table = getTargetTableFromSelection();
     if (!table) return;
     api.undoLastOperation(table);
   };
 
   // (Old border toggle handlers removed in favor of BorderControl)
 
-  const table = currentCell ? getTargetTableFromSelection() : undefined;
+  const table = getTargetTableFromSelection() ?? undefined;
   const parentCell = table?.parentElement?.closest(".bloom-cell");
 
   // When there's no selected cell (or it isn't inside a table), there's nothing
@@ -173,97 +221,107 @@ const TableMenu: React.FC<{
 
   const ColorPicker = props.colorPicker ?? DefaultColorPicker;
 
+  // pointer-events:none hides the disabled sections from the mouse only; the
+  // buttons inside are real buttons and stay in the tab order, so Tab+Enter
+  // still reached their handlers. `inert` takes the whole subtree out of the tab
+  // order and out of the accessibility tree. React 18 does not render the
+  // attribute, so set the property.
+  const inertWrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = inertWrapRef.current;
+    if (!el) return;
+    (el as HTMLDivElement & { inert?: boolean }).inert = !hasContext;
+  }, [hasContext]);
+
   return (
     <TableApiContext.Provider value={api}>
-    <ColorPickerContext.Provider value={ColorPicker}>
-    <div
-      className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
-      style={{
-        backgroundColor: "#2E2E2E",
-        color: "rgba(255,255,255,0.95)",
-      }}
-    >
-      {!hasContext && (
-        <div className="px-2 pb-2 text-sm" style={{ opacity: 0.85 }}>
-          Click in a table cell to edit it.
-        </div>
-      )}
-      {/* The per-cell/row/column/table controls only make sense with a selected
+      <ColorPickerContext.Provider value={ColorPicker}>
+        <div
+          className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
+          style={{
+            backgroundColor: "#2E2E2E",
+            color: "rgba(255,255,255,0.95)",
+          }}
+        >
+          {!hasContext && (
+            <div className="px-2 pb-2 text-sm" style={{ opacity: 0.85 }}>
+              Click in a table cell to edit it.
+            </div>
+          )}
+          {/* The per-cell/row/column/table controls only make sense with a selected
           cell; dim and disable them when there's nothing to act on. */}
-      <div
-        aria-disabled={!hasContext}
-        style={{
-          opacity: hasContext ? 1 : 0.4,
-          pointerEvents: hasContext ? "auto" : "none",
-          filter: hasContext ? "none" : "grayscale(40%)",
-        }}
-      >
-        {/* Table section */}
-        <TableSection table={table} />
-        <RowSection
-          table={table}
-          currentCell={currentCell}
-          onInsertAbove={handleInsertRowAbove}
-          onInsertBelow={handleInsertRowBelow}
-          onDelete={handleDeleteRow}
-        />
+          <div
+            ref={inertWrapRef}
+            aria-disabled={!hasContext}
+            style={{
+              opacity: hasContext ? 1 : 0.4,
+              pointerEvents: hasContext ? "auto" : "none",
+              filter: hasContext ? "none" : "grayscale(40%)",
+            }}
+          >
+            {/* Table section */}
+            <TableSection table={table} />
+            <RowSection
+              table={table}
+              currentCell={currentCell}
+              disabled={!hasContext}
+              onInsertAbove={handleInsertRowAbove}
+              onInsertBelow={handleInsertRowBelow}
+              onDelete={handleDeleteRow}
+            />
 
-        <ColumnSection
-          table={table}
-          currentCell={currentCell}
-          onInsertLeft={handleInsertColumnLeft}
-          onInsertRight={handleInsertColumnRight}
-          onDelete={handleDeleteColumn}
-        />
-        <CellSection
-          currentCell={currentCell}
-          onSetContentType={handleSetCellContentType}
-          onExtend={handleExtendCell}
-          onContract={handleContractCell}
-        />
-      </div>
+            <ColumnSection
+              table={table}
+              currentCell={currentCell}
+              disabled={!hasContext}
+              onInsertLeft={handleInsertColumnLeft}
+              onInsertRight={handleInsertColumnRight}
+              onDelete={handleDeleteColumn}
+            />
+            <CellSection
+              currentCell={currentCell}
+              disabled={!hasContext}
+              onSetContentType={handleSetCellContentType}
+              onExtend={handleExtendCell}
+              onContract={handleContractCell}
+            />
+          </div>
 
-      {/* Top actions: Undo + Select Parent */}
-      <div className="flex items-center gap-2 px-2 pb-2 border-gray-200 mb-2">
-        <button
-          className="px-2 py-1 rounded-md text-sm"
-          style={{
-            backgroundColor: api.canUndo() && table ? "#2D8294" : "#555",
-            color: "rgba(255,255,255,0.95)",
-            cursor: api.canUndo() && table ? "pointer" : "not-allowed",
-            opacity: api.canUndo() && table ? 1 : 0.6,
-          }}
-          disabled={!api.canUndo() || !table}
-          onClick={handleUndo}
-        >
-          Undo
-        </button>
-        <button
-          className="px-2 py-1 rounded-md text-sm"
-          style={{
-            backgroundColor: parentCell ? "#2D8294" : "#555",
-            color: "rgba(255,255,255,0.95)",
-            cursor: parentCell ? "pointer" : "not-allowed",
-            opacity: parentCell ? 1 : 0.6,
-          }}
-          disabled={!parentCell}
-          onClick={parentCell ? handleSelectParentCell : undefined}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          Select Parent Cell
-        </button>
-      </div>
-    </div>
-    </ColorPickerContext.Provider>
+          {/* Top actions: Undo + Select Parent */}
+          <div className="flex items-center gap-2 px-2 pb-2 border-gray-200 mb-2">
+            <button
+              className="px-2 py-1 rounded-md text-sm"
+              style={{
+                backgroundColor: api.canUndo() && table ? "#2D8294" : "#555",
+                color: "rgba(255,255,255,0.95)",
+                cursor: api.canUndo() && table ? "pointer" : "not-allowed",
+                opacity: api.canUndo() && table ? 1 : 0.6,
+              }}
+              disabled={!api.canUndo() || !table}
+              onClick={handleUndo}
+            >
+              Undo
+            </button>
+            <button
+              className="px-2 py-1 rounded-md text-sm"
+              style={{
+                backgroundColor: parentCell ? "#2D8294" : "#555",
+                color: "rgba(255,255,255,0.95)",
+                cursor: parentCell ? "pointer" : "not-allowed",
+                opacity: parentCell ? 1 : 0.6,
+              }}
+              disabled={!parentCell}
+              onClick={parentCell ? handleSelectParentCell : undefined}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              Select Parent Cell
+            </button>
+          </div>
+        </div>
+      </ColorPickerContext.Provider>
     </TableApiContext.Provider>
   );
 };
-
-function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(`Assertion failed: ${message}`);
-  }
-}
 
 /*
 const [canUndo, setCanUndo] = useState(false);

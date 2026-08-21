@@ -60,7 +60,17 @@
 
 import { tableHistoryManager } from "./history";
 import { setupContentsOfCell, getCurrentContentTypeId } from "./cell-contents";
-import { getEdgesH, setEdgesH, getEdgesV, setEdgesV } from "./table-model";
+import type { HEdgeEntry, VEdgeEntry } from "./table-model";
+import {
+  getEdgesH,
+  setEdgesH,
+  getEdgesV,
+  setEdgesV,
+  getGapX,
+  setGapX,
+  getGapY,
+  setGapY,
+} from "./table-model";
 
 /**
  * Per-cell appearance settings that a newly inserted row/column should inherit
@@ -115,66 +125,312 @@ function cloneEdge<T>(entry: T | undefined): T | Record<string, never> {
   return JSON.parse(JSON.stringify(entry)) as T;
 }
 
+// ---- Edge and gap array maintenance -----------------------------------------
+// data-edges-h / data-edges-v are indexed by boundary, so every operation that
+// adds, removes, or reorders a row/column has to move them in step with the
+// cells. Unified (full) size is H = (R+1) x C and V = R x (C+1); a stale array
+// matches none of the renderer's accepted shapes, which silently drops every
+// border it held.
+
+type EdgeRow = unknown[];
+
+// A line of entirely unspecified edge entries.
+function blankEdges(n: number): EdgeRow {
+  return Array.from({ length: n }, () => ({}));
+}
+
+// Is this entry a single BorderSpec shared by both sides, rather than a sided
+// west/east | north/south object? Same test the renderer and edge-utils use.
+function isSharedSpec(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object") return false;
+  const o = entry as Record<string, unknown>;
+  return (
+    typeof o.weight === "number" ||
+    Object.prototype.hasOwnProperty.call(o, "style") ||
+    Object.prototype.hasOwnProperty.call(o, "color")
+  );
+}
+
+// One side of an edge entry; a shared spec answers for both sides.
+function edgeSide(entry: unknown, side: "north" | "south" | "west" | "east"): unknown {
+  if (!entry || typeof entry !== "object") return null;
+  if (isSharedSpec(entry)) return entry;
+  return (entry as Record<string, unknown>)[side] ?? null;
+}
+
+// The single boundary left where two boundaries meet after the row/column
+// between them is removed: each surviving neighbour keeps the side it faced.
+function mergeBoundaryEntry(
+  near: unknown,
+  far: unknown,
+  nearSide: "north" | "west",
+  farSide: "south" | "east",
+): unknown {
+  const a = edgeSide(near, nearSide);
+  const b = edgeSide(far, farSide);
+  const merged: Record<string, unknown> = {};
+  if (a) merged[nearSide] = a;
+  if (b) merged[farSide] = b;
+  return merged;
+}
+
+// Expand one concise (interior-only, or single-interior) line of edge entries
+// to the unified layout of `full` boundaries. A line that is already full, or
+// of a length we don't recognise, comes back untouched: normalization must
+// never invent or drop authored borders.
+function expandEdgeLine(line: EdgeRow, full: number): EdgeRow {
+  const interior = Math.max(0, full - 2);
+  if (line.length === full) return line;
+  if (interior > 0 && line.length === interior) return [{}, ...line, {}];
+  if (interior >= 1 && line.length === 1) {
+    const out = blankEdges(full);
+    out[1] = line[0];
+    return out;
+  }
+  return line;
+}
+
+/**
+ * Rewrite the table's edge arrays in the unified full-size layout. The renderer
+ * also reads the concise interior-only form, but only the full form can be
+ * spliced boundary-by-boundary, so every structural operation normalizes first;
+ * otherwise a concise array survives the operation unchanged, then matches none
+ * of the renderer's accepted shapes and every authored border disappears.
+ */
+function normalizeEdgeArrays(table: HTMLElement, rows: number, cols: number): void {
+  const v = getEdgesV(table);
+  if (v && v.length === rows) {
+    const next = v.map((row) =>
+      Array.isArray(row) ? expandEdgeLine(row as EdgeRow, cols + 1) : blankEdges(cols + 1),
+    );
+    setEdgesV(table, next as unknown as VEdgeEntry[][]);
+  }
+
+  const h = getEdgesH(table);
+  if (h) {
+    // Expanding the outer array inserts placeholder entries for the perimeter
+    // boundaries; the pass below turns those (and any short line) into a full
+    // blank line of `cols` entries.
+    const boundaries = expandEdgeLine(h as unknown as EdgeRow, rows + 1) as EdgeRow[];
+    if (boundaries.length === rows + 1) {
+      const next = boundaries.map((row) => {
+        if (!Array.isArray(row)) return blankEdges(cols);
+        const line = row.slice() as EdgeRow;
+        while (line.length < cols) line.push({});
+        return line;
+      });
+      setEdgesH(table, next as unknown as HEdgeEntry[][]);
+    }
+  }
+}
+
+const fullV = (v: unknown[][] | null, rows: number, cols: number): boolean =>
+  !!v && v.length === rows && v.every((r) => Array.isArray(r) && r.length === cols + 1);
+const fullH = (h: unknown[][] | null, rows: number, cols: number): boolean =>
+  !!h && h.length === rows + 1 && h.every((r) => Array.isArray(r) && r.length === cols);
+
 /**
  * When a row is inserted, splice the table's edge arrays so existing borders
  * stay aligned and the new row inherits the source row's borders.
- *  - V edges (rows x cols+1): the new row copies the source row's vertical lines.
+ *  - V edges (rows x cols+1): the new row copies the source row's vertical lines
+ *    (a blank row gets unspecified ones).
  *  - H edges (rows+1 x cols): a new horizontal boundary is inserted at the
  *    insertion index, copied from the boundary it splits (which is the source
  *    row's adjacent top/bottom line), preserving neighbouring rows' borders.
+ *    A blank row brings no borders, so its new boundary is unspecified and the
+ *    table's own top/bottom perimeters stay where they are.
  * Only runs when the arrays exist and are full-sized for the current dimensions.
  */
-function copyEdgesForInsertedRow(
+function insertEdgesForNewRow(
   table: HTMLElement,
   insertIndex: number,
-  sourceRow: number,
+  sourceRow: number | null,
   rows: number,
   cols: number,
 ): void {
   const v = getEdgesV(table);
-  if (v && v.length === rows && v.every((r) => Array.isArray(r) && r.length === cols + 1)) {
-    const srcRow = v[sourceRow] ? v[sourceRow].map((e) => cloneEdge(e)) : new Array(cols + 1).fill({});
-    v.splice(insertIndex, 0, srcRow as (typeof v)[number]);
-    setEdgesV(table, v);
+  if (fullV(v as unknown[][] | null, rows, cols)) {
+    const src = sourceRow != null ? v![sourceRow] : undefined;
+    const newRow = src ? src.map((e) => cloneEdge(e)) : blankEdges(cols + 1);
+    v!.splice(insertIndex, 0, newRow as VEdgeEntry[]);
+    setEdgesV(table, v!);
   }
 
   const h = getEdgesH(table);
-  if (h && h.length === rows + 1 && h.every((r) => Array.isArray(r) && r.length === cols)) {
-    const base = h[insertIndex] ? h[insertIndex].map((e) => cloneEdge(e)) : new Array(cols).fill({});
-    h.splice(insertIndex, 0, base as (typeof h)[number]);
-    setEdgesH(table, h);
+  if (fullH(h as unknown[][] | null, rows, cols)) {
+    if (sourceRow != null) {
+      const base = h![insertIndex] ? h![insertIndex].map((e) => cloneEdge(e)) : blankEdges(cols);
+      h!.splice(insertIndex, 0, base as HEdgeEntry[]);
+    } else {
+      h!.splice(insertIndex === 0 ? 1 : insertIndex, 0, blankEdges(cols) as HEdgeEntry[]);
+    }
+    setEdgesH(table, h!);
   }
 }
 
 /**
- * Column counterpart of copyEdgesForInsertedRow.
+ * Column counterpart of insertEdgesForNewRow.
  *  - H edges (rows+1 x cols): the new column copies the source column's
  *    horizontal lines (top/bottom of its cells) at each boundary row.
  *  - V edges (rows x cols+1): a new vertical boundary is inserted at the
  *    insertion index, copied from the boundary it splits, preserving neighbours.
  */
-function copyEdgesForInsertedColumn(
+function insertEdgesForNewColumn(
   table: HTMLElement,
   insertIndex: number,
-  sourceColumn: number,
+  sourceColumn: number | null,
   rows: number,
   cols: number,
 ): void {
   const h = getEdgesH(table);
-  if (h && h.length === rows + 1 && h.every((r) => Array.isArray(r) && r.length === cols)) {
+  if (fullH(h as unknown[][] | null, rows, cols)) {
     for (let b = 0; b <= rows; b++) {
-      h[b].splice(insertIndex, 0, cloneEdge(h[b][sourceColumn]) as (typeof h)[number][number]);
+      const entry = sourceColumn != null ? cloneEdge(h![b][sourceColumn]) : {};
+      h![b].splice(insertIndex, 0, entry as HEdgeEntry);
+    }
+    setEdgesH(table, h!);
+  }
+
+  const v = getEdgesV(table);
+  if (fullV(v as unknown[][] | null, rows, cols)) {
+    for (let r = 0; r < rows; r++) {
+      if (sourceColumn != null) {
+        v![r].splice(insertIndex, 0, cloneEdge(v![r][insertIndex]) as VEdgeEntry);
+      } else {
+        v![r].splice(insertIndex === 0 ? 1 : insertIndex, 0, {} as VEdgeEntry);
+      }
+    }
+    setEdgesV(table, v!);
+  }
+}
+
+/**
+ * When a row is removed, splice its edge data out so the surviving rows keep
+ * the borders they were authored with.
+ *  - V edges: the removed row's line of vertical entries goes away.
+ *  - H edges: the row's two horizontal boundaries collapse into one. The
+ *    table's top/bottom perimeters stay put (removing the first or last row
+ *    drops the interior boundary next to it); for an interior row the two
+ *    boundaries merge, each surviving neighbour keeping the face it showed.
+ */
+function removeEdgesForRemovedRow(
+  table: HTMLElement,
+  index: number,
+  rows: number,
+  _cols: number,
+): void {
+  const v = getEdgesV(table);
+  if (v && v.length === rows) {
+    v.splice(index, 1);
+    setEdgesV(table, v);
+  }
+
+  const h = getEdgesH(table);
+  if (h && h.length === rows + 1) {
+    const interior = index > 0 && index < rows - 1;
+    if (interior && Array.isArray(h[index]) && Array.isArray(h[index + 1])) {
+      const above = h[index] as EdgeRow;
+      const below = h[index + 1] as EdgeRow;
+      h[index] = above.map((e, c) =>
+        mergeBoundaryEntry(e, below[c], "north", "south"),
+      ) as HEdgeEntry[];
+    }
+    h.splice(index === 0 ? 1 : interior ? index + 1 : index, 1);
+    setEdgesH(table, h);
+  }
+}
+
+/** Column counterpart of removeEdgesForRemovedRow. */
+function removeEdgesForRemovedColumn(
+  table: HTMLElement,
+  index: number,
+  rows: number,
+  cols: number,
+): void {
+  const h = getEdgesH(table);
+  if (h && h.length === rows + 1) {
+    for (const line of h) {
+      if (Array.isArray(line) && line.length === cols) line.splice(index, 1);
     }
     setEdgesH(table, h);
   }
 
   const v = getEdgesV(table);
-  if (v && v.length === rows && v.every((r) => Array.isArray(r) && r.length === cols + 1)) {
-    for (let r = 0; r < rows; r++) {
-      v[r].splice(insertIndex, 0, cloneEdge(v[r][insertIndex]) as (typeof v)[number][number]);
+  if (v && v.length === rows) {
+    const interior = index > 0 && index < cols - 1;
+    const drop = index === 0 ? 1 : interior ? index + 1 : index;
+    for (const line of v) {
+      if (!Array.isArray(line) || line.length !== cols + 1) continue;
+      if (interior) {
+        line[index] = mergeBoundaryEntry(line[index], line[index + 1], "west", "east") as VEdgeEntry;
+      }
+      line.splice(drop, 1);
     }
     setEdgesV(table, v);
   }
+}
+
+// Gaps are per-boundary lists too: data-gap-x has C-1 entries and data-gap-y
+// R-1 (boundary b sits between lines b and b+1). A list of a single value
+// applies to every boundary, so only a genuinely per-boundary list needs
+// splicing; anything of an unexpected length is left alone.
+function gapAccess(axis: LineAxis): {
+  get: (t: HTMLElement) => string[];
+  set: (t: HTMLElement, g: string[]) => void;
+} {
+  return axis === "row" ? { get: getGapY, set: setGapY } : { get: getGapX, set: setGapX };
+}
+
+function perBoundaryGaps(table: HTMLElement, axis: LineAxis, lineCount: number): string[] | null {
+  const tokens = gapAccess(axis).get(table);
+  if (tokens.length < 2 || tokens.length !== lineCount - 1) return null;
+  return tokens;
+}
+
+function spliceGapForInsertedLine(
+  table: HTMLElement,
+  axis: LineAxis,
+  insertIndex: number,
+  lineCount: number,
+): void {
+  const tokens = perBoundaryGaps(table, axis, lineCount);
+  if (!tokens) return;
+  // The new line splits a boundary; the new one starts out like the one it split.
+  const at = Math.min(insertIndex, tokens.length);
+  const source = tokens[Math.min(insertIndex, tokens.length - 1)] ?? "0";
+  tokens.splice(at, 0, source);
+  gapAccess(axis).set(table, tokens);
+}
+
+function spliceGapForRemovedLine(
+  table: HTMLElement,
+  axis: LineAxis,
+  index: number,
+  lineCount: number,
+): void {
+  const tokens = perBoundaryGaps(table, axis, lineCount);
+  if (!tokens) return;
+  tokens.splice(Math.min(index, tokens.length - 1), 1);
+  gapAccess(axis).set(table, tokens);
+}
+
+function reorderGapForMovedLine(
+  table: HTMLElement,
+  axis: LineAxis,
+  from: number,
+  to: number,
+  lineCount: number,
+): void {
+  const tokens = perBoundaryGaps(table, axis, lineCount);
+  if (!tokens) return;
+  // Same convention as the edge arrays under a move: a line carries its
+  // leading boundary. Line 0 has no leading interior boundary, so it gets a
+  // placeholder that is dropped again — a line moved to the front leaves its
+  // gap behind, because the position it lands in has no boundary before it.
+  const owned = ["0", ...tokens];
+  const [moved] = owned.splice(from, 1);
+  owned.splice(to, 0, moved);
+  gapAccess(axis).set(table, owned.slice(1));
 }
 
 /**
@@ -277,25 +533,16 @@ export const addRow = (table: HTMLElement, skipHistory = false, sourceIndex?: nu
 export const removeLastRow = (table: HTMLElement): void => {
   if (!table) return;
 
-  const rowHeightsAttr = table.getAttribute("data-row-heights");
-  if (!rowHeightsAttr || rowHeightsAttr.split(",").length === 0) {
+  // Removing the last row is removing a row: it goes through the same core, so
+  // spans, edge arrays and gaps are maintained in exactly one place.
+  const info = getTableInfo(table);
+  if (info.rowCount === 0) {
     console.info("No rows to remove from the target table.");
     return;
   }
 
   const description = "Remove Last Row";
-  const performOperation = () => {
-    const columnWidthsAttr = table.getAttribute("data-column-widths") || "";
-    const numColumns = columnWidthsAttr.split(",").length || 1;
-
-    const rowHeights = (table.getAttribute("data-row-heights") || "").split(",");
-    if (rowHeights.length === 0) return;
-    rowHeights.pop();
-    table.setAttribute("data-row-heights", rowHeights.join(","));
-    const cells = getTableCells(table);
-    const cellsToRemove = cells.slice(-numColumns);
-    cellsToRemove.forEach((cell) => table.removeChild(cell));
-  };
+  const performOperation = () => removeLineAt(table, "row", getTableInfo(table).rowCount - 1);
 
   tableHistoryManager.addHistoryEntry(table, description, performOperation);
 };
@@ -342,34 +589,17 @@ export const getLastOperation = (): string | null => {
 
 export function removeLastColumn(table: HTMLElement) {
   if (!table) return;
-  const columnWidthsAttr = table.getAttribute("data-column-widths");
-  if (!columnWidthsAttr) return;
 
-  const columnWidths = columnWidthsAttr.split(",");
-  if (columnWidths.length <= 1) {
+  const info = getTableInfo(table);
+  if (info.columnCount <= 1) {
     console.info("Cannot remove the last column.");
     return;
   }
 
   const description = "Remove Last Column";
-  const performOperation = () => {
-    const numColumns = columnWidths.length;
-    columnWidths.pop();
-    table.setAttribute("data-column-widths", columnWidths.join(","));
-
-    const rowHeightsAttr = table.getAttribute("data-row-heights") || "";
-    const numRows = rowHeightsAttr ? rowHeightsAttr.split(",").length : 0;
-    if (numRows === 0) return;
-    const cells = getTableCells(table);
-
-    // Remove the last cell from each row
-    for (let i = numRows - 1; i >= 0; i--) {
-      const cellIndexToRemove = i * numColumns + numColumns - 1;
-      if (cellIndexToRemove < cells.length) {
-        table.removeChild(cells[cellIndexToRemove]);
-      }
-    }
-  };
+  // Same core as removeColumnAt, so spans, edges and gaps stay maintained.
+  const performOperation = () =>
+    removeLineAt(table, "column", getTableInfo(table).columnCount - 1);
 
   tableHistoryManager.addHistoryEntry(table, description, performOperation);
 }
@@ -458,8 +688,12 @@ export function setCellSpan(cell: HTMLElement, newHorizontalSpan: number, newVer
   const table = cell.closest<HTMLElement>(".bloom-table");
   assert(!!table, "Cell must be inside a table element");
 
-  const currentSpanX = parseInt(cell.style.getPropertyValue("--span-x")) || 1;
-  const currentSpanY = parseInt(cell.style.getPropertyValue("--span-y")) || 1;
+  // data-span-* is the declared source of truth (the CSS vars are only a mirror
+  // the renderer writes). Reading the vars here made an unmerge a silent no-op
+  // on a cell whose span came from hand-authored HTML or table-model's setSpan
+  // and had not been rendered yet.
+  const currentSpanX = parseInt(cell.getAttribute("data-span-x") || "1") || 1;
+  const currentSpanY = parseInt(cell.getAttribute("data-span-y") || "1") || 1;
 
   if (newHorizontalSpan === currentSpanX && newVerticalSpan === currentSpanY) {
     return;
@@ -711,7 +945,7 @@ function writeSpan(cell: HTMLElement, x: number, y: number): void {
   }
 }
 
-// ---- Unified line insertion --------------------------------------------------
+// ---- Unified line insertion and removal --------------------------------------
 // Add row/column and duplicate row/column are all "insert a line at an index,
 // modeled on a source line". They share this core; the differences are the
 // axis and how the new cells are built:
@@ -754,8 +988,20 @@ const lineAxisOps = {
       const ref = (cells[insertIndex * info.columnCount] as HTMLElement | undefined) ?? null;
       return new Array<HTMLElement | null>(info.columnCount).fill(ref);
     },
-    copyEdges: (table: HTMLElement, insertIndex: number, source: number, info: TableInfo) =>
-      copyEdgesForInsertedRow(table, insertIndex, source, info.rowCount, info.columnCount),
+    insertEdges: (
+      table: HTMLElement,
+      insertIndex: number,
+      source: number | null,
+      info: TableInfo,
+    ) => insertEdgesForNewRow(table, insertIndex, source, info.rowCount, info.columnCount),
+    removeEdges: (table: HTMLElement, index: number, info: TableInfo) =>
+      removeEdgesForRemovedRow(table, index, info.rowCount, info.columnCount),
+    // Span along the removal axis (rows) and across it (columns).
+    spanAlongOf: (cell: HTMLElement) => parseInt(cell.getAttribute("data-span-y") || "1") || 1,
+    spanAcrossOf: (cell: HTMLElement) => parseInt(cell.getAttribute("data-span-x") || "1") || 1,
+    lineOfPos: (pos: { row: number; column: number }) => pos.row,
+    writeSpans: (cell: HTMLElement, along: number, across: number) =>
+      writeSpan(cell, across, along),
   },
   column: {
     sizeAttr: "data-column-widths",
@@ -790,8 +1036,19 @@ const lineAxisOps = {
       }
       return refs;
     },
-    copyEdges: (table: HTMLElement, insertIndex: number, source: number, info: TableInfo) =>
-      copyEdgesForInsertedColumn(table, insertIndex, source, info.rowCount, info.columnCount),
+    insertEdges: (
+      table: HTMLElement,
+      insertIndex: number,
+      source: number | null,
+      info: TableInfo,
+    ) => insertEdgesForNewColumn(table, insertIndex, source, info.rowCount, info.columnCount),
+    removeEdges: (table: HTMLElement, index: number, info: TableInfo) =>
+      removeEdgesForRemovedColumn(table, index, info.rowCount, info.columnCount),
+    spanAlongOf: (cell: HTMLElement) => parseInt(cell.getAttribute("data-span-x") || "1") || 1,
+    spanAcrossOf: (cell: HTMLElement) => parseInt(cell.getAttribute("data-span-y") || "1") || 1,
+    lineOfPos: (pos: { row: number; column: number }) => pos.column,
+    writeSpans: (cell: HTMLElement, along: number, across: number) =>
+      writeSpan(cell, along, across),
   },
 } as const;
 
@@ -816,6 +1073,10 @@ function insertLineAt(
     mode !== "clone" || sourceIndex === insertIndex - 1,
     "clone mode inserts the copy directly after its source line",
   );
+
+  // Concise edge arrays can't be spliced boundary-by-boundary, so put them in
+  // the unified form first.
+  normalizeEdgeArrays(table, info.rowCount, info.columnCount);
 
   // Build the new cells, and find the merge covering each grid position on
   // the line just before the insertion boundary — all BEFORE mutating the
@@ -875,7 +1136,62 @@ function insertLineAt(
   });
 
   newCells.forEach((cell, p) => table.insertBefore(cell, referenceNodes[p]));
-  if (sourceIndex != null) ops.copyEdges(table, insertIndex, sourceIndex, info);
+  // Edges and gaps are per-boundary, so they move for every insertion — a
+  // blank line included, or the arrays end up describing the wrong boundaries.
+  ops.insertEdges(table, insertIndex, sourceIndex, info);
+  spliceGapForInsertedLine(table, axis, insertIndex, lineCount);
+}
+
+// The shared removal core. Runs inside the caller's history entry, and (unlike
+// removeRowAt/removeColumnAt) does not itself refuse to remove the last line.
+function removeLineAt(table: HTMLElement, axis: LineAxis, index: number): void {
+  const ops = lineAxisOps[axis];
+  const info = getTableInfo(table);
+  const lineCount = ops.lineCount(info);
+  const perpCount = ops.perpCount(info);
+  assert(index >= 0 && index < lineCount, `${axis} index ${index} is out of bounds`);
+
+  normalizeEdgeArrays(table, info.rowCount, info.columnCount);
+
+  // A merge ANCHORED in the line being removed hands its coverage to the cell
+  // on the next line: the anchor's data-span-* is the only record that the
+  // covered cells are covered, so deleting it with the line would leave them
+  // skipped (display:none) with nothing left that could ever unmerge them.
+  for (let p = 0; p < perpCount; p++) {
+    const cell = ops.cellAt(table, index, p);
+    if (cell.classList.contains("bloom-skip")) continue;
+    const along = ops.spanAlongOf(cell);
+    // A span reaching past the end of the table is already broken data; there
+    // is no cell to hand the coverage to, so just let it go with the line.
+    if (along <= 1 || index + 1 >= lineCount) continue;
+    const across = ops.spanAcrossOf(cell);
+    const heir = ops.cellAt(table, index + 1, p);
+    heir.classList.remove("bloom-skip");
+    ops.writeSpans(heir, along - 1, across);
+  }
+
+  // A merge that merely CROSSES the removed line shrinks by one.
+  for (const cell of getTableCells(table)) {
+    const line = ops.lineOfPos(getRowAndColumn(table, cell));
+    const along = ops.spanAlongOf(cell);
+    if (line < index && line + along > index) {
+      ops.writeSpans(cell, along - 1, ops.spanAcrossOf(cell));
+    }
+  }
+
+  // Collect the cells to remove BEFORE the size attributes change (positions
+  // are derived from the declared column count).
+  const cellsToRemove: HTMLElement[] = [];
+  for (let p = 0; p < perpCount; p++) cellsToRemove.push(ops.cellAt(table, index, p));
+
+  const sizes = ops.sizes(info);
+  sizes.splice(index, 1);
+  table.setAttribute(ops.sizeAttr, sizes.join(","));
+
+  ops.removeEdges(table, index, info);
+  spliceGapForRemovedLine(table, axis, index, lineCount);
+
+  cellsToRemove.forEach((cell) => table.removeChild(cell));
 }
 
 /**
@@ -935,7 +1251,8 @@ export const duplicateColumnAt = (
 };
 
 /**
- * Removes a column at the specified index position, adjusting spans as needed.
+ * Removes a column at the specified index position, adjusting spans, edges and
+ * gaps as needed.
  * @param table The table container element
  * @param index The column index to remove (0-based)
  */
@@ -947,36 +1264,7 @@ export const removeColumnAt = (table: HTMLElement, index: number, skipHistory = 
   assert(tableInfo.columnCount > 1, "Cannot remove the only column");
   assert(index >= 0 && index < tableInfo.columnCount, `Column index ${index} is out of bounds`);
   const description = `Remove Column at ${index}`;
-  const performOperation = () => {
-    // Collect cells to remove BEFORE changing the table structure
-    const cellsToRemove: HTMLElement[] = [];
-    for (let rowIndex = 0; rowIndex < tableInfo.rowCount; rowIndex++) {
-      cellsToRemove.push(getCell(table, rowIndex, index));
-    } // First adjust spans of cells that were affected by the removal
-    const cells = getTableCells(table);
-    cells.forEach((cell) => {
-      const htmlCell = cell as HTMLElement;
-      const { column: cellColumn } = getRowAndColumn(table, htmlCell);
-      const spanX = parseInt(htmlCell.getAttribute("data-span-x") || "1") || 1;
-
-      // If this cell's span extended beyond the column to be removed, reduce its span
-      if (cellColumn < index && cellColumn + spanX > index) {
-        const newSpanX = spanX - 1;
-        htmlCell.setAttribute("data-span-x", String(newSpanX));
-        if (newSpanX > 1) htmlCell.style.setProperty("--span-x", String(newSpanX));
-        else htmlCell.style.removeProperty("--span-x");
-      }
-    });
-
-    // Update column widths attribute
-    const currentColumnWidths = table.getAttribute("data-column-widths") || "";
-    const columnWidths = currentColumnWidths ? currentColumnWidths.split(",") : [];
-    columnWidths.splice(index, 1);
-    table.setAttribute("data-column-widths", columnWidths.join(","));
-
-    // Remove the collected cells
-    cellsToRemove.forEach((cell) => table.removeChild(cell));
-  };
+  const performOperation = () => removeLineAt(table, "column", index);
 
   if (skipHistory) {
     performOperation();
@@ -986,7 +1274,8 @@ export const removeColumnAt = (table: HTMLElement, index: number, skipHistory = 
 };
 
 /**
- * Removes a row at the specified index position, adjusting spans as needed.
+ * Removes a row at the specified index position, adjusting spans, edges and
+ * gaps as needed.
  * @param table The table container element
  * @param index The row index to remove (0-based)
  */
@@ -998,36 +1287,7 @@ export const removeRowAt = (table: HTMLElement, index: number, skipHistory = fal
   assert(tableInfo.rowCount > 1, "Cannot remove the only row");
   assert(index >= 0 && index < tableInfo.rowCount, `Row index ${index} is out of bounds`);
   const description = `Remove Row at ${index}`;
-  const performOperation = () => {
-    // Collect cells to remove BEFORE changing the table structure
-    const cellsToRemove: HTMLElement[] = [];
-    for (let columnIndex = 0; columnIndex < tableInfo.columnCount; columnIndex++) {
-      cellsToRemove.push(getCell(table, index, columnIndex));
-    } // First adjust spans of cells that were affected by the removal
-    const cells = getTableCells(table);
-    cells.forEach((cell) => {
-      const htmlCell = cell as HTMLElement;
-      const { row: cellRow } = getRowAndColumn(table, htmlCell);
-      const spanY = parseInt(htmlCell.getAttribute("data-span-y") || "1") || 1;
-
-      // If this cell's span extended beyond the removed row, reduce its span
-      if (cellRow < index && cellRow + spanY > index) {
-        const newSpanY = spanY - 1;
-        htmlCell.setAttribute("data-span-y", String(newSpanY));
-        if (newSpanY > 1) htmlCell.style.setProperty("--span-y", String(newSpanY));
-        else htmlCell.style.removeProperty("--span-y");
-      }
-    });
-
-    // Update row heights attribute
-    const currentRowHeights = table.getAttribute("data-row-heights") || "";
-    const rowHeights = currentRowHeights ? currentRowHeights.split(",") : [];
-    rowHeights.splice(index, 1);
-    table.setAttribute("data-row-heights", rowHeights.join(","));
-
-    // Remove the collected cells
-    cellsToRemove.forEach((cell) => table.removeChild(cell));
-  };
+  const performOperation = () => removeLineAt(table, "row", index);
 
   if (skipHistory) {
     performOperation();
@@ -1057,6 +1317,8 @@ export const moveRowAt = (table: HTMLElement, from: number, to: number, skipHist
 
   const description = `Move Row ${from} to ${to}`;
   const performOperation = () => {
+    normalizeEdgeArrays(table, R, C);
+    reorderGapForMovedLine(table, "row", from, to, R);
     // Row heights
     const heights = (table.getAttribute("data-row-heights") || "").split(",");
     const [movedHeight] = heights.splice(from, 1);
@@ -1116,6 +1378,8 @@ export const moveColumnAt = (table: HTMLElement, from: number, to: number, skipH
 
   const description = `Move Column ${from} to ${to}`;
   const performOperation = () => {
+    normalizeEdgeArrays(table, R, C);
+    reorderGapForMovedLine(table, "column", from, to, C);
     // Column widths
     const widths = (table.getAttribute("data-column-widths") || "").split(",");
     const [movedWidth] = widths.splice(from, 1);

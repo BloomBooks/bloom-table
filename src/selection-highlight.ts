@@ -23,6 +23,26 @@ function ownEditable(cell: HTMLElement): HTMLElement | null {
   return null;
 }
 
+// Content that comes with its own mousedown behavior: media the user may want to
+// drag or scrub, and anything natively focusable or clickable. Clicking these
+// still selects the cell, but we must not call preventDefault on them.
+const OWN_MOUSEDOWN_BEHAVIOR_SELECTOR = [
+  "img",
+  "video",
+  "audio",
+  "iframe",
+  "canvas",
+  "embed",
+  "object",
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  '[draggable="true"]',
+].join(",");
+
 function selectCellFromClick(target: HTMLElement): void {
   const cell = target.closest(".bloom-cell") as HTMLElement | null;
   if (!cell) return;
@@ -61,6 +81,10 @@ export function ensureSelectionHighlighting(): void {
   document.addEventListener(
     "mousedown",
     (event) => {
+      // Only the primary button drives cell selection. A right-click must keep
+      // its native focus/caret behavior before the context menu opens, and a
+      // middle-click its own defaults (autoscroll, X11 primary-selection paste).
+      if (event.button !== 0) return;
       const target = event.target as HTMLElement | null;
       if (!target) return;
       const cell = target.closest(".bloom-cell") as HTMLElement | null;
@@ -70,8 +94,10 @@ export function ensureSelectionHighlighting(): void {
       // leave native caret placement alone.
       if (editorUnderClick && editorUnderClick.closest(".bloom-cell") === cell) return;
       // We manage focus/caret ourselves, so suppress the default (which would do
-      // nothing useful when clicking the cell's empty padding area).
-      event.preventDefault();
+      // nothing useful when clicking the cell's empty padding area) — unless the
+      // click landed on content that needs its own mousedown, such as an image
+      // being dragged or a video's controls.
+      if (!target.closest(OWN_MOUSEDOWN_BEHAVIOR_SELECTOR)) event.preventDefault();
       selectCellFromClick(target);
     },
     true,

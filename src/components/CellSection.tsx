@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import Section from "./Section";
 import RadioGroup from "./RadioGroup";
 import IconButton from "./IconButton";
@@ -11,13 +11,10 @@ import { TableApi, useTableApi } from "./TableApiContext";
 import { useColorPicker } from "./ColorPickerContext";
 import Slider from "./Slider";
 import { clearPulse, pulseCell, pulseCellBorders } from "../pulse-highlight";
+import { useClearPulseOnUnmount } from "./useClearPulseOnUnmount";
+import { elementKey } from "./elementKey";
+import { paddingSliderValue } from "./cellPadding";
 import { representativeBorderColorHex } from "../color-utils";
-
-// Parse the leading number from a CSS length (e.g. "6px 16px" -> 6). 0 if absent.
-const firstPx = (s: string | null | undefined): number => {
-  const n = parseFloat((s ?? "").trim());
-  return isNaN(n) ? 0 : n;
-};
 // icons
 // icons are now owned by CellContentType; no direct imports here
 // (leftover icons removed)
@@ -32,6 +29,9 @@ type Props = {
   onSetContentType: (id: string) => void;
   onExtend: () => void;
   onContract: () => void;
+  /** True when there is nothing to act on (no cell selected). The controls stay
+   *  visible but must be genuinely inoperable, keyboard included. */
+  disabled?: boolean;
 };
 
 const menuItemStyle = "flex items-center gap-2 px-4 py-1 cursor-pointer w-full text-left";
@@ -70,21 +70,23 @@ const applyBorderMapToCell = (
   api.render(table);
 };
 
-const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend, onContract }) => {
+const CellSection: React.FC<Props> = ({
+  currentCell,
+  onSetContentType,
+  onExtend,
+  onContract,
+  disabled,
+}) => {
   const api = useTableApi();
   const ColorPicker = useColorPicker();
   const currentType = currentCell ? api.getCurrentContentTypeId(currentCell) : undefined;
 
-  // The alignment RadioGroup is fully controlled by `value`. Setting data-align
-  // on the cell doesn't trigger a menu re-render (it's neither a table attribute
-  // nor history-tracked), so we mirror the choice in local state to reflect it
-  // immediately, re-syncing whenever the selected cell changes.
-  const [align, setAlign] = React.useState<CellAlign>(
-    () => (currentCell && api.getCellAlign(currentCell)) || "center",
-  );
-  React.useEffect(() => {
-    setAlign((currentCell && api.getCellAlign(currentCell)) || "center");
-  }, [currentCell, api]);
+  // Read alignment from the cell on every render, so a change made outside this
+  // RadioGroup (paint format, undo) shows up as soon as the panel re-renders.
+  // Setting data-align doesn't itself trigger a re-render, so the group's own
+  // onChange bumps a counter to get one.
+  const [, bumpRenderCount] = React.useState(0);
+  const align: CellAlign = (currentCell && api.getCellAlign(currentCell)) || "center";
 
   // Hover pulse: most cell controls affect the cell's content area; the
   // Borders and Corners controls affect its edges.
@@ -96,23 +98,28 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
     onMouseEnter: () => pulseCellBorders(currentCell),
     onMouseLeave: () => clearPulse(currentCell),
   };
+  useClearPulseOnUnmount(currentCell);
 
-  const borderValueMap: BorderValueMap | undefined = useMemo(() => {
-    if (!currentCell) return undefined;
-    return buildBorderMapFromCell(api, currentCell);
-  }, [api, currentCell]);
+  // Read the borders from the DOM on every render (the build is cheap). Caching
+  // this on the cell element would go stale whenever something else rewrote the
+  // cell's borders in place — paint format, or an undo that restores the table's
+  // edge attributes without replacing the element.
+  const borderValueMap: BorderValueMap | undefined = currentCell
+    ? buildBorderMapFromCell(api, currentCell)
+    : undefined;
 
-  // Compute a stable key for the current cell to remount BorderControl on cell change
-  const borderControlKey: string | undefined = useMemo(() => {
-    if (!currentCell) return undefined;
-    const table = currentCell.closest(".bloom-table") as HTMLElement | null;
-    if (!table) return undefined;
-    const cells = Array.from(table.children).filter(
-      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
-    );
-    const idx = cells.indexOf(currentCell);
-    return idx >= 0 ? String(idx) : undefined;
-  }, [currentCell]);
+  // Merge/Split act on the cell's span. Split is a no-op at 1x1.
+  const span = (() => {
+    const table = currentCell?.closest(".bloom-table") as HTMLElement | null;
+    if (!currentCell || !table) return { x: 1, y: 1 };
+    try {
+      const s = new api.BloomTable(table).getSpan(currentCell);
+      return { x: Math.max(1, s.x || 1), y: Math.max(1, s.y || 1) };
+    } catch {
+      return { x: 1, y: 1 };
+    }
+  })();
+  const canSplit = span.x > 1 || span.y > 1;
 
   return (
     <Section label="Cell">
@@ -122,6 +129,8 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
         {currentCell && currentType && (
           <RadioGroup
             className="ml-2"
+            label="Content type"
+            disabled={disabled}
             value={currentType}
             onChange={(id) => onSetContentType(id)}
             options={api.contentTypeOptions().map((o) => ({
@@ -134,11 +143,15 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Borders */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...borderHover}>
+      <div
+        className={menuItemStyle}
+        style={{ cursor: "default", display: "block" }}
+        {...borderHover}
+      >
         <div className="text-sm opacity-80 mb-2">Borders</div>
         {currentCell && borderValueMap && (
           <BorderControl
-            key={borderControlKey}
+            identity={elementKey(currentCell)}
             valueMap={borderValueMap}
             showInner={false}
             onChange={(next) => applyBorderMapToCell(api, currentCell, next)}
@@ -157,7 +170,12 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
                 value={representativeBorderColorHex(currentCell)}
                 onChange={(color) => {
                   if (!color) return; // border color can't be "none"; ignore Clear
-                  applyBorderMapToCell(api, currentCell, buildBorderMapFromCell(api, currentCell), color);
+                  applyBorderMapToCell(
+                    api,
+                    currentCell,
+                    buildBorderMapFromCell(api, currentCell),
+                    color,
+                  );
                 }}
               />
             </div>
@@ -171,12 +189,16 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
         {currentCell && (
           <RadioGroup
             className="ml-2"
+            label="Text alignment"
+            disabled={disabled}
             value={align}
             onChange={(id) => {
               api.setCellAlign(currentCell, id as CellAlign);
-              setAlign(id as CellAlign);
               const table = currentCell.closest(".bloom-table") as HTMLElement | null;
               if (table) api.render(table);
+              // data-align isn't a table attribute, so nothing else re-renders
+              // the panel; ask for one so the group shows the new value.
+              bumpRenderCount((n) => n + 1);
             }}
             options={
               [
@@ -190,10 +212,15 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       </div>
 
       {/* Corners (per-cell) */}
-      <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...borderHover}>
+      <div
+        className={menuItemStyle}
+        style={{ cursor: "default", display: "block" }}
+        {...borderHover}
+      >
         <div className="text-sm opacity-80 mb-2">Corners</div>
         {currentCell && (
           <CornerMenu
+            disabled={disabled}
             value={(api.getCellCorners(currentCell)?.radius ?? 0) as CornerRadius}
             onChange={(v) => {
               if (!currentCell) return;
@@ -212,10 +239,11 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
           <Slider
             className="ml-2"
             aria-label="Cell padding"
+            disabled={disabled}
             min={0}
             max={40}
             unit="px"
-            value={firstPx(api.getCellPadding(currentCell))}
+            value={paddingSliderValue(currentCell, api.getCellPadding(currentCell))}
             onChange={(v) => {
               api.setCellPadding(currentCell, `${v}px`);
               const table = currentCell.closest(".bloom-table") as HTMLElement | null;
@@ -253,8 +281,20 @@ const CellSection: React.FC<Props> = ({ currentCell, onSetContentType, onExtend,
       <div className={menuItemStyle} style={{ cursor: "default", display: "block" }} {...fillHover}>
         <div className="text-sm opacity-80 mb-2">Merge / Split</div>
         <div className="flex items-center gap-3 ml-2">
-          <IconButton alt="Merge" title="Merge" icon={mergeIcon} onClick={onExtend} />
-          <IconButton alt="Split" title="Split" icon={splitIcon} onClick={onContract} />
+          <IconButton
+            alt="Merge"
+            title="Merge"
+            icon={mergeIcon}
+            onClick={onExtend}
+            disabled={disabled || !currentCell}
+          />
+          <IconButton
+            alt="Split"
+            title="Split"
+            icon={splitIcon}
+            onClick={onContract}
+            disabled={disabled || !canSplit}
+          />
         </div>
       </div>
     </Section>

@@ -23,7 +23,7 @@ import {
   getCellPadding,
   setSpan,
 } from "./table-model";
-import { getCurrentContentTypeId } from "./cell-contents";
+import { getCurrentContentTypeId, kTableCellContentChangedEvent } from "./cell-contents";
 import { render, buildRenderModel } from "./table-renderer";
 
 // A 2x2 table matching the attribute model the renderer reads. Attached so
@@ -353,6 +353,66 @@ describe("copy/paste properties", () => {
     expect(cells[3].querySelector("img")).not.toBe(null);
     // The source's content is not copied along; same-type targets are untouched.
     expect(cells[2].textContent).toBe("r1c0");
+  });
+});
+
+describe("host notification for content-type rebuilds", () => {
+  // An empty cell with no data-content-type (what saved or host-supplied HTML
+  // looks like before anything has typed it) reports the default type, but
+  // applying that same default type still rebuilds it — so the host must be
+  // told, or it never wires its editor onto the contenteditable just created.
+  function makeUntypedEmptyTable(): { table: HTMLElement; cells: HTMLElement[] } {
+    document.body.innerHTML = `
+      <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug">
+        <div class="bloom-cell"></div>
+        <div class="bloom-cell"></div>
+      </div>`;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
+    attachTable(table);
+    const cells = Array.from(table.children).filter(
+      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+    );
+    return { table, cells };
+  }
+
+  function recordNotifications(table: HTMLElement): HTMLElement[] {
+    const seen: HTMLElement[] = [];
+    table.addEventListener(kTableCellContentChangedEvent, (e) => {
+      seen.push((e as CustomEvent).detail.cell as HTMLElement);
+    });
+    return seen;
+  }
+
+  it("applyContentType notifies for an empty untyped cell set to the default type", () => {
+    const { table, cells } = makeUntypedEmptyTable();
+    const seen = recordNotifications(table);
+
+    applyContentType(table, [cells[0]], "text");
+
+    expect(cells[0].querySelector("[contenteditable]")).not.toBe(null);
+    expect(seen).toEqual([cells[0]]);
+  });
+
+  it("applyContentType stays quiet for a cell that already carries the type", () => {
+    const { table, cells } = makeTable(); // cells already hold contenteditables
+    applyContentType(table, cells, "text"); // stamps data-content-type
+    const seen = recordNotifications(table);
+
+    applyContentType(table, cells, "text");
+
+    expect(seen).toEqual([]);
+  });
+
+  it("pasteProperties notifies for an empty untyped target stamped with the default type", () => {
+    const { table, cells } = makeUntypedEmptyTable();
+    applyContentType(table, [cells[0]], "text"); // give the source a real type
+    const seen = recordNotifications(table);
+
+    copyProperties([cells[0]]);
+    pasteProperties(table, [cells[1]]);
+
+    expect(cells[1].querySelector("[contenteditable]")).not.toBe(null);
+    expect(seen).toEqual([cells[1]]);
   });
 });
 

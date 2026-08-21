@@ -19,13 +19,25 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+// Attribute values whose malformed JSON we have already complained about, so that a
+// corrupted attribute does not print a warning on every render.
+const warnedBadJSONAttrs = new Set<string>();
+
+// Persisted HTML is user-editable, so a data attribute can arrive truncated or
+// hand-mangled. Treat that as "attribute absent" (null) rather than throwing: the
+// renderer then falls back to defaults instead of failing to render the table at all.
 function parseJSONAttr<T>(el: HTMLElement, name: string): T | null {
   const s = el.getAttribute(name);
   if (!s) return null;
   try {
     return JSON.parse(s) as T;
   } catch {
-    throw new Error(`Invalid JSON in ${name}`);
+    const key = `${name}=${s}`;
+    if (!warnedBadJSONAttrs.has(key)) {
+      warnedBadJSONAttrs.add(key);
+      console.warn(`Invalid JSON in ${name}; ignoring it. Value: ${s}`);
+    }
+    return null;
   }
 }
 

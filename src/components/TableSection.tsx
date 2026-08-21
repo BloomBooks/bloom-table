@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { BorderControl } from "./BorderControl/BorderControl";
 import Section from "./Section";
 import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
@@ -8,6 +8,8 @@ import { TableApi, useTableApi } from "./TableApiContext";
 import { useColorPicker } from "./ColorPickerContext";
 import Slider from "./Slider";
 import { clearPulse, pulseTableBorders } from "../pulse-highlight";
+import { useClearPulseOnUnmount } from "./useClearPulseOnUnmount";
+import { elementKey } from "./elementKey";
 import { representativeBorderColorHex } from "../color-utils";
 
 type Props = {
@@ -142,10 +144,21 @@ export const TableSection: React.FC<Props> = ({ table }) => {
     return ([0, 2, 4, 8] as number[]).includes(r) ? (r as CornerRadius) : ("mixed" as const);
   };
 
-  const [cornerValue, setCornerValue] = useState<CornerRadius | "mixed">(getCornerValue(table));
+  // The menu's displayed radius is derived from the table on every render, so a
+  // change made elsewhere (notably an undo, which restores the table's
+  // attributes on the same element) shows up. The state below is only an
+  // optimistic echo of a value we just wrote, so the menu doesn't flicker while
+  // the DOM catches up; any *external* value replaces it. Same pattern as Slider.
+  const domCornerValue = getCornerValue(table);
+  const [cornerValue, setCornerValue] = useState<CornerRadius | "mixed">(domCornerValue);
+  const lastEmitted = useRef<CornerRadius | "mixed">(domCornerValue);
   useEffect(() => {
-    setCornerValue(getCornerValue(table));
-  }, [table]);
+    if (domCornerValue !== lastEmitted.current) {
+      lastEmitted.current = domCornerValue;
+      setCornerValue(domCornerValue);
+    }
+  }, [domCornerValue]);
+  useClearPulseOnUnmount(table);
 
   return (
     <Section
@@ -162,6 +175,7 @@ export const TableSection: React.FC<Props> = ({ table }) => {
               <>
                 <div className={menuItemStyle} style={{ cursor: "default" }}>
                   <BorderControl
+                    identity={elementKey(table)}
                     valueMap={valueMap}
                     showInner
                     onChange={(next) => applyBorderMapToTable(api, table, next)}
@@ -185,7 +199,12 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                       }
                       onChange={(color) => {
                         if (!color) return; // border color can't be "none"; ignore Clear
-                        applyBorderMapToTable(api, table, buildBorderMapFromTable(api, table), color);
+                        applyBorderMapToTable(
+                          api,
+                          table,
+                          buildBorderMapFromTable(api, table),
+                          color,
+                        );
                       }}
                     />
                   </div>
@@ -196,8 +215,9 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                     onChange={(v) => {
                       if (!table) return;
                       const ctrl = new api.BloomTable(table);
-                      ctrl.setTableCorners(v as number);
+                      lastEmitted.current = v;
                       setCornerValue(v);
+                      ctrl.setTableCorners(v as number);
                     }}
                     disabled={cornerDisabled}
                   />

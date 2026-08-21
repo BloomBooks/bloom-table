@@ -1,4 +1,5 @@
 import { buildRenderModel } from "./table-renderer";
+import { getTableCells } from "./structure";
 import { EDGE_DEFAULT } from "./defaults";
 import type {
   BorderStyle,
@@ -12,6 +13,9 @@ const snapWeight = (w: number): BorderWeight => {
   if (w < 3) return 2;
   return 4;
 };
+
+const isPaintedSpec = (spec: any): boolean =>
+  !!spec && spec.style !== "none" && Number(spec.weight) > 0;
 
 export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap {
   const model = buildRenderModel(table);
@@ -39,21 +43,41 @@ export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap 
     return { weight: w, style };
   };
 
-  // Derive representative inner edges from the render model (zero-gap case assigns to one side):
-  // - innerH: sample bottom of the top-left cell if there is at least 2 rows
-  // - innerV: sample right of the top-left cell if there is at least 2 cols
-  const sampleInnerH = () => {
-    if (rows >= 2 && cols >= 1) {
-      const spec = (model.cellBorders[idx(0, 0)] || {}).bottom as any;
-      if (spec) return spec;
-    }
-    return { weight: EDGE_DEFAULT.weight, style: EDGE_DEFAULT.style } as any;
+  // Derive representative inner edges from the render model. With no gap the
+  // renderer resolves a shared boundary onto ONE of the two cells and keeps an
+  // explicit 'none' on the loser (so the cell panel can say "this cell declined
+  // its half"), so one cell's side says nothing about whether the boundary
+  // paints a line. Read both sides of every interior boundary and report a line
+  // whenever any boundary paints one: this map round-trips back through
+  // applyUniformInner on any table-scope edit, so reading 'none' here would
+  // erase interior lines the user can still see.
+  const boundary = (a: any, b: any): any => {
+    if (isPaintedSpec(a)) return a;
+    if (isPaintedSpec(b)) return b;
+    return a ?? b ?? null;
   };
-  const sampleInnerV = () => {
-    if (cols >= 2 && rows >= 1) {
-      const spec = (model.cellBorders[idx(0, 0)] || {}).right as any;
-      if (spec) return spec;
+  const sampleInner = (kind: "H" | "V"): any => {
+    const specs: any[] = [];
+    if (kind === "H") {
+      for (let r = 0; r + 1 < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          specs.push(
+            boundary(model.cellBorders[idx(r, c)]?.bottom, model.cellBorders[idx(r + 1, c)]?.top),
+          );
+        }
+      }
+    } else {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c + 1 < cols; c++) {
+          specs.push(
+            boundary(model.cellBorders[idx(r, c)]?.right, model.cellBorders[idx(r, c + 1)]?.left),
+          );
+        }
+      }
     }
+    const painted = specs.find(isPaintedSpec);
+    if (painted) return painted;
+    if (specs.some((s) => s != null)) return { weight: 0, style: "none" } as any;
     return { weight: EDGE_DEFAULT.weight, style: EDGE_DEFAULT.style } as any;
   };
 
@@ -62,24 +86,23 @@ export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap 
     right: { ...toOuter(safe(topRight.right, null)), radius: 0 },
     bottom: { ...toOuter(safe(bottomLeft.bottom, null)), radius: 0 },
     left: { ...toOuter(safe(topLeft.left, null)), radius: 0 },
-    innerH: { ...toOuter(sampleInnerH()), radius: 0 },
-    innerV: { ...toOuter(sampleInnerV()), radius: 0 },
+    innerH: { ...toOuter(sampleInner("H")), radius: 0 },
+    innerV: { ...toOuter(sampleInner("V")), radius: 0 },
   };
 }
 
 // Resolve a cell's four perimeter edge specs from the render model, borrowing
 // the neighbor-owned spec for shared inner edges this cell's side leaves
-// unset. Returns null when the cell isn't in a table.
+// unset. Returns null when the cell isn't in a table. Spans need no special
+// handling here: the renderer routes a covered position's strokes to the merge
+// anchor, so a merged cell's sides already carry the boundaries past its span.
 function resolveCellPerimeterSpecs(
   cell: HTMLElement,
 ): { top: any; right: any; bottom: any; left: any } | null {
   const table = cell.closest(".bloom-table") as HTMLElement | null;
   if (!table) return null;
   const model = buildRenderModel(table);
-  const cells = Array.from(table.children).filter(
-    (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
-  );
-  const index = cells.indexOf(cell);
+  const index = getTableCells(table).indexOf(cell);
   const rows = model.rowHeights.length;
   const cols = model.columnWidths.length;
   const r = Math.floor(index / Math.max(1, cols));
@@ -147,10 +170,7 @@ export function getCellOwnPerimeter(cell: HTMLElement): {
   let sides: { top?: any; right?: any; bottom?: any; left?: any } = {};
   if (table) {
     const model = buildRenderModel(table);
-    const cells = Array.from(table.children).filter(
-      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
-    );
-    const index = cells.indexOf(cell);
+    const index = getTableCells(table).indexOf(cell);
     sides = model.cellBorders[index] || {};
   }
   const toEdge = (spec: any) => {

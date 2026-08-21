@@ -46,7 +46,7 @@ test.describe("UI build → matches validated NN.html", () => {
       // (drop overlay buttons, selection classes, hint borders, and the edit stylesheet).
       await page.evaluate(() => {
         document
-          .querySelectorAll("[data-overlay-group],[data-btable-corner-handle],[data-table-overlay]")
+          .querySelectorAll("[data-btable-corner-handle],[data-table-overlay]")
           .forEach((e) => e.remove());
         document.querySelectorAll(".cell--selected").forEach((e) => e.classList.remove("cell--selected"));
         document.querySelectorAll(".table--selected").forEach((e) => e.classList.remove("table--selected"));

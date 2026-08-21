@@ -6,9 +6,13 @@ proposals, and 32 test-gap findings. Every bug claim was then adversarially re-v
 independent agent tracing the code; 49 of 50 were confirmed. A judge agent merged the refactor
 proposals and approved 4 with implementation plans.
 
-**No fixes have been applied.** The fix, refactor, test-writing, and final-check agents all failed
-on a session usage limit, so the working tree is untouched by this review. Baseline at review time:
-all 183 tests pass, `tsc --noEmit` clean.
+**Status (updated 2026-08-21): the bug fixes have been applied** to the working tree by a
+follow-up run of the same workflow (Opus 5 fixers, one per file cluster). After the fixes the
+suite has 277 passing tests in 26 files (up from 183 in 19) and `tsc --noEmit` is clean. Nothing
+was committed. A few items were skipped with documented reasons (see the fixer reports in the
+workflow journal): the merged-cell perimeter READ bug no longer reproduces after the renderer's
+cover-map fix, and one table-size-buttons scenario proved unreachable. The four approved
+refactors and the test-gap list below remain open for a later cycle.
 
 ## Confirmed bugs (49)
 

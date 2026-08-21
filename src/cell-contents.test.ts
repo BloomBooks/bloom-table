@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vite-plus/test";
-import { setupContentsOfCell } from "./cell-contents";
+import {
+  getCurrentContentTypeId,
+  kTableCellContentChangedEvent,
+  registerCellContentType,
+  setupContentsOfCell,
+  unregisterCellContentType,
+} from "./cell-contents";
 import { tableHistoryManager } from "./history";
 
 describe("setupContentsOfCell", () => {
@@ -45,4 +51,101 @@ describe("setupContentsOfCell", () => {
   });
 
   // TODO there are many more cases to cover
+});
+
+describe("setupContentsOfCell content-changed notification", () => {
+  function makeTableWithCell(): { table: HTMLElement; cell: HTMLElement } {
+    const table = document.createElement("div");
+    table.classList.add("bloom-table");
+    const cell = document.createElement("div");
+    cell.classList.add("bloom-cell");
+    table.appendChild(cell);
+    return { table, cell };
+  }
+
+  it("does not announce a change the history manager refused to make (detached table)", () => {
+    tableHistoryManager.reset();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { table, cell } = makeTableWithCell();
+    document.body.appendChild(table); // in the DOM, but never attached to the history manager
+    const listener = vi.fn();
+    cell.addEventListener(kTableCellContentChangedEvent, listener);
+
+    setupContentsOfCell(cell, "text", true);
+
+    expect(cell.innerHTML).toBe(""); // the rebuild never happened
+    expect(listener).not.toHaveBeenCalled();
+    warn.mockRestore();
+    table.remove();
+  });
+
+  it("does announce the change when the history entry does run", () => {
+    tableHistoryManager.reset();
+    const { table, cell } = makeTableWithCell();
+    document.body.appendChild(table);
+    tableHistoryManager.attachTable(table);
+    const listener = vi.fn();
+    cell.addEventListener(kTableCellContentChangedEvent, listener);
+
+    setupContentsOfCell(cell, "text", true);
+
+    expect(cell.innerHTML).toBe(`<div contenteditable="true"></div>`);
+    expect(listener).toHaveBeenCalledTimes(1);
+    tableHistoryManager.reset();
+    table.remove();
+  });
+
+  it("does not announce a change whose operation threw inside the history entry", () => {
+    tableHistoryManager.reset();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    registerCellContentType({
+      id: "two-roots",
+      englishName: "Two Roots",
+      icon: "",
+      templateHtml: "<div></div><div></div>",
+      regexToIdentify: /never-matches-anything/,
+    });
+    const { table, cell } = makeTableWithCell();
+    document.body.appendChild(table);
+    tableHistoryManager.attachTable(table);
+    const listener = vi.fn();
+    cell.addEventListener(kTableCellContentChangedEvent, listener);
+
+    setupContentsOfCell(cell, "two-roots", true);
+
+    expect(listener).not.toHaveBeenCalled();
+    unregisterCellContentType("two-roots");
+    error.mockRestore();
+    tableHistoryManager.reset();
+    table.remove();
+  });
+});
+
+describe("identifying the content type of legacy cells with no data-content-type", () => {
+  const nestedTableHtml = `<div class="bloom-table" data-column-widths="fill,fill" data-row-heights="fill,fill">
+      <div class="bloom-cell"><div contenteditable="true">one</div></div>
+      <div class="bloom-cell"><div contenteditable="true">two</div></div>
+    </div>`;
+
+  it("reports a cell holding a nested table as a table, not as text", () => {
+    const cell = document.createElement("div");
+    cell.innerHTML = nestedTableHtml;
+    expect(getCurrentContentTypeId(cell)).toBe("table");
+  });
+
+  it("leaves a legacy nested table alone when 'table' is applied to it", () => {
+    const cell = document.createElement("div");
+    cell.innerHTML = nestedTableHtml;
+    setupContentsOfCell(cell, "table");
+    expect(cell.textContent).toContain("one");
+    expect(cell.querySelectorAll(".bloom-cell").length).toBe(2);
+  });
+
+  it("does not treat an unrelated class that merely contains 'table' as a table", () => {
+    for (const className of ["table", "sortable", "timetable"]) {
+      const cell = document.createElement("div");
+      cell.innerHTML = `<div class="${className}"><span>x</span></div>`;
+      expect(getCurrentContentTypeId(cell)).not.toBe("table");
+    }
+  });
 });

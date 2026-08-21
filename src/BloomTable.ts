@@ -19,7 +19,6 @@ import {
   getRowHeights,
   setRowHeights,
   setTableCorners,
-  setSpan,
   getSpan,
 } from "./table-model";
 import { tableHistoryManager } from "./history";
@@ -349,13 +348,11 @@ export class BloomTable {
     render(this.table);
   }
 
-  // Spans: write data-*, and call structure's setCellSpan to maintain skip semantics today
+  // Spans: setCellSpan is the single writer — it needs to see the CURRENT span
+  // in data-* to know which cells to un-cover, so writing data-* here first
+  // would make it a no-op and leave stale bloom-skip classes behind.
   setSpan(cell: HTMLElement, x: number, y: number): void {
-    const perform = () => {
-      setSpan(cell, { x, y });
-      // maintain skip coverage using existing structure helper (also sets CSS vars for now)
-      structSetCellSpan(cell, x, y);
-    };
+    const perform = () => structSetCellSpan(cell, x, y);
     tableHistoryManager.addHistoryEntry(this.table, `Set Cell Span ${x}x${y}`, perform);
     render(this.table);
   }
