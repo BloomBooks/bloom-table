@@ -149,7 +149,7 @@ describe("selection mousedown handling", () => {
     expect(document.activeElement).not.toBe(innerEditable);
   });
 
-  it("lets a click in a nested cell's editable reach that editable untouched", () => {
+  it("a click in a nested cell's editable selects the HOST cell instead", () => {
     const table = buildTable(`
       <div class="bloom-table" data-column-widths="fill" data-row-heights="fit">
         <div class="bloom-cell"><div contenteditable="true">inner</div></div>
@@ -159,9 +159,14 @@ describe("selection mousedown handling", () => {
 
     const event = mousedown(innerEditable, 0);
 
-    // The click landed in the INNER cell's own editable, so native caret
-    // placement applies there.
-    expect(event.defaultPrevented).toBe(false);
+    // The outer table is the current table, so a single click stays at its
+    // level: the host cell becomes the selected cell and the caret must NOT
+    // land in the nested table's text. Entering the nested table takes a
+    // double-click.
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(outerCell);
+    expect(outerCell.classList.contains("cell--selected")).toBe(true);
+    expect(document.activeElement).not.toBe(innerEditable);
   });
 
   it("selects the cell without suppressing mousedown on media content", () => {

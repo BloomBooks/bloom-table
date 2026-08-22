@@ -43,6 +43,14 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
   // so it is exited whatever `root` is.
   paintFormatExiter();
 
+  stripEditTimeMarkup(root);
+}
+
+/**
+ * The markup part of removeTableEditingArtifacts: it rewrites `root`'s DOM and
+ * changes no session state, so it is also safe to run on a detached clone.
+ */
+function stripEditTimeMarkup(root: ParentNode): void {
   // Every piece of edit-time chrome outside the table is tagged
   // data-table-overlay at creation: the ProximityDiv wrappers appended to
   // <body> (which carry the "+" add buttons, the row/column/table menu pills
@@ -72,6 +80,25 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
     delete el.dataset.btableAnchorName;
   });
   root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
-    table.classList.remove("table--selected", "bloom-pointer-near");
+    table.classList.remove("table--selected", "bloom-pointer-near", "bloom-current-table");
   });
+}
+
+/**
+ * The HTML of `table` as a save would write it: a copy with every edit-time
+ * artifact stripped. Copy Table and Cut Table put this on the clipboard, so a
+ * paste does not carry the source table's selection classes, its
+ * bloom-current-table mark, or its pointer-proximity class into the document.
+ *
+ * The live table is never touched (the stripping runs on a clone), and neither
+ * is any session state: unlike removeTableEditingArtifacts this does not leave
+ * Paint Format mode.
+ */
+export function tableMarkupForClipboard(table: HTMLElement): string {
+  // The strippers work on descendants of `root`, so the clone goes inside a
+  // holder; otherwise the table's own classes would survive.
+  const holder = table.ownerDocument.createElement("div");
+  holder.appendChild(table.cloneNode(true));
+  stripEditTimeMarkup(holder);
+  return holder.innerHTML;
 }

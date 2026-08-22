@@ -21,7 +21,7 @@ export function attachTable(tableDiv: HTMLElement): void {
   // wrong cell). Stale selection classes from a save mislead the affordances
   // the same way; focus re-establishes the real selection.
   scrubStaleAnchorNames(tableDiv);
-  tableDiv.classList.remove("table--selected", "bloom-pointer-near");
+  tableDiv.classList.remove("table--selected", "bloom-pointer-near", "bloom-current-table");
   tableDiv
     .querySelectorAll(".bloom-cell.cell--selected")
     .forEach((c) => c.classList.remove("cell--selected"));

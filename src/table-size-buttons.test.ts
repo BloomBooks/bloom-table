@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
-import { resetTableSizeButtons } from "./table-size-buttons";
+import { removeTable, resetTableSizeButtons } from "./table-size-buttons";
 
 // happy-dom gives every element a zero rect, so the overlay code needs the
 // geometry stubbed. Lay a 2x2 table out as four 50px cells filling the box
@@ -56,7 +56,7 @@ const tablePills = () =>
 const tablePillsVisible = () => tablePills().some((p) => p.style.display !== "none");
 
 const rowAddButton = () =>
-  document.querySelector<HTMLElement>('button[aria-label="Insert Row Below"]');
+  document.querySelector<HTMLElement>('button[aria-label="Add row at the bottom edge"]');
 
 const addPreview = () =>
   document.querySelector<HTMLElement>('[data-table-overlay="add-preview"]');
@@ -95,7 +95,7 @@ describe("resetTableSizeButtons tears down what ensureTableSizeButtons built", (
       document.querySelectorAll('[data-btable-menu-pill="row"]').length,
     ).toBe(1);
     expect(
-      document.querySelectorAll('button[aria-label="Insert Row Below"]').length,
+      document.querySelectorAll('button[aria-label="Add row at the bottom edge"]').length,
     ).toBe(1);
   });
 
@@ -190,7 +190,7 @@ describe("the perimeter '+' buttons", () => {
     focusCell(cells[0]);
 
     document
-      .querySelector<HTMLElement>('button[aria-label="Insert Column Right"]')!
+      .querySelector<HTMLElement>('button[aria-label="Add column at the right edge"]')!
       .dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(table.querySelectorAll(".bloom-cell").length).toBe(6);
@@ -368,5 +368,176 @@ describe("the '+' hover preview matches where the button actually inserts", () =
     expect(() => rowAddButton()!.dispatchEvent(new MouseEvent("mouseenter"))).not.toThrow();
     // The bar is measured against the active table, not the selected cell's.
     expect(addPreview()!.style.left).toBe("400px");
+  });
+});
+
+describe("Delete Table is one undoable operation", () => {
+  // A 1x2 outer table whose first cell hosts a 1x2 table.
+  function makeNested(): { outer: HTMLElement; nested: HTMLElement } {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div class="bloom-table" id="outer" data-column-widths="hug,hug" data-row-heights="hug">
+        <div class="bloom-cell" data-content-type="table">
+          <div class="bloom-table" id="nested" data-column-widths="hug,hug" data-row-heights="hug">
+            <div class="bloom-cell" data-content-type="text"><div contenteditable="true">n1</div></div>
+            <div class="bloom-cell" data-content-type="text"><div contenteditable="true">n2</div></div>
+          </div>
+        </div>
+        <div class="bloom-cell" data-content-type="text"><div contenteditable="true">outer</div></div>
+      </div>`;
+    const outer = wrapper.firstElementChild as HTMLElement;
+    document.body.appendChild(outer);
+    attachTable(outer);
+    const nested = outer.querySelector<HTMLElement>("#nested")!;
+    attachTable(nested);
+    stubGrid(outer);
+    stubGrid(nested);
+    return { outer, nested };
+  }
+
+  it("turns a deleted nested table's host cell into a text cell, and undo brings both back", () => {
+    const { outer, nested } = makeNested();
+    const host = outer.children[0] as HTMLElement;
+
+    removeTable(nested);
+
+    // The nested table is gone and its host cell holds ordinary text again.
+    expect(outer.querySelector("#nested")).toBe(null);
+    expect(host.dataset.contentType).toBe("text");
+    expect(host.querySelector("[contenteditable]")).not.toBe(null);
+    expect(host.hasAttribute("tabindex")).toBe(false);
+
+    // ONE undo restores the table AND the host cell's content type.
+    expect(tableHistoryManager.undoLast()).toBe(true);
+    const restored = outer.querySelector<HTMLElement>("#nested");
+    expect(restored).not.toBe(null);
+    expect((outer.children[0] as HTMLElement).dataset.contentType).toBe("table");
+    expect(Array.from(restored!.querySelectorAll(".bloom-cell")).map((c) => c.textContent?.trim())).toEqual(
+      ["n1", "n2"],
+    );
+  });
+
+  it("takes a top-level table out of the document, and undo puts it back where it was", () => {
+    const { outer } = makeNested();
+    const previousSibling = outer.previousSibling;
+    const nextSibling = outer.nextSibling;
+
+    removeTable(outer);
+    expect(document.body.contains(outer)).toBe(false);
+
+    expect(tableHistoryManager.undoLast()).toBe(true);
+    expect(document.body.contains(outer)).toBe(true);
+    // Back in its old position, between the very nodes it sat between.
+    expect(outer.previousSibling).toBe(previousSibling);
+    expect(outer.nextSibling).toBe(nextSibling);
+    expect(outer.querySelector("#nested")).not.toBe(null);
+
+    // And redo takes it out again.
+    expect(tableHistoryManager.redoLast()).toBe(true);
+    expect(document.body.contains(outer)).toBe(false);
+  });
+});
+
+describe("Copy Table and Cut Table put the SAVE form on the clipboard", () => {
+  // The clipboard text of the table menu's Copy Table command.
+  function copyTableText(table: HTMLElement): string {
+    let written = "";
+    // navigator.clipboard is a getter-only property in happy-dom.
+    const previous = Object.getOwnPropertyDescriptor(Navigator.prototype, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          written = text;
+          return Promise.resolve();
+        },
+      },
+    });
+    try {
+      click(pill("table"));
+      click(menuItem("Copy Table")!);
+    } finally {
+      delete (navigator as any).clipboard;
+      if (previous) Object.defineProperty(Navigator.prototype, "clipboard", previous);
+    }
+    void table;
+    return written;
+  }
+
+  it("carries none of the edit-time classes of a selected, current, pointer-near table", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+    // The three classes the editing chrome writes on the live element, plus the
+    // per-cell selection class focus already put on cells[0].
+    table.classList.add("table--selected", "bloom-pointer-near", "bloom-current-table");
+    cells[0].classList.add("cell--selected");
+
+    const text = copyTableText(table);
+
+    expect(text).toContain("bloom-table");
+    expect(text).not.toContain("table--selected");
+    expect(text).not.toContain("bloom-pointer-near");
+    expect(text).not.toContain("bloom-current-table");
+    expect(text).not.toContain("cell--selected");
+    expect(text).not.toContain("data-table-overlay");
+    expect(text).not.toContain("anchor-name");
+
+    // The live table keeps every one of them: the stripping ran on a copy.
+    expect(table.classList.contains("table--selected")).toBe(true);
+    expect(table.classList.contains("bloom-pointer-near")).toBe(true);
+    expect(table.classList.contains("bloom-current-table")).toBe(true);
+    expect(cells[0].classList.contains("cell--selected")).toBe(true);
+  });
+});
+
+describe("Delete Row and Delete Column on a table with one line", () => {
+  // A table of one row and one column, so both commands would remove the last
+  // line. structure.ts asserts against that, and the assert is swallowed, so
+  // the menu item has to say so instead.
+  function makeOneCellTable(): { table: HTMLElement; cell: HTMLElement } {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div class="bloom-table" id="one" data-column-widths="hug" data-row-heights="hug">
+        <div class="bloom-cell"><div contenteditable="true">only</div></div>
+      </div>`;
+    const table = wrapper.firstElementChild as HTMLElement;
+    document.body.appendChild(table);
+    attachTable(table);
+    const cell = table.querySelector<HTMLElement>(".bloom-cell")!;
+    cell.getBoundingClientRect = () =>
+      ({ left: 100, top: 100, right: 150, bottom: 150, width: 50, height: 50, x: 100, y: 100 }) as DOMRect;
+    return { table, cell };
+  }
+
+  it("renders Delete Row disabled on a one-row table", () => {
+    const { cell } = makeOneCellTable();
+    focusCell(cell);
+
+    click(pill("row"));
+    const item = menuItem("Delete Row")!;
+
+    expect((item as HTMLButtonElement).disabled).toBe(true);
+    expect(item.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("renders Delete Column disabled on a one-column table", () => {
+    const { cell } = makeOneCellTable();
+    focusCell(cell);
+
+    click(pill("column"));
+    const item = menuItem("Delete Column")!;
+
+    expect((item as HTMLButtonElement).disabled).toBe(true);
+    expect(item.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("leaves both enabled on a 2x2 table", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+
+    click(pill("row"));
+    expect((menuItem("Delete Row") as HTMLButtonElement).disabled).toBe(false);
+    click(pill("column"));
+    expect((menuItem("Delete Column") as HTMLButtonElement).disabled).toBe(false);
   });
 });

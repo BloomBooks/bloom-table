@@ -1,0 +1,37 @@
+<!-- e2e fixture for the nested-table gestures: a 1x3 outer table whose FIRST
+     cell hosts a 2x2 table. Fixed pixel sizes so a test can aim at a specific
+     cell. Loaded via /demo/ui-harness.html?fixture=nested-tables -->
+<div
+  id="outer-table"
+  class="bloom-table"
+  data-column-widths="200px,200px,200px"
+  data-row-heights="150px"
+>
+  <div class="bloom-cell" data-content-type="table">
+    <div
+      id="nested-table"
+      class="bloom-table"
+      data-column-widths="80px,80px"
+      data-row-heights="60px,60px"
+    >
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N11</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N12</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N21</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N22</div>
+      </div>
+    </div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">Outer 2</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">Outer 3</div>
+  </div>
+</div>

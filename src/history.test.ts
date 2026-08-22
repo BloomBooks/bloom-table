@@ -600,3 +600,122 @@ describe("tableHistoryManager re-attaches nested tables after a restore", () => 
     expect(reattached).toEqual([inner]);
   });
 });
+
+describe("a history entry records the table its operation acted on", () => {
+  const nestedHtml =
+    "<div class='bloom-cell' data-content-type='table'>" +
+    "<div class='bloom-table' id='inner' data-column-widths='40px,40px' data-row-heights='20px'>" +
+    "<div class='bloom-cell'>N1</div><div class='bloom-cell'>N2</div></div></div>";
+
+  beforeEach(() => {
+    tableHistoryManager.reset();
+    document.body.innerHTML = "";
+  });
+
+  function build(): { outer: HTMLElement; inner: HTMLElement } {
+    const outer = makeTable("outer", nestedHtml);
+    outer.setAttribute("data-column-widths", "200px");
+    outer.setAttribute("data-row-heights", "150px");
+    const inner = outer.querySelector<HTMLElement>("#inner")!;
+    return { outer, inner };
+  }
+
+  it("undoes a nested column resize on the NESTED table, leaving the outer one alone", () => {
+    const { outer, inner } = build();
+    // What drag-to-resize records: the change is already applied, and the undo
+    // closure puts one column of the table it is handed back to its old value.
+    inner.setAttribute("data-column-widths", "90px,40px");
+    tableHistoryManager.addHistoryEntry(
+      inner,
+      "Resize Column 1 to 90px",
+      () => {},
+      (table) => {
+        const widths = (table.getAttribute("data-column-widths") || "").split(",");
+        widths[0] = "40px";
+        table.setAttribute("data-column-widths", widths.join(","));
+      },
+    );
+
+    expect(tableHistoryManager.undo(inner)).toBe(true);
+    // The closure ran against the nested table...
+    expect(
+      outer.querySelector<HTMLElement>("#inner")!.getAttribute("data-column-widths"),
+    ).toBe("40px,40px");
+    // ...and the outer table's own widths were never touched. Handing the
+    // closure the outer table wrote the nested value onto it instead.
+    expect(outer.getAttribute("data-column-widths")).toBe("200px");
+  });
+
+  it("undoes a nested row resize the same way", () => {
+    const { outer, inner } = build();
+    inner.setAttribute("data-row-heights", "31.8mm");
+    tableHistoryManager.addHistoryEntry(
+      inner,
+      "Resize Row 1 to 31.8mm",
+      () => {},
+      (table) => {
+        const heights = (table.getAttribute("data-row-heights") || "").split(",");
+        heights[0] = "20px";
+        table.setAttribute("data-row-heights", heights.join(","));
+      },
+    );
+
+    expect(tableHistoryManager.undo(inner)).toBe(true);
+    expect(outer.querySelector<HTMLElement>("#inner")!.getAttribute("data-row-heights")).toBe(
+      "20px",
+    );
+    expect(outer.getAttribute("data-row-heights")).toBe("150px");
+  });
+
+  it("redoes a nested resize, restoring the nested value and no other", () => {
+    const { outer, inner } = build();
+    inner.setAttribute("data-column-widths", "90px,40px");
+    tableHistoryManager.addHistoryEntry(
+      inner,
+      "Resize Column 1 to 90px",
+      () => {},
+      (table) => table.setAttribute("data-column-widths", "40px,40px"),
+    );
+    expect(tableHistoryManager.undo(inner)).toBe(true);
+    expect(tableHistoryManager.redo(outer)).toBe(true);
+
+    expect(
+      outer.querySelector<HTMLElement>("#inner")!.getAttribute("data-column-widths"),
+    ).toBe("90px,40px");
+    expect(outer.getAttribute("data-column-widths")).toBe("200px");
+  });
+
+  it("resolves the nested table again after a later undo replaced its element", () => {
+    const { outer, inner } = build();
+    const originalInner = inner;
+
+    // Older entry: a resize of the nested table.
+    inner.setAttribute("data-column-widths", "90px,40px");
+    tableHistoryManager.addHistoryEntry(
+      inner,
+      "Resize Column 1 to 90px",
+      () => {},
+      (table) => table.setAttribute("data-column-widths", "40px,40px"),
+    );
+    // Newer entry, undone FIRST: its restore rewrites the outer table's
+    // innerHTML, so the nested table comes back as a fresh element and the
+    // older entry's own element is stale.
+    tableHistoryManager.addHistoryEntry(outer, "Clear", () => {
+      outer.innerHTML = "<div class='bloom-cell'>gone</div>";
+    });
+
+    expect(tableHistoryManager.undo(outer)).toBe(true);
+    const restoredInner = outer.querySelector<HTMLElement>("#inner")!;
+    expect(restoredInner).not.toBe(originalInner);
+    expect(restoredInner.getAttribute("data-column-widths")).toBe("90px,40px");
+
+    // Undo the older entry: it must act on the element that is in the document
+    // now, not on the one it was created with.
+    expect(tableHistoryManager.undo(outer)).toBe(true);
+    expect(
+      outer.querySelector<HTMLElement>("#inner")!.getAttribute("data-column-widths"),
+    ).toBe("40px,40px");
+    expect(originalInner.getAttribute("data-column-widths")).toBe("90px,40px");
+    expect(outer.getAttribute("data-column-widths")).toBe("200px");
+  });
+});

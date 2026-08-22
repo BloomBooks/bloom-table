@@ -52,6 +52,17 @@
   outline-offset: var(--selected-table-outline-offset);
 }
 
+/* The table the user has entered ("current table"): the one that owns the
+   selected cell, and the only table whose "+" buttons and pill menus exist. A
+   top-level table carries no mark — its chrome is the only chrome there has
+   ever been — so this shows only on a NESTED table, to say which level the
+   next edit will act on. Not gated on .bloom-pointer-near: it answers "where
+   am I", which stays true when the pointer wanders off. */
+.bloom-table.bloom-current-table {
+  outline: 2px solid var(--selected-table-outline-color);
+  outline-offset: 2px;
+}
+
 /* Boundary hints: while the table is selected AND the pointer is near it,
    every cell of that table gets a faint dashed outline all the way around, so
    cells whose borders are invisible stay findable. Drawn just inside the cell

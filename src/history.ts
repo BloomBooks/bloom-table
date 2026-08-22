@@ -8,7 +8,22 @@ export interface HistoryEntry {
   timestamp: number;
   label: string;
   table?: HTMLElement; // The top-level table this entry applies to
+  // Which table the operation itself acted on, as a chain of child indices from
+  // the top-level table (empty for the top-level table itself). A custom
+  // undoOperation gets THAT table, not the top-level one: a drag-resize of a
+  // nested table writes data-column-widths by index, and handing it the outer
+  // table silently corrupted the outer table's widths.
+  //
+  // A path rather than an element reference, because a snapshot restore
+  // rewrites the top-level table's innerHTML and so replaces every nested
+  // table with a fresh element; the path still resolves to the live one.
+  ownTablePath?: number[];
   undoOperation?: (table: HTMLElement, prevState: TableState) => void;
+  // Redo normally replays the snapshot captured at undo time (redoState), which
+  // covers everything INSIDE the table. An operation that moves the table
+  // element itself — deleting a top-level table — cannot be expressed that way,
+  // so it supplies its own redo. Gets the same table as undoOperation.
+  redoOperation?: (table: HTMLElement) => void;
   // Populated only while the entry sits on the redo stack: the table's full
   // state at the moment undo ran, which is what redo restores. Captured at
   // undo time (not entry-creation time) so redo also brings back mutations
@@ -26,6 +41,37 @@ export interface HistoryEntry {
 let restoreReattacher: (table: HTMLElement) => void = () => {};
 export function setRestoreReattacher(fn: (table: HTMLElement) => void): void {
   restoreReattacher = fn;
+}
+
+// The chain of child indices leading from `top` down to `table`, or null when
+// `table` is not inside `top`. An empty array means the two are the same
+// element. See HistoryEntry.ownTablePath for why this is a path and not a
+// reference.
+export function pathFromTopLevel(top: HTMLElement, table: HTMLElement): number[] | null {
+  const path: number[] = [];
+  let node: HTMLElement = table;
+  while (node !== top) {
+    const parent: HTMLElement | null = node.parentElement;
+    if (!parent) return null;
+    path.unshift(Array.prototype.indexOf.call(parent.children, node));
+    node = parent;
+  }
+  return path;
+}
+
+// Walk a path back down to the live element, falling back to the top-level
+// table when the path is missing or no longer resolves to a table.
+export function resolveOwnTable(top: HTMLElement, path: number[] | undefined): HTMLElement {
+  if (!path) return top;
+  let node: Element = top;
+  for (const index of path) {
+    const next = node.children[index];
+    if (!next) return top;
+    node = next;
+  }
+  // Duck-typed rather than `instanceof HTMLElement`: the table can live in an
+  // iframe document while the library is loaded in the parent.
+  return node.classList?.contains("bloom-table") ? (node as HTMLElement) : top;
 }
 
 class TableHistoryManager {
@@ -92,6 +138,9 @@ class TableHistoryManager {
     performOperation: () => void, // The function that actually performs the DOM change
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     undoOperation?: (table: HTMLElement, prevState: TableState) => void,
+    // See HistoryEntry.redoOperation: only an operation that moves the table
+    // element itself needs one.
+    redoOperation?: (table: HTMLElement) => void,
   ): boolean {
     // Find the top-level table - we may have been handed a child table, but our history is for the top-level table
     const topLevelTable = this.findTopLevelTable(table);
@@ -111,6 +160,10 @@ class TableHistoryManager {
 
     // Capture the state of the table
     const stateBeforeOperation = this.captureTableState(topLevelTable);
+    // Where the operation's own table sits, taken BEFORE the operation runs: the
+    // operation may move or remove that table (Delete Table does), and a
+    // detached element has no path.
+    const ownTablePath = pathFromTopLevel(topLevelTable, table) ?? undefined;
 
     this.operationInProgress = true;
     let operationSuccess = false;
@@ -124,7 +177,9 @@ class TableHistoryManager {
         timestamp: Date.now(),
         label: description,
         table: topLevelTable,
-        undoOperation: undoOperation || ((table, state) => this.defaultUndoOperation(table, state)),
+        ownTablePath,
+        undoOperation,
+        redoOperation,
       };
       this.history.push(entry);
       // Evict the oldest entry belonging to THIS table when over its cap. (A
@@ -206,13 +261,20 @@ class TableHistoryManager {
       // that never entered history (typing) and changes an entry's no-op
       // performOperation didn't make (drag-to-resize applies during the
       // preview). See HistoryEntry.redoState.
-      entry.redoState = this.captureTableState(entry.table ?? topLevelTable);
-      const undoOp =
-        entry.undoOperation || ((table, state) => this.defaultUndoOperation(table, state));
-      // Apply to the table the snapshot came from (checked above to be the
-      // caller's top-level table).
-      undoOp(entry.table ?? topLevelTable, entry.state);
-      this.reattachRestoredTables(entry.table ?? topLevelTable);
+      const owner = entry.table ?? topLevelTable;
+      entry.redoState = this.captureTableState(owner);
+      if (entry.undoOperation) {
+        // A custom undoOperation restores one attribute of the table the
+        // operation acted on, which may be a NESTED table. entry.state is the
+        // top-level snapshot and does not apply to it, but the closure only
+        // needs the element.
+        entry.undoOperation(resolveOwnTable(owner, entry.ownTablePath), entry.state);
+      } else {
+        // The snapshot came from the top-level table (checked above to be the
+        // caller's), so it goes back on that table.
+        this.defaultUndoOperation(owner, entry.state);
+      }
+      this.reattachRestoredTables(owner);
       undoSuccess = true;
       this.redoStack.push(entry);
     } catch (error) {
@@ -285,8 +347,13 @@ class TableHistoryManager {
     this.operationInProgress = true;
     let redoSuccess = false;
     try {
-      this.defaultUndoOperation(entry.table ?? topLevelTable, entry.redoState);
-      this.reattachRestoredTables(entry.table ?? topLevelTable);
+      const owner = entry.table ?? topLevelTable;
+      if (entry.redoOperation) {
+        entry.redoOperation(resolveOwnTable(owner, entry.ownTablePath));
+      } else {
+        this.defaultUndoOperation(owner, entry.redoState);
+      }
+      this.reattachRestoredTables(owner);
       redoSuccess = true;
       // The redo was the most recent mutation, so the entry becomes the newest
       // history entry again. Drop the snapshot so it can never be reused stale.

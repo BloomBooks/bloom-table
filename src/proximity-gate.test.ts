@@ -170,11 +170,12 @@ describe("nested tables: overlays follow the table that owns the selection", () 
     return { outer, nested };
   }
 
-  it("hides row/column clusters on the outer table while the selection is in a nested table", () => {
+  it("gives the nested table the chrome while it owns the selection, and the outer none", () => {
     const { outer, nested } = buildNested();
 
-    // Focus a nested cell: the nested table gets the overlays and, since the
-    // selected cell is its own, the row/column clusters.
+    // Focus a nested cell: the nested table is now the current table, so it
+    // gets the overlays, including the row/column clusters (its own cell is
+    // the selected one).
     const editable = nested.querySelector("[contenteditable]") as HTMLElement;
     editable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     expect(nested.classList.contains("bloom-pointer-near")).toBe(true);
@@ -182,12 +183,11 @@ describe("nested tables: overlays follow the table that owns the selection", () 
     expect(clusterVisible("row")).toBe(true);
 
     // Move the pointer away from the nested table but still over the outer
-    // one: the gate hands the overlays to the outer table. Its row/column
-    // clusters must hide — the selected cell is not one of its own cells, so
-    // anchoring them would point at the wrong row/column (they used to land on
-    // cell (0,0)).
+    // one. The pointer never re-targets the chrome: the outer table is not the
+    // current one, so it shows nothing, and the nested table's chrome hides
+    // because the pointer left its zone.
     moveMouse(350, 150);
-    expect(outer.classList.contains("bloom-pointer-near")).toBe(true);
+    expect(outer.classList.contains("bloom-pointer-near")).toBe(false);
     expect(nested.classList.contains("bloom-pointer-near")).toBe(false);
     expect(clusterVisible("column")).toBe(false);
     expect(clusterVisible("row")).toBe(false);
@@ -196,24 +196,34 @@ describe("nested tables: overlays follow the table that owns the selection", () 
     detachTable(outer);
   });
 
-  it("prefers the innermost table when the pointer is over a nested table", () => {
+  it("keeps the outer table's chrome over a nested table while the outer one is current", () => {
     const { outer, nested } = buildNested();
 
-    // With no table active yet, a pointer inside both zones picks the nested
-    // (innermost) table, even though the outer one comes first in the document.
-    moveMouse(150, 150);
-    expect(nested.classList.contains("bloom-pointer-near")).toBe(true);
-    expect(outer.classList.contains("bloom-pointer-near")).toBe(false);
+    // Select the outer table's own second cell: the outer table is current.
+    const outerEditable = outer.children[1].querySelector("[contenteditable]") as HTMLElement;
+    outerEditable.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(outer.classList.contains("bloom-pointer-near")).toBe(true);
 
-    // Pointer over the outer table only → handoff to the outer table.
-    moveMouse(350, 150);
+    // Pointer directly over the nested table. The nested table used to win
+    // here (innermost-wins), taking the outer table's pills away over its own
+    // area; now the outer table keeps them.
+    moveMouse(150, 150);
     expect(outer.classList.contains("bloom-pointer-near")).toBe(true);
     expect(nested.classList.contains("bloom-pointer-near")).toBe(false);
+    expect(clusterVisible("column")).toBe(true);
 
-    // Back over the nested table → the nested table wins again.
+    detachTable(nested);
+    detachTable(outer);
+  });
+
+  it("does not give a nested table chrome on hover alone", () => {
+    const { outer, nested } = buildNested();
+
+    // Nothing selected: a hover inside both zones reveals the TOP-LEVEL
+    // table's chrome. A nested table gets chrome only once it is entered.
     moveMouse(150, 150);
-    expect(nested.classList.contains("bloom-pointer-near")).toBe(true);
-    expect(outer.classList.contains("bloom-pointer-near")).toBe(false);
+    expect(outer.classList.contains("bloom-pointer-near")).toBe(true);
+    expect(nested.classList.contains("bloom-pointer-near")).toBe(false);
 
     detachTable(nested);
     detachTable(outer);

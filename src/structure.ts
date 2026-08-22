@@ -77,6 +77,7 @@ import {
   defaultRowHeight,
 } from "./table-model";
 import { buildGrid, type GridView, type SpanCover } from "./grid";
+import { isNestedTable } from "./current-table";
 
 // SpanCover lives in grid.ts now (built by buildGrid's one-pass cover matrix);
 // re-exported here so existing importers keep working.
@@ -560,7 +561,7 @@ export const addColumn = (table: HTMLElement, skipHistory = false, sourceIndex?:
       // column's width, so the first added row creates the right cell count.
       table.setAttribute(
         "data-column-widths",
-        [...info.columnWidths, defaultColumnWidth].join(","),
+        sizesAfterGrowth(table, [...info.columnWidths, defaultColumnWidth]).join(","),
       );
       return;
     }
@@ -878,7 +879,9 @@ export const addRowAt = (
 function cloneCellForDuplicate(cell: HTMLElement): HTMLElement {
   const clone = cell.cloneNode(true) as HTMLElement;
   const strip = (el: HTMLElement) => {
-    el.classList.remove("cell--selected");
+    // bloom-current-table marks the ONE table the chrome serves; a copy of it
+    // would claim to be current too.
+    el.classList.remove("cell--selected", "bloom-current-table");
     el.style.removeProperty("anchor-name");
     delete (el.dataset as any).btableAnchorName;
   };
@@ -1088,6 +1091,25 @@ const lineAxisOps = {
   },
 } as const;
 
+/**
+ * The sizes a table's axis gets after that axis gains a line.
+ *
+ * A nested table never grows: its host cell is a fixed box, and
+ * bloom-table.css stretches the table to fill that box exactly
+ * (`position: absolute; inset: 0`) while the cell hides the overflow. So a
+ * nested table whose tracks are fixed sizes overflows its host cell as soon as
+ * a track is added, and the host cell's flex centering clips the FIRST track
+ * off screen. Converting every track on the grown axis to "fill" divides the
+ * host cell between them instead, so the table still fits.
+ *
+ * Only the axis that grew converts, and only for a nested table. Removing a
+ * line converts nothing, and a top-level table keeps the sizes it was authored
+ * with.
+ */
+function sizesAfterGrowth(table: HTMLElement, sizes: string[]): string[] {
+  return isNestedTable(table) ? sizes.map(() => "fill") : sizes;
+}
+
 // The shared insertion core. Runs inside the caller's history entry.
 function insertLineAt(
   table: HTMLElement,
@@ -1143,7 +1165,7 @@ function insertLineAt(
   const sizes = ops.sizes(info);
   const sourceSize = sourceIndex != null ? sizes[sourceIndex] : undefined;
   sizes.splice(insertIndex, 0, sourceSize ?? ops.defaultSize());
-  table.setAttribute(ops.sizeAttr, sizes.join(","));
+  table.setAttribute(ops.sizeAttr, sizesAfterGrowth(table, sizes).join(","));
 
   // Merge fix-up, before DOM insertion. A new cell never carries a span along
   // the insertion axis. Where a merge crosses the insertion boundary, the new

@@ -25,6 +25,7 @@ import { tableHistoryManager } from "./history";
 import { render } from "./table-renderer";
 import { getCell } from "./structure";
 import { attachTable } from "./attach";
+import { ownEditable, ownSelectedCell } from "./current-table";
 
 // cloneNode does not copy event listeners, so nested tables inside duplicated
 // cells arrive without text-editing or drag-to-resize wiring. Attach each one,
@@ -42,10 +43,15 @@ export class BloomTable {
     }
   }
 
+  // Focus the cell's OWN text editor, or the cell itself when it has none. A
+  // plain querySelector would return a NESTED table's editable for a cell that
+  // hosts a table, putting the caret one level down from the cell we mean to
+  // select.
   private focusEditableInCell(cell: HTMLElement | null | undefined) {
     if (!cell) return;
-    const editable = cell.querySelector<HTMLElement>("[contenteditable]");
+    const editable = ownEditable(cell);
     try {
+      if (!editable && !cell.hasAttribute("tabindex")) cell.setAttribute("tabindex", "-1");
       (editable ?? cell).focus();
     } catch {}
   }
@@ -53,7 +59,7 @@ export class BloomTable {
   // Structure ops (already history-wrapped in structure.ts)
   addRow(): void {
     // Capture selected column and source row (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetCol = 0;
     let sourceRow: number | undefined;
     if (sel) {
@@ -72,7 +78,7 @@ export class BloomTable {
 
   removeLastRow(): void {
     // Capture target column from current selection, and last row index before removal
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetCol = 0;
     const widthsBefore = getColumnWidths(this.table);
     const heightsBefore = getRowHeights(this.table);
@@ -93,7 +99,7 @@ export class BloomTable {
 
   addColumn(): void {
     // Capture selected row and source column (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetRow = 0;
     let sourceCol: number | undefined;
     if (sel) {
@@ -112,7 +118,7 @@ export class BloomTable {
 
   removeLastColumn(): void {
     // Capture target row from current selection, and last column index before removal
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetRow = 0;
     const heightsBefore = getRowHeights(this.table);
     const widthsBefore = getColumnWidths(this.table);
@@ -136,7 +142,7 @@ export class BloomTable {
   // inherits; when omitted, the selected cell's row/column is used.
   addRowAt(index: number, sourceRowOverride?: number): void {
     // Capture selected column and source row (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetCol = 0;
     let sourceRow: number | undefined = sourceRowOverride;
     if (sel) {
@@ -153,7 +159,7 @@ export class BloomTable {
 
   addColumnAt(index: number, sourceColOverride?: number): void {
     // Capture selected row and source column (if any) before insertion
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetRow = 0;
     let sourceCol: number | undefined = sourceColOverride;
     if (sel) {
@@ -171,7 +177,7 @@ export class BloomTable {
 
   removeRowAt(index: number): void {
     // Capture selected column from current selection prior to removal
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetCol = 0;
     const widthsBefore = getColumnWidths(this.table);
     if (sel && widthsBefore.length > 0) {
@@ -190,7 +196,7 @@ export class BloomTable {
 
   removeColumnAt(index: number): void {
     // Capture selected row from current selection prior to removal
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetRow = 0;
     const widthsBefore = getColumnWidths(this.table);
     const heightsBefore = getRowHeights(this.table);
@@ -211,7 +217,7 @@ export class BloomTable {
   // Duplicate a row (contents and all); the copy lands directly below the
   // source. Focus moves to the copy, in the column the user had selected.
   duplicateRowAt(index: number): void {
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetCol = 0;
     const widths = getColumnWidths(this.table);
     if (sel && widths.length > 0) {
@@ -237,7 +243,7 @@ export class BloomTable {
   // Duplicate a column (contents and all); the copy lands directly to the
   // right of the source. Focus moves to the copy, in the row the user had selected.
   duplicateColumnAt(index: number): void {
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetRow = 0;
     const widths = getColumnWidths(this.table);
     const heights = getRowHeights(this.table);
@@ -268,7 +274,7 @@ export class BloomTable {
   // Move a row from one index to another, keeping focus on the moved row in
   // the column the user had selected.
   moveRowAt(from: number, to: number): void {
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetCol = 0;
     const widths = getColumnWidths(this.table);
     if (sel && widths.length > 0) {
@@ -286,7 +292,7 @@ export class BloomTable {
   // Move a column from one index to another, keeping focus on the moved column
   // in the row the user had selected.
   moveColumnAt(from: number, to: number): void {
-    const sel = this.table.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+    const sel = ownSelectedCell(this.table);
     let targetRow = 0;
     const widths = getColumnWidths(this.table);
     const heights = getRowHeights(this.table);

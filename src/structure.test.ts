@@ -1556,3 +1556,110 @@ it("setCellSpan unmerges a span that exists only in data-* (never rendered)", ()
   expect(anchor.getAttribute("data-span-x")).toBe("1");
   expectCellToNotBeSkipped(table, 0, 1);
 });
+
+describe("a nested table that gains a track shares its host cell", () => {
+  // A nested table cannot make its host cell bigger, so every track on the
+  // axis that grew becomes "fill". See sizesAfterGrowth in structure.ts.
+  function makeNestedPair(): { outer: HTMLElement; nested: HTMLElement } {
+    const outer = document.createElement("div");
+    outer.className = "bloom-table";
+    outer.setAttribute("data-column-widths", "200px,200px");
+    outer.setAttribute("data-row-heights", "150px");
+    outer.innerHTML = `
+      <div class="bloom-cell" data-content-type="table">
+        <div class="bloom-table" id="nested"
+             data-column-widths="80px,80px" data-row-heights="60px,60px">
+          <div class="bloom-cell"><div contenteditable="true">a</div></div>
+          <div class="bloom-cell"><div contenteditable="true">b</div></div>
+          <div class="bloom-cell"><div contenteditable="true">c</div></div>
+          <div class="bloom-cell"><div contenteditable="true">d</div></div>
+        </div>
+      </div>
+      <div class="bloom-cell"><div contenteditable="true">outer 2</div></div>`;
+    document.body.appendChild(outer);
+    attachTable(outer);
+    const nested = outer.querySelector<HTMLElement>("#nested")!;
+    return { outer, nested };
+  }
+
+  it("addColumnAt converts the widths to fill and leaves the heights alone", () => {
+    const { nested } = makeNestedPair();
+
+    addColumnAt(nested, 1);
+
+    expect(nested.getAttribute("data-column-widths")).toBe("fill,fill,fill");
+    expect(nested.getAttribute("data-row-heights")).toBe("60px,60px");
+  });
+
+  it("addRowAt converts the heights to fill and leaves the widths alone", () => {
+    const { nested } = makeNestedPair();
+
+    addRowAt(nested, 1);
+
+    expect(nested.getAttribute("data-row-heights")).toBe("fill,fill,fill");
+    expect(nested.getAttribute("data-column-widths")).toBe("80px,80px");
+  });
+
+  it("addRow and addColumn (append at the far edge) convert too", () => {
+    const { nested } = makeNestedPair();
+
+    addColumn(nested);
+    addRow(nested);
+
+    expect(nested.getAttribute("data-column-widths")).toBe("fill,fill,fill");
+    expect(nested.getAttribute("data-row-heights")).toBe("fill,fill,fill");
+  });
+
+  it("duplicateColumnAt converts the widths, duplicateRowAt the heights", () => {
+    const first = makeNestedPair();
+    duplicateColumnAt(first.nested, 0);
+    expect(first.nested.getAttribute("data-column-widths")).toBe("fill,fill,fill");
+    expect(first.nested.getAttribute("data-row-heights")).toBe("60px,60px");
+
+    document.body.innerHTML = "";
+    tableHistoryManager.reset();
+
+    const second = makeNestedPair();
+    duplicateRowAt(second.nested, 0);
+    expect(second.nested.getAttribute("data-row-heights")).toBe("fill,fill,fill");
+    expect(second.nested.getAttribute("data-column-widths")).toBe("80px,80px");
+  });
+
+  it("removing a track converts nothing", () => {
+    const { nested } = makeNestedPair();
+
+    removeColumnAt(nested, 1);
+
+    expect(nested.getAttribute("data-column-widths")).toBe("80px");
+    expect(nested.getAttribute("data-row-heights")).toBe("60px,60px");
+  });
+
+  it("a top-level table keeps the sizes it was authored with", () => {
+    const { outer } = makeNestedPair();
+
+    addColumnAt(outer, 1);
+    addRowAt(outer, 1);
+
+    // The new line takes the default size and the existing ones are untouched,
+    // which is what a top-level add has always done.
+    expect(outer.getAttribute("data-column-widths")).toBe(
+      `200px,${defaultColumnWidth},200px`,
+    );
+    expect(outer.getAttribute("data-row-heights")).toBe(`150px,${defaultRowHeight}`);
+  });
+
+  it("undo restores the nested table's pre-add tracks exactly", () => {
+    const { outer, nested } = makeNestedPair();
+
+    addColumnAt(nested, 1);
+    expect(nested.getAttribute("data-column-widths")).toBe("fill,fill,fill");
+
+    expect(tableHistoryManager.undo(outer)).toBe(true);
+
+    // The snapshot restore rebuilds the nested table, so read it again.
+    const restored = outer.querySelector<HTMLElement>("#nested")!;
+    expect(restored.getAttribute("data-column-widths")).toBe("80px,80px");
+    expect(restored.getAttribute("data-row-heights")).toBe("60px,60px");
+    expect(getTableInfo(restored).columnCount).toBe(2);
+  });
+});

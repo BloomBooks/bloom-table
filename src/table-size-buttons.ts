@@ -17,7 +17,23 @@ import { buildGrid } from "./grid";
 import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
 import { render } from "./table-renderer";
-import { contentTypeOptions, getCurrentContentTypeId } from "./cell-contents";
+import {
+  contentTypeOptions,
+  dispatchCellContentChanged,
+  getCurrentContentTypeId,
+  setupContentsOfCell,
+} from "./cell-contents";
+import {
+  clickTargetCell,
+  currentTable,
+  hostCellOf,
+  isNestedTable,
+  ownSelectedCell,
+  ownerTable,
+  selectCell,
+} from "./current-table";
+import { tableHistoryManager } from "./history";
+import { tableMarkupForClipboard } from "./prepare-for-save";
 import {
   getCellAlign,
   getSpan,
@@ -189,17 +205,22 @@ function onFocusInForOverlays(event: Event): void {
     scheduleOverlayReposition();
     return;
   }
-  const table = cell.closest(".bloom-table") as HTMLElement | null;
+  // The table that OWNS the focused cell is the current table, and the chrome
+  // serves it alone.
+  const table = ownerTable(cell);
   if (!table) return;
   showEdgeOverlays(table);
 }
 
-// Right-click on a cell opens the Cell menu.
+// Right-click on a cell opens the Cell menu. Like a left click, it acts at the
+// current table's level: a right-click inside a nested table the user has not
+// entered targets the HOST cell, not a nested one.
 function onContextMenuForOverlays(event: Event): void {
   const target = event.target as HTMLElement | null;
-  const cell = target?.closest(".bloom-cell") as HTMLElement | null;
+  if (!target) return;
+  const cell = clickTargetCell(target);
   if (!cell) return; // not on a table cell — leave the native menu alone
-  const table = cell.closest(".bloom-table") as HTMLElement | null;
+  const table = ownerTable(cell);
   if (!table) return;
   event.preventDefault();
   // Paint Format owns every click on a cell while it runs. Opening the Cell
@@ -315,11 +336,16 @@ html { anchor-scope: all; }
 
 type OverlaySide = "right" | "left" | "top" | "bottom";
 
+// The accessible names of the on-canvas "+" buttons. They must differ from
+// every other button in the document that inserts a row or a column: the React
+// sidebar's buttons ("Insert Column Right" and the rest) and the pill menu's
+// items ("Add Column Right" and the rest). Each name says which edge of the
+// table the button appends at, which is also what the button does.
 const kAddOverlayLabel: Record<OverlaySide, string> = {
-  right: "Insert Column Right",
-  left: "Insert Column Left",
-  top: "Insert Row Above",
-  bottom: "Insert Row Below",
+  right: "Add column at the right edge",
+  left: "Add column at the left edge",
+  top: "Add row at the top edge",
+  bottom: "Add row at the bottom edge",
 };
 
 function makeOverlay(
@@ -665,7 +691,7 @@ function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
 
 // ----- Section builders -----
 function buildMenuCtx(cell: HTMLElement | null): MenuCtx {
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  const table = (cell ? ownerTable(cell) : null) ?? overlayTable;
   let row = 0,
     col = 0,
     rowCount = 1,
@@ -956,7 +982,10 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
     // 5) duplicate/delete, the last commands in the menu
     makeDivider(),
     makeMenuItem("Duplicate Row", menuDuplicateRow, undefined, false, kCopyIconSvg),
-    makeMenuItem("Delete Row", tryRemoveRow, "row", false, kTrashIconSvg),
+    // A table must keep one row, so on a one-row table the command is disabled
+    // rather than silently refused (removeRowAt asserts, and tryRemoveRow
+    // swallows the throw).
+    makeMenuItem("Delete Row", tryRemoveRow, "row", ctx.rowCount <= 1, kTrashIconSvg),
     // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
@@ -987,7 +1016,8 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
     // 5) duplicate/delete, the last commands in the menu
     makeDivider(),
     makeMenuItem("Duplicate Column", menuDuplicateColumn, undefined, false, kCopyIconSvg),
-    makeMenuItem("Delete Column", tryRemoveColumn, "column", false, columnDeleteIcon),
+    // See Delete Row: a table must keep one column.
+    makeMenuItem("Delete Column", tryRemoveColumn, "column", ctx.colCount <= 1, columnDeleteIcon),
     // 6) hint
     makeInfoNote("Right click on a cell for Cell menu"),
   ];
@@ -1084,7 +1114,10 @@ function togglePillMenu(kind: MenuKind, pill: HTMLButtonElement, id: string): vo
     closeMenuPopup();
     return;
   }
-  const sel = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  // The menu serves the table this chrome was shown for. A document-wide
+  // selected-cell lookup could hand the outer table's pill a cell of a nested
+  // table, and every command in the menu would then act on that nested table.
+  const sel = overlayTable ? ownSelectedCell(overlayTable) : null;
   openMenu([kind], { pill, kind }, id, sel);
 }
 
@@ -1168,11 +1201,13 @@ function positionMenuAtPoint(popup: HTMLDivElement, x: number, y: number): void 
 
 // --- Menu operation handlers (operate on the menu's target cell / table) ---
 function getMenuCell(): HTMLElement | null {
-  return menuTargetCell ?? document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
+  // Scoped to the table the chrome serves: a document-wide selected-cell lookup
+  // made the outer table's menus act on a nested table.
+  return menuTargetCell ?? (overlayTable ? ownSelectedCell(overlayTable) : null);
 }
 function getMenuTable(): HTMLElement | null {
   const cell = getMenuCell();
-  return (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  return (cell ? ownerTable(cell) : null) ?? overlayTable;
 }
 
 // Insert a column relative to the current cell. offset 0 = left (before),
@@ -1275,11 +1310,15 @@ function menuSplitCell(): void {
   } catch {}
 }
 
+// Copy and Cut put the SAVE form of the table on the clipboard, not its
+// outerHTML: the live element carries edit-time state (the selection class, the
+// bloom-current-table mark, the pointer-proximity class, minted anchor names),
+// and a paste of that markup would claim to be selected and current.
 function menuCopyTable(): void {
   const table = getMenuTable();
   if (!table) return;
   try {
-    void navigator.clipboard?.writeText(table.outerHTML);
+    void navigator.clipboard?.writeText(tableMarkupForClipboard(table));
   } catch {}
 }
 
@@ -1287,7 +1326,7 @@ function menuCutTable(): void {
   const table = getMenuTable();
   if (!table) return;
   try {
-    void navigator.clipboard?.writeText(table.outerHTML);
+    void navigator.clipboard?.writeText(tableMarkupForClipboard(table));
   } catch {}
   removeTable(table);
 }
@@ -1298,9 +1337,57 @@ function menuDeleteTable(): void {
   removeTable(table);
 }
 
-function removeTable(table: HTMLElement): void {
+// Delete a table as one undoable operation.
+//
+// A NESTED table's host cell goes back to being an empty text cell, in the same
+// operation: one undo brings back both the table and the host cell's "table"
+// content type. A TOP-LEVEL table leaves nothing behind — the element goes out
+// of the document — and undo puts that same element back where it was, with its
+// contents and its editing behavior intact (the element is never replaced, so
+// its listeners survive).
+export function removeTable(table: HTMLElement): void {
   hideEdgeOverlays();
-  table.remove();
+  const hostCell = isNestedTable(table) ? hostCellOf(table) : null;
+
+  if (hostCell) {
+    const outer = ownerTable(hostCell);
+    const done = tableHistoryManager.addHistoryEntry(table, "Delete Table", () => {
+      // The "table" content type gave the host cell a tabindex so the cell
+      // itself could be focused; a text cell focuses its editor instead.
+      hostCell.removeAttribute("tabindex");
+      // notifyHost=false: we are inside a history entry, and the change event's
+      // handlers may run table operations, which the history manager refuses
+      // while an entry is open. Dispatched below instead.
+      setupContentsOfCell(hostCell, "text", false, false);
+    });
+    if (!done) return;
+    dispatchCellContentChanged(hostCell, "text");
+    if (outer) render(outer);
+    // The selection was inside the table that just went away; put it on the
+    // host cell, which also makes the outer table current again.
+    selectCell(hostCell);
+    scheduleOverlayReposition();
+    return;
+  }
+
+  const parent = table.parentElement;
+  const nextSibling = table.nextSibling;
+  if (!parent) {
+    table.remove();
+    return;
+  }
+  tableHistoryManager.addHistoryEntry(
+    table,
+    "Delete Table",
+    () => table.remove(),
+    (deleted) => {
+      parent.insertBefore(deleted, nextSibling);
+      render(deleted);
+    },
+    // Redo replays a snapshot of the table's contents, which cannot express the
+    // element leaving the document, so take it out again here.
+    (deleted) => deleted.remove(),
+  );
 }
 
 // Marks the table the pointer is near (the same active zone that reveals the
@@ -1445,24 +1532,43 @@ function updateProximityGate(): void {
   // is still interacting with it.
   if (menuPopup) return;
 
-  // Prefer the table already targeted (cheap, and avoids re-running showEdgeOverlays
-  // every frame while hovering). Otherwise scan all tables so a first hover — before
-  // any cell is focused — can reveal the table-level affordances too.
-  let near: HTMLElement | null = null;
+  // Selection, not the pointer, decides WHICH table the chrome serves: the
+  // current table is the one that owns the selected cell. The pointer only
+  // decides whether that table's chrome is visible. (Innermost-wins used to
+  // pick the target here, which is how a nested table stole the outer table's
+  // pills while the pointer was anywhere near it.)
+  const current = currentTable();
   const matches = Array.from(document.querySelectorAll<HTMLElement>(".bloom-table")).filter((t) =>
     pointerInActiveZone(t, gateMouseX, gateMouseY),
   );
-  if (matches.length) {
-    // Stay with the current table, except that a table nested inside it wins
-    // when the pointer is over it — the nested zone lies entirely inside the
-    // outer's, so the outer would otherwise capture the pointer forever.
-    const sticky =
-      overlayTable && document.body.contains(overlayTable) && matches.includes(overlayTable)
-        ? overlayTable
-        : null;
-    const candidates = sticky ? matches.filter((t) => t === sticky || sticky.contains(t)) : matches;
-    // Innermost candidate: the one that contains no other candidate.
-    near = candidates.find((t) => !candidates.some((o) => o !== t && t.contains(o))) ?? candidates[0];
+  let near: HTMLElement | null = null;
+  if (current && matches.includes(current)) {
+    near = current;
+  } else {
+    // No current table under the pointer. A table in a different tree may still
+    // reveal its chrome on hover, which is how an untouched page is discovered
+    // at all — but only a TOP-LEVEL one: a nested table gets chrome only while
+    // it is current, and an ancestor of the current table getting it would
+    // contradict "the chrome serves the table you are in".
+    const unrelated = matches.filter(
+      (t) =>
+        !isNestedTable(t) && (!current || !(t.contains(current) || current.contains(t))),
+    );
+    // Prefer a table whose own cells are under the pointer over one that is
+    // merely within reach of its gutter.
+    near =
+      unrelated.find((t) => {
+        const b = visibleCellBounds(t);
+        return (
+          !!b &&
+          gateMouseX >= b.minL &&
+          gateMouseX <= b.maxR &&
+          gateMouseY >= b.minT &&
+          gateMouseY <= b.maxB
+        );
+      }) ??
+      unrelated[0] ??
+      null;
   }
 
   if (near) {
@@ -1531,21 +1637,6 @@ function getElementAnchorName(el: HTMLElement, key: string, prefix: string): str
   el.style.setProperty("anchor-name", name);
   (el.dataset as any)[key] = name;
   return name;
-}
-
-// The selected cell belonging to THIS table (direct child), or null. A
-// descendant query would also find a selected cell inside a nested table.
-function ownSelectedCell(table: HTMLElement): HTMLElement | null {
-  for (const el of Array.from(table.children)) {
-    if (
-      el instanceof HTMLElement &&
-      el.classList.contains("bloom-cell") &&
-      el.classList.contains("cell--selected")
-    ) {
-      return el;
-    }
-  }
-  return null;
 }
 
 function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
@@ -1689,9 +1780,11 @@ function applyAnchorPositioning(table: HTMLElement) {
 // regardless of which cell is selected. (Use the row/column menus to insert
 // relative to the current cell.) The new row/column inherits ALL settings of
 // the adjacent one — the last row/column, not the selected one.
+// Both act on overlayTable — the table this chrome was shown for. Reading a
+// document-wide `.cell--selected` here made the OUTER table's "+" add a column
+// to a NESTED table whose cell still held the selection.
 function tryInsertColumnRight() {
-  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  const table = overlayTable;
   if (!table) return;
   try {
     const widths = getColumnWidths(table);
@@ -1701,8 +1794,7 @@ function tryInsertColumnRight() {
 }
 
 function tryInsertRowBelow() {
-  const cell = document.querySelector<HTMLElement>(".bloom-cell.cell--selected");
-  const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
+  const table = overlayTable;
   if (!table) return;
   try {
     const heights = getRowHeights(table);
