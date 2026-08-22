@@ -182,6 +182,10 @@ export function resetTableSizeButtons(): void {
   addPreviewVisible = false;
   currentAddKind = null;
   currentAddPosition = null;
+  pillTargetPreviewDiv?.remove();
+  pillTargetPreviewDiv = null;
+  pillTargetPreviewVisible = false;
+  currentPillTargetKind = null;
 
   if (repositionRaf) {
     cancelAnimationFrame(repositionRaf);
@@ -493,16 +497,20 @@ function ensureMenuPills(): void {
   if (!colMenuPill) {
     colMenuPill = makeGlyphPill("Column menu", menuColumnIcon, "display:block;height:16px;width:auto");
     colMenuPill.setAttribute("data-btable-menu-pill", "column");
+    attachPillTargetPreview(colMenuPill, "column");
     colMenuPill.addEventListener("click", (e) => {
       e.stopPropagation();
+      hidePillTargetPreview();
       togglePillMenu("column", colMenuPill!, "pill:column");
     });
   }
   if (!rowMenuPill) {
     rowMenuPill = makeGlyphPill("Row menu", menuRowIcon, "display:block;width:16px;height:auto");
     rowMenuPill.setAttribute("data-btable-menu-pill", "row");
+    attachPillTargetPreview(rowMenuPill, "row");
     rowMenuPill.addEventListener("click", (e) => {
       e.stopPropagation();
+      hidePillTargetPreview();
       togglePillMenu("row", rowMenuPill!, "pill:row");
     });
   }
@@ -512,8 +520,10 @@ function ensureTablePills(): void {
   const make = (id: string) => {
     const pill = makeGlyphPill("Table menu", cellContentTableIcon, "display:block;width:16px;height:16px");
     pill.setAttribute("data-btable-menu-pill", "table");
+    attachPillTargetPreview(pill, "table");
     pill.addEventListener("click", (e) => {
       e.stopPropagation();
+      hidePillTargetPreview();
       togglePillMenu("table", pill, id);
     });
     return pill;
@@ -1436,6 +1446,7 @@ function hideEdgeOverlays() {
   overlayTable = null;
   hideDeletePreview();
   hideAddPreview();
+  hidePillTargetPreview();
 }
 
 function scheduleOverlayReposition() {
@@ -1468,6 +1479,10 @@ function repositionEdgeOverlays() {
   // If an add preview is visible, reposition/update it as well
   if (addPreviewVisible) {
     updateAddPreviewGeometry();
+  }
+  // Same for the outline of the row/column/table a hovered pill would act on.
+  if (pillTargetPreviewVisible) {
+    updatePillTargetPreviewGeometry();
   }
 }
 
@@ -2018,4 +2033,115 @@ function updateAddPreviewGeometry() {
       display: "block",
     } as CSSStyleDeclaration);
   }
+}
+
+// ===== Pill Target Preview (outline of the row / column / table a menu acts on) =====
+// Hovering a "..." pill outlines what its menu will affect, so the user can see
+// the scope before opening it: the selected cell's column (full table height),
+// its row (full table width), or the whole current table. Same blue and opacity
+// as the add preview bar above, so the two read as one system.
+let pillTargetPreviewDiv: HTMLDivElement | null = null;
+let pillTargetPreviewVisible = false;
+let currentPillTargetKind: MenuKind | null = null;
+const kPillTargetPreviewBorder = 3; // px
+
+function ensurePillTargetPreviewDiv(): HTMLDivElement {
+  if (pillTargetPreviewDiv) return pillTargetPreviewDiv;
+  const div = document.createElement("div");
+  Object.assign(div.style, {
+    position: "absolute",
+    left: "0px",
+    top: "0px",
+    width: "0px",
+    height: "0px",
+    pointerEvents: "none",
+    zIndex: "2147483646",
+    display: "none",
+    border: `${kPillTargetPreviewBorder}px solid ${kBloomBlue}`,
+    opacity: "0.6",
+    borderRadius: "3px",
+    // The border must sit inside the measured track bounds, so the outline
+    // covers the affected cells exactly rather than a few px more.
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  div.setAttribute("data-table-overlay", "pill-target-preview");
+  document.body.appendChild(div);
+  pillTargetPreviewDiv = div;
+  return div;
+}
+
+function showPillTargetPreview(kind: MenuKind) {
+  if (!overlayTable) return;
+  // While a menu is open its own contents say what it acts on, and the click
+  // that opened it took the outline down; re-entering the pill must not raise it.
+  if (menuPopup) return;
+  // The row and column menus need one of THIS table's own cells to act on; the
+  // table menu acts on the table itself and needs no selection.
+  if (kind !== "table" && !ownSelectedCell(overlayTable)) return;
+  currentPillTargetKind = kind;
+  const div = ensurePillTargetPreviewDiv();
+  pillTargetPreviewVisible = true;
+  updatePillTargetPreviewGeometry();
+  if (pillTargetPreviewVisible) div.style.display = "block";
+}
+
+function hidePillTargetPreview() {
+  pillTargetPreviewVisible = false;
+  currentPillTargetKind = null;
+  if (pillTargetPreviewDiv) pillTargetPreviewDiv.style.display = "none";
+}
+
+function updatePillTargetPreviewGeometry() {
+  if (!pillTargetPreviewVisible || !overlayTable || !pillTargetPreviewDiv) return;
+  const kind = currentPillTargetKind;
+  if (!kind) return;
+  const table = overlayTable;
+  // getCellsInScope is the one reader of "which cells does a row/column/table
+  // scope cover", and it already counts a spanning cell as part of every row
+  // and column it covers.
+  const cell = kind === "table" ? null : ownSelectedCell(table);
+  const cells = getCellsInScope(table, kind, cell);
+  let minLeft = Infinity,
+    maxRight = -Infinity,
+    minTop = Infinity,
+    maxBottom = -Infinity;
+  for (const c of cells) {
+    const rect = c.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    if (rect.left < minLeft) minLeft = rect.left;
+    if (rect.right > maxRight) maxRight = rect.right;
+    if (rect.top < minTop) minTop = rect.top;
+    if (rect.bottom > maxBottom) maxBottom = rect.bottom;
+  }
+  // A column outline runs the full height of the table, and a row outline its
+  // full width, even where a row or column holds no laid-out cell of its own.
+  const bounds = visibleCellBounds(table);
+  if (bounds) {
+    if (kind === "column") {
+      minTop = Math.min(minTop, bounds.minT);
+      maxBottom = Math.max(maxBottom, bounds.maxB);
+    } else if (kind === "row") {
+      minLeft = Math.min(minLeft, bounds.minL);
+      maxRight = Math.max(maxRight, bounds.maxR);
+    }
+  }
+  if (!isFinite(minLeft) || !isFinite(maxRight) || !isFinite(minTop) || !isFinite(maxBottom)) {
+    hidePillTargetPreview();
+    return;
+  }
+  Object.assign(pillTargetPreviewDiv.style, {
+    left: `${Math.round(window.scrollX + minLeft)}px`,
+    top: `${Math.round(window.scrollY + minTop)}px`,
+    width: `${Math.round(maxRight - minLeft)}px`,
+    height: `${Math.round(maxBottom - minTop)}px`,
+    display: "block",
+  } as CSSStyleDeclaration);
+}
+
+// Hover handlers for one pill. Attached once per pill element (the pills are
+// created once and reused), and the preview also goes away on the click that
+// opens the menu.
+function attachPillTargetPreview(pill: HTMLButtonElement, kind: MenuKind): void {
+  pill.addEventListener("mouseenter", () => showPillTargetPreview(kind));
+  pill.addEventListener("mouseleave", hidePillTargetPreview);
 }
