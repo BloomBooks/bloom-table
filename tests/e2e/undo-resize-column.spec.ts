@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { attachTablesToPage } from "./utils/table-attachment";
 
 /**
  * Regression test for: "Undo: Resize Column" made no visual change.
@@ -13,9 +12,9 @@ test.describe("Undo resize column", () => {
   test("undo reverts both data-column-widths and the visual table-template-columns", async ({
     page,
   }) => {
-    await page.goto("/demo/exercises/new-table.html");
+    // The UI harness loads the fixture and attaches table behavior itself.
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
     await page.waitForSelector(".bloom-table");
-    await attachTablesToPage(page);
 
     // Expose the history manager singleton so we can trigger undo exactly as
     // the demo's Undo button does (tableHistoryManager.undo(table)).

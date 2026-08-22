@@ -4,7 +4,9 @@ import { test, expect } from "@playwright/test";
 
 test.describe("yada primer double border", () => {
   test("top-right cell has double top and right while outer table has none", async ({ page }) => {
-    await page.goto("/demo/exercises/yada-primer.html");
+    // Fixture reduction of the yada-primer exercise; the harness attaches it.
+    await page.goto("/demo/ui-harness.html?fixture=double-border");
+    await page.waitForSelector(".bloom-table");
 
     // Locate the target nested table: use a robust path by text around it
     // The upper-right "Y y" cell is the top-right cell of the 2x2 table within the top area.

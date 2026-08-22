@@ -1,16 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { attachTablesToPage } from "./utils/table-attachment";
 
 test.describe("Embedded Grids", () => {
   test("validates embedded table rendering and layout", async ({ page }) => {
-    // Navigate to the embedded grids demo
-    await page.goto("/demo/tests/embedded-tables.html");
+    // The UI harness loads the fixture and attaches table behavior itself.
+    await page.goto("/demo/ui-harness.html?fixture=embedded-grids");
 
-    // Wait for the page to load
+    // Wait for the fixture to mount
     await page.waitForSelector(".bloom-table");
-
-    // Manually attach grids since we removed script tags from HTML files
-    await attachTablesToPage(page);
 
     // === Test the main table with embedded table ===
     const mainGrid = page.locator("#main-table");
@@ -26,7 +22,7 @@ test.describe("Embedded Grids", () => {
       };
     });
 
-    expect(mainGridStyles.display).toBe("table");
+    expect(mainGridStyles.display).toBe("grid");
     // Should have 3 columns of 200px each
     expect(mainGridStyles.gridTemplateColumns).toBe("200px 200px 200px");
     expect(mainGridStyles.gridTemplateRows).toBe("150px");
@@ -45,7 +41,7 @@ test.describe("Embedded Grids", () => {
       };
     });
 
-    expect(embeddedGridStyles.display).toBe("table");
+    expect(embeddedGridStyles.display).toBe("grid");
     // The table should have 2 columns - the exact size doesn't matter as much as having 2 equal columns
     const columns = embeddedGridStyles.gridTemplateColumns.split(" ");
     expect(columns).toHaveLength(2);
@@ -105,7 +101,7 @@ test.describe("Embedded Grids", () => {
   });
 
   test("validates that embedded grids fill their parent cell", async ({ page }) => {
-    await page.goto("/demo/tests/embedded-tables.html");
+    await page.goto("/demo/ui-harness.html?fixture=embedded-grids");
     await page.waitForSelector(".bloom-table");
 
     const parentCell = page.locator("#main-table .bloom-cell[data-content-type='table']");

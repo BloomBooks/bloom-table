@@ -8,24 +8,19 @@ test.describe("Borders changing - visual expectation", () => {
   test("initial Table border selector shows 1px solid and all edges selected (BUG)", async ({
     page,
   }) => {
-    await page.goto("/demo/index.html");
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
     await page.waitForSelector("#root");
-    await page.waitForSelector("#example-list");
 
-    // Select New-table
-    const newGridItem = page.locator("#example-list").getByText("New-table", { exact: false });
-    await newGridItem.click();
-
-    const table = page.locator("#example-container #main-table.bloom-table");
+    const table = page.locator("#attempt-container #main-table.bloom-table");
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
-    const firstCellEditor = page.locator("#example-container .bloom-cell div[contenteditable]").first();
+    const firstCellEditor = page.locator("#attempt-container .bloom-cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     const tableSection = page
       .locator(".table-menu div")
-      .filter({ has: page.locator("h2", { hasText: "Table" }) })
+      .filter({ has: page.locator(':scope > h2:text-is("Table")') })
       .first();
 
     // Read button titles which encode the current value (e.g., "Style: solid", "Weight: 1")
@@ -45,25 +40,20 @@ test.describe("Borders changing - visual expectation", () => {
     expect(weightTitle?.toLowerCase()).not.toContain("mixed");
   });
   test("changing table style to dashed applies dashed borders (BUG)", async ({ page }) => {
-    await page.goto("/demo/index.html");
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
     await page.waitForSelector("#root");
-    await page.waitForSelector("#example-list");
 
-    // Select New-table
-    const newGridItem = page.locator("#example-list").getByText("New-table", { exact: false });
-    await newGridItem.click();
-
-    const table = page.locator("#example-container #main-table.bloom-table");
+    const table = page.locator("#attempt-container #main-table.bloom-table");
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // Focus a cell to activate menu
-    const firstCellEditor = page.locator("#example-container .bloom-cell div[contenteditable]").first();
+    const firstCellEditor = page.locator("#attempt-container .bloom-cell div[contenteditable]").first();
     await firstCellEditor.click();
 
     // In the Table section, set Style=Dashed and Weight=2
     const tableSection = page
       .locator(".table-menu div")
-      .filter({ has: page.locator("h2", { hasText: "Table" }) })
+      .filter({ has: page.locator(':scope > h2:text-is("Table")') })
       .first();
     await tableSection.locator('button[aria-label="Style"]').click();
     await tableSection.locator('div[role="menu"] [role="menuitemradio"][title="Dashed"]').click();
@@ -86,7 +76,7 @@ test.describe("Borders changing - visual expectation", () => {
     expect(modelHasDashed).toBe(true);
 
     // Expect both inner and outer edges to reflect the change since all edges are initially selected
-    const firstCell = page.locator("#example-container .bloom-cell").first();
+    const firstCell = page.locator("#attempt-container .bloom-cell").first();
     const computed = await firstCell.evaluate((el) => {
       const cs = getComputedStyle(el);
       return {

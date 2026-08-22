@@ -14,18 +14,40 @@ const BLANK_2x2 = `
     <div class="bloom-cell" data-content-type="text"><div contenteditable="true"></div></div>
   </div>`;
 
-const Harness: React.FC = () => (
-  <div>
-    {/* The editable table the interpreter builds into. Plain white, black text, natural width. */}
-    <div id="editor">
-      <MainContent id="attempt-container" content={BLANK_2x2} />
+// e2e specs can mount specific table markup instead of the blank table by naming a
+// fixture fragment: /demo/ui-harness.html?fixture=basic-table loads
+// /tests/e2e/fixtures/basic-table.html. The name is restricted to a bare word so the
+// harness can't be pointed at arbitrary URLs.
+const fixtureName = new URLSearchParams(window.location.search).get("fixture");
+
+const Harness: React.FC = () => {
+  const [content, setContent] = React.useState<string | null>(
+    fixtureName ? null : BLANK_2x2,
+  );
+  React.useEffect(() => {
+    if (!fixtureName) return;
+    if (!/^[\w-]+$/.test(fixtureName)) {
+      setContent(`<p>bad fixture name</p>`);
+      return;
+    }
+    fetch(`/tests/e2e/fixtures/${fixtureName}.html`)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then(setContent)
+      .catch((e) => setContent(`<p>fixture load failed: ${String(e)}</p>`));
+  }, []);
+  return (
+    <div>
+      {/* The editable table the interpreter builds into. Plain white, black text, natural width. */}
+      <div id="editor">
+        {content !== null && <MainContent id="attempt-container" content={content} />}
+      </div>
+      {/* The real toolbar; appears/targets whichever .cell has focus. */}
+      <div id="controls-panel">
+        <Toolbar />
+      </div>
     </div>
-    {/* The real toolbar; appears/targets whichever .cell has focus. */}
-    <div id="controls-panel">
-      <Toolbar />
-    </div>
-  </div>
-);
+  );
+};
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

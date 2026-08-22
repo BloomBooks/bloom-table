@@ -2,13 +2,9 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Cell BorderControl shows current perimeter state", () => {
   test("first cell shows 1px solid; second none; last solid", async ({ page }) => {
-    await page.goto("/demo/index.html");
+    await page.goto("/demo/ui-harness.html?fixture=table-borders");
     await page.waitForSelector("#root");
-    await page.waitForSelector("#example-list");
-
-    // Open Table-border example
-    await page.locator("#example-list").getByText("table-border", { exact: false }).click();
-    const table = page.locator("#example-container #table-with-red-cross.bloom-table");
+    const table = page.locator("#attempt-container #table-with-red-cross.bloom-table");
     await expect(table).toBeVisible();
 
     // Focus first cell (r1c1) and read Cell section menus
@@ -18,7 +14,7 @@ test.describe("Cell BorderControl shows current perimeter state", () => {
 
     const cellSection = page
       .locator(".table-menu div")
-      .filter({ has: page.locator("h2", { hasText: "Cell" }) })
+      .filter({ has: page.locator(':scope > h2:text-is("Cell")') })
       .first();
     const styleTitle1 = await cellSection
       .locator('button[aria-label="Style"]')

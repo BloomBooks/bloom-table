@@ -1,0 +1,53 @@
+<!-- e2e fixture: reduction of the yada-primer exercise. A nested 2x2 table whose
+     top-right cell ("Y y") has double top and right edges, next to a sibling
+     nested table with no borders at all. Edge data copied from
+     demo/exercises/yada-primer.html. Loaded via
+     /demo/ui-harness.html?fixture=double-border -->
+<div
+  id="main-table"
+  class="bloom-table"
+  data-column-widths="hug"
+  data-row-heights="hug,hug"
+  data-border-default='{"weight":0,"style":"none","color":"rgb(0, 0, 0)"}'
+>
+  <div class="bloom-cell" data-content-type="table">
+    <div
+      class="bloom-table"
+      data-column-widths="fill,fill"
+      data-row-heights="50px,50px"
+      data-border-default='{"weight":1,"style":"solid","color":"rgb(0, 0, 0)"}'
+      data-edges-h='[[{"weight":0,"style":"none","color":"rgb(0, 0, 0)"},{"weight":1,"style":"double","color":"rgb(0, 0, 0)"}],[{"weight":1,"style":"solid","color":"rgb(0, 0, 0)"},{"weight":1,"style":"double","color":"rgb(0, 0, 0)"}],[{"weight":0,"style":"none","color":"rgb(0, 0, 0)"},{"weight":0,"style":"none","color":"rgb(0, 0, 0)"}]]'
+      data-edges-v='[[{"weight":0,"style":"none","color":"rgb(0, 0, 0)"},{"weight":1,"style":"double","color":"rgb(0, 0, 0)"},{"weight":1,"style":"double","color":"rgb(0, 0, 0)"}],[{"weight":0,"style":"none","color":"rgb(0, 0, 0)"},{"weight":1,"style":"solid","color":"rgb(0, 0, 0)"},{"weight":0,"style":"none","color":"rgb(0, 0, 0)"}]]'
+    >
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">yada</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">Y y</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">r2c1</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">r2c2</div>
+      </div>
+    </div>
+  </div>
+  <div class="bloom-cell" data-content-type="table">
+    <div
+      class="bloom-table"
+      data-column-widths="fill,fill"
+      data-row-heights="50px"
+      data-border-default='{"weight":0,"style":"none","color":"rgb(0, 0, 0)"}'
+      data-edges-h='[[{},{}],[{},{}]]'
+      data-edges-v='[[{},{},{}]]'
+    >
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">plain 1</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">plain 2</div>
+      </div>
+    </div>
+  </div>
+</div>

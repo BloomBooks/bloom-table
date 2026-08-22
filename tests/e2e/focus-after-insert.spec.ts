@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // Helper to focus a specific cell by index (focuses its contenteditable child)
 async function focusCell(page, gridSelector: string, index: number) {
-  const cell = page.locator(`${gridSelector} .cell`).nth(index);
+  const cell = page.locator(`${gridSelector} .bloom-cell`).nth(index);
   const editable = cell.locator("[contenteditable]");
   await editable.click();
   await expect(editable).toBeFocused();
@@ -14,17 +14,15 @@ function nthCellIndex(row: number, col: number, cols: number) {
 
 test.describe("Focus after insert", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/demo/pages/new-table.html");
-    // Sanity: wait for the table
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
+    // The harness attaches table behavior itself; just wait for the table,
+    // then expose the controller class for the evaluate() calls below.
     await expect(page.locator("#main-table")).toBeVisible();
-    // Attach table behavior by injecting a module script (avoids TS resolving /src path)
     await page.addScriptTag({
       type: "module",
       content: `
-        import { attachTable, BloomTable } from '/src/index.tsx';
-        const table = document.querySelector('#main-table');
-        window.__BG = { attachTable, BloomTable };
-        attachTable(table);
+        import { BloomTable } from '/src/index.tsx';
+        window.__BG = { BloomTable };
       `,
     });
   });
@@ -50,7 +48,7 @@ test.describe("Focus after insert", () => {
 
     // Expect focus on row 1, col 1 (same column) in the newly inserted row
     const expectedIndex = nthCellIndex(1, 1, 2);
-    const expectedCell = page.locator(`${table} .cell`).nth(expectedIndex);
+    const expectedCell = page.locator(`${table} .bloom-cell`).nth(expectedIndex);
     await expect(expectedCell.locator("[contenteditable]")).toBeFocused();
   });
 
@@ -74,7 +72,7 @@ test.describe("Focus after insert", () => {
 
     // Now 3 columns; focused at row 1, new column index 1
     const expectedIndex = nthCellIndex(1, 1, 3);
-    const expectedCell = page.locator(`${table} .cell`).nth(expectedIndex);
+    const expectedCell = page.locator(`${table} .bloom-cell`).nth(expectedIndex);
     await expect(expectedCell.locator("[contenteditable]")).toBeFocused();
   });
 });

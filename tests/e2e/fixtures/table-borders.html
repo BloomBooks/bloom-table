@@ -1,0 +1,70 @@
+<!-- e2e fixture: three tables exercising authored border edges.
+     Loaded into the UI harness via /demo/ui-harness.html?fixture=table-borders -->
+<p>2x2 table, no external border; first and last cells have red borders.</p>
+<div style="height: 150px; width: 400px">
+  <div
+    id="table-with-red-cross"
+    class="bloom-table"
+    data-column-widths="fill,fill"
+    data-row-heights="fill,fill"
+    data-edges-h='[[{"weight":1,"style":"solid","color":"red"},{"style":"none"}],[{"weight":1,"style":"solid","color":"red"},{"weight":1,"style":"solid","color":"red"}],[{"style":"none"},{"weight":1,"style":"solid","color":"red"}]]'
+    data-edges-v='[[{"weight":1,"style":"solid","color":"red"},{"weight":1,"style":"solid","color":"red"},{"style":"none"}],[{"style":"none"},{"weight":1,"style":"solid","color":"red"},{"weight":1,"style":"solid","color":"red"}]]'
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r1c1 red border</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r1c2</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r2c1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r2c2 red border</div>
+    </div>
+  </div>
+</div>
+
+<p>2x2 table with only an external border.</p>
+<div style="height: 150px; width: 400px">
+  <div
+    id="table-with-external-border"
+    class="bloom-table"
+    data-column-widths="fill,fill"
+    data-row-heights="fill,fill"
+    data-edges-h='[[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}],[{"style":"none"},{"style":"none"}],[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}]]'
+    data-edges-v='[[{"weight":1,"style":"solid","color":"#000"},{"style":"none"},{"weight":1,"style":"solid","color":"#000"}],[{"weight":1,"style":"solid","color":"#000"},{"style":"none"},{"weight":1,"style":"solid","color":"#000"}]]'
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r1c1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r1c2</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r2c1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r2c2</div>
+    </div>
+  </div>
+</div>
+
+<p>1x2 table with a black border around it and a red border between the cells.</p>
+<div style="height: 100px; width: 400px">
+  <div
+    id="table-with-red-border"
+    class="bloom-table"
+    data-column-widths="fill,fill"
+    data-row-heights="fill"
+    data-edges-h='[[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}],[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"#000"}] ]'
+    data-edges-v='[[{"weight":1,"style":"solid","color":"#000"},{"weight":1,"style":"solid","color":"red"},{"weight":1,"style":"solid","color":"#000"}]]'
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r1c1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">r1c2</div>
+    </div>
+  </div>
+</div>

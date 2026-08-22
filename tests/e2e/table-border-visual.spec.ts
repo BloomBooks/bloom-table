@@ -1,16 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { attachTablesToPage } from "./utils/table-attachment";
 
 test.describe("Table Border Visual Validation", () => {
   test("validates border rendering in real browser", async ({ page }) => {
-    // Navigate to the table-border demo
-    await page.goto("/demo/tests/table-border.html");
+    // The UI harness loads the fixture and attaches table behavior itself.
+    await page.goto("/demo/ui-harness.html?fixture=table-borders");
 
-    // Wait for the page to load
+    // Wait for the fixture to mount
     await page.waitForSelector(".bloom-table");
-
-    // Manually attach grids since we removed script tags from HTML files
-    await attachTablesToPage(page);
 
     // Debug: Log the edge data for the first table
     const gridEdgeData = await page.evaluate(() => {
@@ -98,12 +94,16 @@ test.describe("Table Border Visual Validation", () => {
       };
     });
 
-    // In border-only mode, interior shared edges are owned by top/left cells.
-    // For bottom-right cell, expect bottom and right to be drawn (perimeter), top/left none.
-    expect(r2c2Styles.borderTopStyle).toBe("none");
-    expect(r2c2Styles.borderLeftStyle).toBe("none");
+    // On a tie, the renderer paints an interior stroke on the cell that has
+    // more of its other sides painted (so corner radii curve into borders on
+    // the same element). r2c2 has painted perimeter sides on bottom/right and
+    // painted interior edges on top/left, so it wins both interior strokes.
+    expect(r2c2Styles.borderTopStyle).toBe("solid");
+    expect(r2c2Styles.borderLeftStyle).toBe("solid");
     expect(r2c2Styles.borderRightStyle).toBe("solid");
     expect(r2c2Styles.borderBottomStyle).toBe("solid");
+    expect(r2c2Styles.borderTopColor).toMatch(redPattern);
+    expect(r2c2Styles.borderLeftColor).toMatch(redPattern);
 
     // Check r1c2 and r2c1 (should have no outlines)
     // No specific assertion for r1c2 now; depends on model of cross pattern
@@ -172,14 +172,11 @@ test.describe("Table Border Visual Validation", () => {
   });
 
   test("visual regression - table rendering", async ({ page }) => {
-    await page.goto("/demo/tests/table-border.html");
+    await page.goto("/demo/ui-harness.html?fixture=table-borders");
     await page.waitForSelector(".bloom-table");
 
-    // Manually attach grids since we removed script tags from HTML files
-    await attachTablesToPage(page);
-
-    // Take a screenshot for visual regression testing
-    await expect(page).toHaveScreenshot("table-border-grids.png", {
+    // Screenshot only the editor area so toolbar changes don't churn the snapshot
+    await expect(page.locator("#editor")).toHaveScreenshot("table-border-grids.png", {
       maxDiffPixelRatio: 0.03,
     });
   });

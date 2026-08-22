@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { attachTablesToPage } from "./utils/table-attachment";
 
 test.describe("Resize Rows and Columns", () => {
   test("row and column drag resize updates both data and UI", async ({ page }) => {
-    // Navigate to new-table demo
-    await page.goto("/demo/exercises/new-table.html");
+    // The UI harness loads the fixture and attaches table behavior itself.
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
     await page.waitForSelector(".bloom-table");
-    await attachTablesToPage(page);
 
     const table = page.locator("#main-table");
     await expect(table).toBeVisible();
@@ -35,14 +33,10 @@ test.describe("Resize Rows and Columns", () => {
   });
 
   test("updates row height and UI during drag operations", async ({ page }) => {
-    // Navigate to new-table demo
-    await page.goto("/demo/exercises/new-table.html");
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
 
-    // Wait for the page to load
+    // Wait for the fixture to mount
     await page.waitForSelector(".bloom-table");
-
-    // Manually attach grids since we removed script tags from HTML files
-    await attachTablesToPage(page);
 
     const table = page.locator("#main-table");
     await expect(table).toBeVisible();
@@ -223,12 +217,10 @@ test.describe("Resize Rows and Columns", () => {
   });
 
   test("verify fix works in live demo", async ({ page }) => {
-    // Navigate to the main demo which has the dev server running
-    await page.goto("/demo/index.html");
+    // The harness mounts a blank 2x2 table with real attach behavior
+    await page.goto("/demo/ui-harness.html");
     await page.waitForSelector("#root");
-
-    // Wait for the demo to load
-    await page.waitForTimeout(1000);
+    await page.waitForSelector(".bloom-table");
 
     // Look for a table in the demo
     const table = page.locator(".bloom-table").first();
@@ -316,10 +308,8 @@ test.describe("Resize Rows and Columns", () => {
 
   // for now we don't support undoing resize operations
   test.skip("reverts row height on undo", async ({ page }) => {
-    // Navigate to new-table demo
-    await page.goto("/demo/exercises/new-table.html");
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
     await page.waitForSelector(".bloom-table");
-    await attachTablesToPage(page);
 
     const table = page.locator("#main-table");
 
@@ -362,7 +352,7 @@ test.describe("Resize Rows and Columns", () => {
   });
 
   test("documents the drag resize fix implementation", async ({ page }) => {
-    await page.goto("/demo/exercises/new-table.html");
+    await page.goto("/demo/ui-harness.html");
 
     const documentation = await page.evaluate(() => {
       return {

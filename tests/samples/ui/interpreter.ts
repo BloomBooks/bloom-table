@@ -4,6 +4,9 @@ import type { BorderStyle, BorderWeight, Command, OuterSide } from "./dsl";
 const SELECTED_FILL = "#2b6e77"; // kBloomBlue — a selected edge in the BorderSelector SVG
 const OUTER: OuterSide[] = ["top", "right", "bottom", "left"];
 
+/** "18px" -> "18": the slider inputs want a bare number. */
+const stripUnit = (value: string): string => String(parseFloat(value));
+
 const STYLE_LABEL: Record<BorderStyle, string> = {
   none: "None",
   solid: "Solid",
@@ -76,9 +79,11 @@ export class UiInterpreter {
   }
 
   private section(name: string): Locator {
+    // Match the section div by its DIRECT child h2, else a wrapper div that
+    // contains several sections matches too and locators turn ambiguous.
     return this.page
       .locator(".table-menu div")
-      .filter({ has: this.page.locator("h2", { hasText: name }) })
+      .filter({ has: this.page.locator(`:scope > h2:text-is("${name}")`) })
       .first();
   }
 
@@ -95,6 +100,41 @@ export class UiInterpreter {
 
   private async fillInput(section: Locator, ariaLabel: string, value: string): Promise<void> {
     await section.locator(`input[aria-label="${ariaLabel}"]`).first().fill(value);
+    await this.page.waitForTimeout(40);
+  }
+
+  /** The numeric size controls were removed from the menu (users drag the divider between
+   *  rows/columns instead), and a mouse drag can't hit an exact px value. So a fixed size is
+   *  applied through the same API call the removed slider made: setColumnWidth / setRowHeight. */
+  private async setFixedSize(kind: "column" | "row", index: number, value: string): Promise<void> {
+    await this.curTable().evaluate(
+      async (table, arg) => {
+        const mod = await import("/src/index.tsx");
+        const controller = new mod.BloomTable(table as HTMLElement);
+        if (arg.kind === "column") controller.setColumnWidth(arg.index, arg.value);
+        else controller.setRowHeight(arg.index, arg.value);
+      },
+      { kind, index, value },
+    );
+    await this.page.waitForTimeout(40);
+  }
+
+  /** The Padding control is a single-number slider, so an asymmetric value like "6px 16px"
+   *  (sample 95 uses one) cannot be entered through the UI at all. So padding goes through
+   *  the same API call the slider makes: setCellPadding, then render. */
+  private async setPad(r: number, c: number, value: string): Promise<void> {
+    const cols = await this.colCount();
+    await this.curTable().evaluate(
+      async (table, arg) => {
+        const mod = await import("/src/index.tsx");
+        const cells = Array.from((table as HTMLElement).children).filter((el) =>
+          el.classList.contains("bloom-cell"),
+        ) as HTMLElement[];
+        mod.defaultTableApi.setCellPadding(cells[arg.index], arg.value);
+        mod.defaultTableApi.render(table as HTMLElement);
+      },
+      { index: r * cols + c, value },
+    );
     await this.page.waitForTimeout(40);
   }
 
@@ -182,10 +222,9 @@ export class UiInterpreter {
 
       case "align": {
         await this.focusCell(cmd.r, cmd.c);
+        // The alignment tiles are radio tiles (role="radio"), not plain buttons
         const label = cmd.align === "start" ? "Left" : cmd.align === "end" ? "Right" : "Center";
-        return void (await this.section("Cell")
-          .getByRole("button", { name: label, exact: true })
-          .click());
+        return this.clickRadio(this.section("Cell"), label);
       }
 
       case "columnSize":
@@ -196,20 +235,20 @@ export class UiInterpreter {
         return this.clickRadio(this.section("Row"), cmd.mode === "grow" ? "Grow" : "Hug");
       case "columnSizeFixed":
         await this.focusCell(0, cmd.c);
-        return this.fillInput(this.section("Column"), "Column width", cmd.value);
+        return this.setFixedSize("column", cmd.c, cmd.value);
       case "rowSizeFixed":
         await this.focusCell(cmd.r, 0);
-        return this.fillInput(this.section("Row"), "Row height", cmd.value);
+        return this.setFixedSize("row", cmd.r, cmd.value);
 
       case "gapX":
         await this.ensureFocus();
-        return this.fillInput(this.section("Table"), "Gap X", cmd.value);
+        return this.fillInput(this.section("Table"), "Gap X", stripUnit(cmd.value));
       case "gapY":
         await this.ensureFocus();
-        return this.fillInput(this.section("Table"), "Gap Y", cmd.value);
+        return this.fillInput(this.section("Table"), "Gap Y", stripUnit(cmd.value));
       case "pad":
         await this.focusCell(cmd.r, cmd.c);
-        return this.fillInput(this.section("Cell"), "Cell padding", cmd.value);
+        return this.setPad(cmd.r, cmd.c, cmd.value);
 
       case "tableCorners":
         await this.ensureFocus();
