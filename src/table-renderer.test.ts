@@ -17,6 +17,34 @@ function addCell(table: HTMLElement, spanX = 1, spanY = 1): HTMLElement {
 }
 
 describe("table-renderer", () => {
+  it("gives a top-level table the standard track minimums", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "fill,fill");
+    table.setAttribute("data-row-heights", "fill");
+    addCell(table);
+    addCell(table);
+    const model = buildRenderModel(table);
+    expect(model.templateColumns).toBe("minmax(60px,1fr) minmax(60px,1fr)");
+    expect(model.templateRows).toBe("minmax(20px,1fr)");
+  });
+
+  it("gives a nested table zero track minimums so it can never outgrow its host cell", () => {
+    // N fill tracks with a 60px floor need N*60px; once that exceeds the host
+    // cell, the over-constrained absolute box shifts left and the first columns
+    // vanish outside the cell (the cell clips with overflow:hidden).
+    const host = document.createElement("div");
+    host.className = "bloom-cell";
+    host.setAttribute("data-content-type", "table");
+    const table = makeTable();
+    host.appendChild(table);
+    table.setAttribute("data-column-widths", "fill,fill,fill");
+    table.setAttribute("data-row-heights", "fill,fill");
+    for (let i = 0; i < 6; i++) addCell(table);
+    const model = buildRenderModel(table);
+    expect(model.templateColumns).toBe("minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)");
+    expect(model.templateRows).toBe("minmax(0,1fr) minmax(0,1fr)");
+  });
+
   it("applies data-gap-x / data-gap-y as visual grid gaps", () => {
     const table = makeTable();
     table.setAttribute("data-column-widths", "50px,50px");

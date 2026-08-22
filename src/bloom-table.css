@@ -65,7 +65,11 @@
 .bloom-cell[data-content-type="video"],
 .bloom-cell[data-content-type="table"] {
   position: relative;
-  overflow: hidden;
+  /* clip, not hidden: a hidden box is still a scroll container, and focusing a
+     cell of a nested table (e.g. the new cell after an add) scrolls it into
+     view. The stuck scrollTop then shifts the whole nested table out of
+     alignment with the host cell's borders. clip forbids all scrolling. */
+  overflow: clip;
 }
 .bloom-cell[data-content-type="image"] > img,
 .bloom-cell[data-content-type="video"] > video,

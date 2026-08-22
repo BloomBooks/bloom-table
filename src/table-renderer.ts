@@ -148,8 +148,17 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   const columnWidths = getColumnWidths(table);
   const rowHeights = getRowHeights(table);
 
-  const templateColumns = columnWidths.map((x) => makeSizeRule(x, MIN_COLUMN_WIDTH)).join(" ");
-  const templateRows = rowHeights.map((x) => makeSizeRule(x, MIN_ROW_HEIGHT)).join(" ");
+  // A nested table must never be wider or taller than its host cell: the cell
+  // owns the space (bloom-table.css pins the table to the cell with inset:0 and
+  // overflow:hidden). The top-level minimums would give N tracks a floor of
+  // N*60px, and once that exceeds the host cell the over-constrained absolute
+  // box shifts left and the first columns vanish outside the cell. So nested
+  // tracks get a zero minimum and genuinely share whatever the cell has.
+  const nestedSizing = isNestedTable(table);
+  const minColumn = nestedSizing ? "0" : MIN_COLUMN_WIDTH;
+  const minRow = nestedSizing ? "0" : MIN_ROW_HEIGHT;
+  const templateColumns = columnWidths.map((x) => makeSizeRule(x, minColumn)).join(" ");
+  const templateRows = rowHeights.map((x) => makeSizeRule(x, minRow)).join(" ");
 
   const cells = getCells(table);
   const spans = cells.map((cell, index) => {
