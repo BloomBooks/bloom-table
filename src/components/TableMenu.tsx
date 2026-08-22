@@ -8,6 +8,13 @@ import { TableApi, TableApiContext, defaultTableApi } from "./TableApiContext";
 import { nextSplitSpan } from "./spanCommands";
 import { ColorPickerComponent, ColorPickerContext, DefaultColorPicker } from "./ColorPickerContext";
 
+// Room left between the bottom of the panel and the bottom of the window, so the
+// panel's shadow and border are not flush against the edge.
+const kPanelViewportGap = 8;
+// A window too short even for this much panel is better scrolled by the host
+// than shrunk to a few unusable rows.
+const kPanelMinHeight = 120;
+
 const TableMenu: React.FC<{
   currentCell: HTMLElement | null | undefined;
   // Host-supplied operations object. When the panel runs in a different realm
@@ -256,14 +263,57 @@ const TableMenu: React.FC<{
     (el as HTMLDivElement & { inert?: boolean }).inert = !hasContext;
   }, [hasContext]);
 
+  // The panel is taller than a short window, so bound it against the viewport
+  // from wherever the host placed it and let its content scroll inside. A plain
+  // max-height in vh units is not enough: it ignores how far down the viewport
+  // the panel starts, so the bottom of a panel placed below other content stays
+  // out of reach. The measured height is written straight to the style, not held
+  // in state, so a resize costs no render; a change under a pixel is ignored
+  // because shrinking the panel can shorten the page, which nudges the panel's
+  // own top and would otherwise feed itself.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      const room = window.innerHeight - el.getBoundingClientRect().top - kPanelViewportGap;
+      const next = `${Math.max(kPanelMinHeight, Math.round(room))}px`;
+      if (el.style.maxHeight !== next) el.style.maxHeight = next;
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+    apply();
+    window.addEventListener("resize", schedule);
+    // Capture: a scroll inside any ancestor moves the panel too, and scroll
+    // events from a container do not reach window by bubbling.
+    window.addEventListener("scroll", schedule, true);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+    };
+  }, []);
+
   return (
     <TableApiContext.Provider value={api}>
       <ColorPickerContext.Provider value={ColorPicker}>
         <div
+          ref={panelRef}
           className="table-menu border border-gray-300 rounded-md shadow-lg w-64 z-10 p-2.5"
           style={{
             backgroundColor: "#2E2E2E",
             color: "rgba(255,255,255,0.95)",
+            // Bounded before the effect above measures the real room, so a first
+            // paint in a short window is never taller than the window.
+            maxHeight: "100dvh",
+            overflowY: "auto",
+            // Declaring one axis makes the other compute to auto, which would put
+            // a horizontal scrollbar under every panel; the control rows wrap, so
+            // nothing needs to scroll sideways.
+            overflowX: "hidden",
           }}
         >
           {!hasContext && (

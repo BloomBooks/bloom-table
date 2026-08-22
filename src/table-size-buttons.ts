@@ -1120,6 +1120,16 @@ function openMenu(
     fontSize: "13px",
     fontFamily: "system-ui, sans-serif",
     userSelect: "none",
+    // A menu taller than the window scrolls inside itself. Without this the
+    // position clamp below can only pin the top edge to the window, and the
+    // bottom items hang below the fold, unreachable. maxHeight is set per-open
+    // in positionMenuAtPoint from the live window height. Declaring one
+    // overflow axis makes the other compute to auto, so pin x to hidden.
+    overflowY: "auto",
+    overflowX: "hidden",
+    // The maxHeight cap must bound the whole box; with the default content-box
+    // the padding and border land on top of the cap and overshoot the window.
+    boxSizing: "border-box",
   } as CSSStyleDeclaration);
 
   sections.forEach((name, i) => {
@@ -1145,6 +1155,9 @@ function positionMenuAtPill(popup: HTMLDivElement, pill: HTMLButtonElement, kind
 }
 
 function positionMenuAtPoint(popup: HTMLDivElement, x: number, y: number): void {
+  // Bound the popup before measuring: the height cap changes offsetHeight,
+  // and the clamp below must see the capped height.
+  popup.style.maxHeight = `${Math.max(120, window.innerHeight - 8)}px`;
   const pw = popup.offsetWidth || 200;
   const ph = popup.offsetHeight || 0;
   const left = Math.max(4, Math.min(x, window.innerWidth - pw - 4));

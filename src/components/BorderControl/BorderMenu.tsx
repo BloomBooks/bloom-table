@@ -35,13 +35,23 @@ export const BorderMenu = <T,>(props: {
     if (!btn || !pop) return;
     const b = btn.getBoundingClientRect();
     const popWidth = pop.offsetWidth;
+    const popHeight = pop.offsetHeight;
     const margin = 8;
     // Prefer right-aligning the popup with the button, then clamp into view.
     let left = b.right - popWidth;
     const maxLeft = window.innerWidth - popWidth - margin;
     if (left > maxLeft) left = maxLeft;
     if (left < margin) left = margin;
-    setPos({ top: b.bottom + 4, left });
+    // Below the button by default. A short window can leave no room there — the
+    // panel now bounds itself against the viewport, so a button near its bottom
+    // edge sits close to the bottom of the window — so flip above the button, and
+    // clamp when neither side has room.
+    let top = b.bottom + 4;
+    if (top + popHeight > window.innerHeight - margin) {
+      const above = b.top - 4 - popHeight;
+      top = above >= margin ? above : Math.max(margin, window.innerHeight - popHeight - margin);
+    }
+    setPos({ top, left });
   }, [open]);
 
   useEffect(() => {
