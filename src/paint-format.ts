@@ -11,6 +11,7 @@ import {
   type CopiedCellProperties,
 } from "./formatting-commands";
 import { kPaintRollerPath } from "./menu-icons";
+import { setPaintFormatExiter } from "./prepare-for-save";
 
 let paintMode: {
   scope: "cell" | "row" | "column";
@@ -34,12 +35,15 @@ export function setPaintFormatOverlayHider(fn: () => void): void {
 // Roller cursor while the mode is active. Cells carry inline cursor styles,
 // so the rule needs !important to win; the badge opts back out to a pointer.
 const kPaintCursorUrl = `url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24'><path d='${kPaintRollerPath}' fill='%23222' stroke='%23fff' stroke-width='0.75'/></svg>") 4 4, copy`;
-let paintStyleInstalled = false;
+const kPaintStyleTag = "paint-format-style";
 function ensurePaintFormatStyle(): void {
-  if (paintStyleInstalled) return;
-  paintStyleInstalled = true;
+  // Test for the element itself rather than remembering that we installed it:
+  // the <style> is tagged data-table-overlay, so prepare-for-save removes it,
+  // and a remembered flag would then stop the cursor rules coming back when
+  // the user re-enters the mode.
+  if (document.head.querySelector(`style[data-table-overlay="${kPaintStyleTag}"]`)) return;
   const style = document.createElement("style");
-  style.setAttribute("data-table-overlay", "paint-format-style");
+  style.setAttribute("data-table-overlay", kPaintStyleTag);
   style.textContent = `
     body.bloom-paint-format, body.bloom-paint-format * { cursor: ${kPaintCursorUrl} !important; }
     body.bloom-paint-format .bloom-paint-format-badge, body.bloom-paint-format .bloom-paint-format-badge * { cursor: pointer !important; }
@@ -111,6 +115,11 @@ function onPaintPointerDown(e: Event): void {
   e.preventDefault();
   e.stopPropagation();
   if (e.type !== "pointerdown") return;
+  // Only the primary button paints, matching the rule the cell selection
+  // handler uses. A right or middle button press is still swallowed above, so
+  // paint mode keeps control of the cell, but it must not stamp the pattern.
+  const button = (e as MouseEvent).button;
+  if (typeof button === "number" && button !== 0) return;
   const targets =
     paintMode.scope === "cell" ? [cell] : getCellsInScope(table, paintMode.scope, cell);
   paintProperties(table, targets, paintMode.pattern);
@@ -162,3 +171,8 @@ export function exitPaintFormatMode(): void {
   window.removeEventListener("scroll", positionPaintBadge, true);
   window.removeEventListener("resize", positionPaintBadge);
 }
+
+// Saving strips this mode's badge, cursor <style> and body class, so the mode
+// itself has to go with them; prepare-for-save calls this without importing
+// this module (see setPaintFormatExiter).
+setPaintFormatExiter(exitPaintFormatMode);

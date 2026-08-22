@@ -9,17 +9,38 @@ export interface HistoryEntry {
   label: string;
   table?: HTMLElement; // The top-level table this entry applies to
   undoOperation?: (table: HTMLElement, prevState: TableState) => void;
+  // Populated only while the entry sits on the redo stack: the table's full
+  // state at the moment undo ran, which is what redo restores. Captured at
+  // undo time (not entry-creation time) so redo also brings back mutations
+  // that never entered history (typing) and works for entries whose
+  // performOperation was a no-op (drag-to-resize applies during the preview).
+  redoState?: TableState;
+}
+
+// Restoring a snapshot rewrites the table's innerHTML, so every NESTED table it
+// contains comes back as fresh elements nobody ever attached: they render but
+// cannot be edited. The fix is to attach them again after each restore, and
+// attachTable lives in attach.ts — which imports this module, so importing it
+// back would close a cycle. attach.ts registers its re-attacher at load time
+// instead, the same indirection paint-format uses (setPaintFormatExiter).
+let restoreReattacher: (table: HTMLElement) => void = () => {};
+export function setRestoreReattacher(fn: (table: HTMLElement) => void): void {
+  restoreReattacher = fn;
 }
 
 class TableHistoryManager {
   private history: HistoryEntry[] = [];
-  private maxHistorySize: number = 50;
+  private redoStack: HistoryEntry[] = [];
+  // Cap is per table, not global: one busy table must not evict another
+  // table's entries.
+  private maxEntriesPerTable: number = 50;
   private attachedTables = new Set<HTMLElement>();
   private operationInProgress = false; // Prevents nested or concurrent operations
 
   // For testing purposes only
   reset(): void {
     this.history = [];
+    this.redoStack = [];
     this.attachedTables = new Set();
     this.operationInProgress = false;
   }
@@ -28,6 +49,15 @@ class TableHistoryManager {
   // labels and timing only, not the captured states.
   getEntriesForDebug(): { label: string; timestamp: number; tableInDom: boolean }[] {
     return this.history.map((e) => ({
+      label: e.label,
+      timestamp: e.timestamp,
+      tableInDom: !!e.table && document.body.contains(e.table),
+    }));
+  }
+
+  // Same view over the redo stack.
+  getRedoEntriesForDebug(): { label: string; timestamp: number; tableInDom: boolean }[] {
+    return this.redoStack.map((e) => ({
       label: e.label,
       timestamp: e.timestamp,
       tableInDom: !!e.table && document.body.contains(e.table),
@@ -97,9 +127,19 @@ class TableHistoryManager {
         undoOperation: undoOperation || ((table, state) => this.defaultUndoOperation(table, state)),
       };
       this.history.push(entry);
-      if (this.history.length > this.maxHistorySize) {
-        this.history.shift();
+      // Evict the oldest entry belonging to THIS table when over its cap. (A
+      // global shift here could evict another table's oldest entry just
+      // because this table was busy.)
+      let countForTable = this.history.filter((e) => e.table === topLevelTable).length;
+      while (countForTable > this.maxEntriesPerTable) {
+        const oldest = this.history.findIndex((e) => e.table === topLevelTable);
+        this.history.splice(oldest, 1);
+        countForTable--;
       }
+      // A new operation invalidates redo for this table only. Operations on
+      // one table cannot change another table's state (per-table ownership),
+      // so other tables' redo entries stay valid and remain.
+      this.redoStack = this.redoStack.filter((e) => e.table !== topLevelTable);
     } catch (error) {
       console.error("TableHistoryManager: Error during operation execution:", error);
       // The operation may have mutated the table before it threw. We captured
@@ -117,7 +157,7 @@ class TableHistoryManager {
       this.operationInProgress = false;
       if (operationSuccess) {
         const event = new CustomEvent("tableHistoryUpdated", {
-          detail: { operation: description, canUndo: this.canUndo() },
+          detail: { operation: description, canUndo: this.canUndo(), canRedo: this.canRedo() },
         });
         document.dispatchEvent(event);
       }
@@ -161,15 +201,24 @@ class TableHistoryManager {
     this.operationInProgress = true;
     let undoSuccess = false;
     try {
+      // Capture the table's CURRENT state before undoing, so redo can return
+      // the user to exactly the state this undo destroys — including mutations
+      // that never entered history (typing) and changes an entry's no-op
+      // performOperation didn't make (drag-to-resize applies during the
+      // preview). See HistoryEntry.redoState.
+      entry.redoState = this.captureTableState(entry.table ?? topLevelTable);
       const undoOp =
         entry.undoOperation || ((table, state) => this.defaultUndoOperation(table, state));
       // Apply to the table the snapshot came from (checked above to be the
       // caller's top-level table).
       undoOp(entry.table ?? topLevelTable, entry.state);
+      this.reattachRestoredTables(entry.table ?? topLevelTable);
       undoSuccess = true;
+      this.redoStack.push(entry);
     } catch (error) {
       console.error("TableHistoryManager: Error during undo operation:", error);
       // Put the entry back since the undo failed
+      entry.redoState = undefined;
       this.history.push(entry);
     } finally {
       this.operationInProgress = false;
@@ -178,11 +227,88 @@ class TableHistoryManager {
           operation: `Undo ${entry.label}`,
           undoSuccess: undoSuccess,
           canUndo: this.canUndo(),
+          canRedo: this.canRedo(),
         },
       });
       document.dispatchEvent(event);
     }
     return undoSuccess;
+  }
+
+  // Reapply the most recently undone operation on `table`. Restores the full
+  // snapshot captured when undo ran (entry.redoState) via the default
+  // attribute+innerHTML restore: custom undoOperation functions (the selective
+  // restores in drag-to-resize) are undo-only, and the full-state restore is
+  // correct here because redoState is a complete snapshot taken from the very
+  // table it is restored to.
+  //
+  // As with undo, the restore rebuilds any NESTED table as fresh elements, so
+  // reattachRestoredTables gives them their behavior back afterwards. The old
+  // elements stay pinned in the attached-table sets.
+  redo(table: HTMLElement): boolean {
+    if (!this.canRedo()) {
+      console.warn(
+        "TableHistoryManager: Cannot redo. Either the redo stack is empty or an operation is in progress.",
+      );
+      return false;
+    }
+
+    const topLevelTable = this.findTopLevelTable(table);
+    if (!topLevelTable || !this.isAttached(topLevelTable)) {
+      console.warn("TableHistoryManager: Cannot redo. Top-level table not found or not attached.");
+      return false;
+    }
+
+    // Same ownership rule as undo: the newest redo entry may belong to a
+    // different table than the caller's; refuse, leaving the entry in place.
+    const newestEntry = this.redoStack[this.redoStack.length - 1];
+    if (newestEntry.table && newestEntry.table !== topLevelTable) {
+      console.warn(
+        "TableHistoryManager: Cannot redo. The most recent undone operation belongs to a different table.",
+      );
+      return false;
+    }
+
+    const entry = this.redoStack.pop();
+    if (!entry) {
+      console.warn("TableHistoryManager: Redo stack is empty, cannot redo.");
+      return false;
+    }
+    if (!entry.redoState) {
+      // Defensive: every entry gets a redoState when undo moves it here.
+      console.warn(
+        `TableHistoryManager: Dropping redo entry "${entry.label}" because it has no captured state.`,
+      );
+      return false;
+    }
+
+    this.operationInProgress = true;
+    let redoSuccess = false;
+    try {
+      this.defaultUndoOperation(entry.table ?? topLevelTable, entry.redoState);
+      this.reattachRestoredTables(entry.table ?? topLevelTable);
+      redoSuccess = true;
+      // The redo was the most recent mutation, so the entry becomes the newest
+      // history entry again. Drop the snapshot so it can never be reused stale.
+      entry.redoState = undefined;
+      this.history.push(entry);
+    } catch (error) {
+      console.error("TableHistoryManager: Error during redo operation:", error);
+      // Put the entry back since the redo failed
+      this.redoStack.push(entry);
+    } finally {
+      this.operationInProgress = false;
+      const event = new CustomEvent("tableHistoryUpdated", {
+        detail: {
+          operation: `Redo ${entry.label}`,
+          redoSuccess: redoSuccess,
+          canUndo: this.canUndo(),
+          canRedo: this.canRedo(),
+        },
+      });
+      document.dispatchEvent(event);
+    }
+    return redoSuccess;
   }
 
   // Undo the most recent operation without the caller needing to hold a table
@@ -207,6 +333,24 @@ class TableHistoryManager {
     return false;
   }
 
+  // Redo the most recently undone operation without the caller needing to hold
+  // a table reference; mirrors undoLast(). With eager pruning on detach, the
+  // dropping below is a backstop for entries whose table was never recorded.
+  redoLast(): boolean {
+    if (!this.canRedo()) return false;
+    while (this.redoStack.length > 0) {
+      const entry = this.redoStack[this.redoStack.length - 1];
+      if (entry.table && this.isAttached(entry.table)) {
+        return this.redo(entry.table);
+      }
+      console.warn(
+        `TableHistoryManager: Dropping redo entry "${entry.label}" because its table is no longer attached.`,
+      );
+      this.redoStack.pop();
+    }
+    return false;
+  }
+
   attachTable(table: HTMLElement): void {
     this.attachedTables.add(table);
     //console.info("TableHistoryManager: Table attached.");
@@ -214,15 +358,49 @@ class TableHistoryManager {
 
   detachTable(table: HTMLElement): void {
     this.attachedTables.delete(table);
-    //console.info("TableHistoryManager: Table detached.");
+    // Eagerly prune the detached table's entries from both stacks, so
+    // canUndo()/canRedo() stay truthful the moment the table leaves (no lazy
+    // discovery in undoLast). Entries are always keyed to the TOP-LEVEL table,
+    // so detaching a nested table removes nothing belonging to its outer table.
+    const before = this.history.length + this.redoStack.length;
+    this.history = this.history.filter((e) => e.table !== table);
+    this.redoStack = this.redoStack.filter((e) => e.table !== table);
+    if (this.history.length + this.redoStack.length < before) {
+      const event = new CustomEvent("tableHistoryUpdated", {
+        detail: { operation: "Detach Table", canUndo: this.canUndo(), canRedo: this.canRedo() },
+      });
+      document.dispatchEvent(event);
+    }
   }
 
   isAttached(table: HTMLElement): boolean {
     return this.attachedTables.has(table);
   }
 
-  canUndo(): boolean {
-    return this.history.length > 0 && !this.operationInProgress;
+  // With no argument: is there anything on the stack at all (legacy meaning).
+  // With a table: would undo(table) actually do something — the newest entry
+  // must belong to this table's top-level table and that table must be
+  // attached. Without this, a menu shows Undo enabled while the newest entry
+  // belongs to another table and the click silently no-ops.
+  canUndo(table?: HTMLElement): boolean {
+    if (!table) {
+      return this.history.length > 0 && !this.operationInProgress;
+    }
+    const e = this.history[this.history.length - 1];
+    const top = this.findTopLevelTable(table);
+    // The !e.table branch keeps legacy entries (no table recorded) undoable
+    // from anywhere, matching undo()'s behavior for such entries.
+    return !!e && !this.operationInProgress && this.isAttached(top) && (!e.table || e.table === top);
+  }
+
+  // Same shape as canUndo, over the redo stack.
+  canRedo(table?: HTMLElement): boolean {
+    if (!table) {
+      return this.redoStack.length > 0 && !this.operationInProgress;
+    }
+    const e = this.redoStack[this.redoStack.length - 1];
+    const top = this.findTopLevelTable(table);
+    return !!e && !this.operationInProgress && this.isAttached(top) && (!e.table || e.table === top);
   }
 
   getLastOperationLabel(): string | null {
@@ -232,12 +410,21 @@ class TableHistoryManager {
     return this.history[this.history.length - 1].label;
   }
 
+  // Label of the operation redo() would reapply, for tooltips.
+  getNextRedoLabel(): string | null {
+    if (this.redoStack.length === 0) {
+      return null;
+    }
+    return this.redoStack[this.redoStack.length - 1].label;
+  }
+
   clearHistory(): void {
     this.history = [];
+    this.redoStack = [];
     //    console.info("TableHistoryManager: History cleared.");
     // Dispatch a custom event to notify that history has been cleared
     const event = new CustomEvent("tableHistoryUpdated", {
-      detail: { operation: "Clear History" },
+      detail: { operation: "Clear History", canUndo: false, canRedo: false },
     });
     document.dispatchEvent(event);
   }
@@ -265,6 +452,17 @@ class TableHistoryManager {
 
     // Finally, restore the innerHTML
     table.innerHTML = prevState.innerHTML;
+  }
+
+  // Give the tables inside a just-restored snapshot their behavior back. The
+  // restore writes attributes and innerHTML on the SAME outer element, so that
+  // element keeps its listeners; only the nested tables are new. attachTable is
+  // idempotent, so a nested table a custom undoOperation left untouched is not
+  // disturbed, and attaching renders each one.
+  private reattachRestoredTables(table: HTMLElement): void {
+    table
+      .querySelectorAll<HTMLElement>(".bloom-table")
+      .forEach((nested) => restoreReattacher(nested));
   }
 
   private findTopLevelTable(table: HTMLElement): HTMLElement {

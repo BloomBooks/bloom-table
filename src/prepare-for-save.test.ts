@@ -11,7 +11,7 @@ import {
 describe("removeTableEditingArtifacts", () => {
   beforeEach(() => {
     exitPaintFormatMode();
-    tableHistoryManager.reset?.();
+    tableHistoryManager.reset();
     document.body.innerHTML = "";
     document.body.className = "";
     resetTableSizeButtons();

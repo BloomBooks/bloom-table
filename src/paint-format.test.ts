@@ -8,6 +8,7 @@ import {
   isPaintFormatModeActive,
 } from "./table-size-buttons";
 import { paintProperties, snapshotCellProperties } from "./formatting-commands";
+import { removeTableEditingArtifacts } from "./prepare-for-save";
 import { getCellBackground, setCellBackground } from "./table-model";
 import { render } from "./table-renderer";
 
@@ -27,8 +28,8 @@ function makeTable(): { table: HTMLElement; cells: HTMLElement[] } {
   return { table, cells };
 }
 
-const pointerDown = (el: HTMLElement) =>
-  el.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true }));
+const pointerDown = (el: HTMLElement, button = 0) =>
+  el.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button }));
 
 beforeEach(() => {
   exitPaintFormatMode();
@@ -92,6 +93,62 @@ describe("paint format mode", () => {
     const badge = document.querySelector(".bloom-paint-format-badge") as HTMLElement;
     badge.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(isPaintFormatModeActive()).toBe(false);
+  });
+
+  it("only the primary button paints: a right or middle press stamps nothing", () => {
+    const { table, cells } = makeTable();
+    setCellBackground(cells[0], "red");
+    render(table);
+    enterPaintFormatMode(table, "cell", [cells[0]]);
+
+    pointerDown(cells[3], 2); // right button
+    expect(getCellBackground(cells[3])).toBe(null);
+    pointerDown(cells[3], 1); // middle button
+    expect(getCellBackground(cells[3])).toBe(null);
+    // The mode is still on, and the primary button still paints.
+    expect(isPaintFormatModeActive()).toBe(true);
+    pointerDown(cells[3]);
+    expect(getCellBackground(cells[3])).toBe("red");
+  });
+
+  it("a right-click does not open the Cell menu while the mode is active", () => {
+    const { table, cells } = makeTable();
+    enterPaintFormatMode(table, "cell", [cells[0]]);
+
+    cells[3].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+
+    expect(document.querySelector("[data-btable-menu]")).toBe(null);
+    expect(isPaintFormatModeActive()).toBe(true);
+  });
+
+  it("re-installs the cursor <style> after prepare-for-save removed it", () => {
+    const { table, cells } = makeTable();
+    enterPaintFormatMode(table, "cell", [cells[0]]);
+    const selector = 'style[data-table-overlay="paint-format-style"]';
+    expect(document.head.querySelector(selector)).not.toBe(null);
+
+    // The host saves: the style is a tagged overlay, so it goes.
+    removeTableEditingArtifacts(document);
+    expect(document.head.querySelector(selector)).toBe(null);
+
+    enterPaintFormatMode(table, "cell", [cells[0]]);
+    expect(document.head.querySelector(selector)).not.toBe(null);
+  });
+
+  it("prepare-for-save exits the mode instead of leaving it armed and invisible", () => {
+    const { table, cells } = makeTable();
+    setCellBackground(cells[0], "red");
+    render(table);
+    enterPaintFormatMode(table, "cell", [cells[0]]);
+
+    removeTableEditingArtifacts(document);
+
+    expect(isPaintFormatModeActive()).toBe(false);
+    // A later click is an ordinary click again: nothing is stamped, and the
+    // event is not swallowed.
+    const clicked = pointerDown(cells[3]);
+    expect(getCellBackground(cells[3])).toBe(null);
+    expect(clicked).toBe(true); // not preventDefault()ed
   });
 
   it("a pattern cycles across a longer target and truncates across a shorter one", () => {

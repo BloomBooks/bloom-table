@@ -7,6 +7,8 @@ import {
   getCellCorners,
   getGapX,
   getGapY,
+  getColumnWidths,
+  getRowHeights,
   type BorderSpec,
 } from "./table-model";
 import { EDGE_DEFAULT } from "./defaults";
@@ -27,12 +29,6 @@ function makeSizeRule(size: string, minimum: string): string {
   if (s === "hug") return `minmax(${minimum},max-content)`;
   if (s === "fill") return `minmax(${minimum},1fr)`;
   return s;
-}
-
-function getAttrList(el: HTMLElement, name: string): string[] {
-  const raw = el.getAttribute(name) || "";
-  if (raw === "") return [];
-  return raw.split(",");
 }
 
 function getCells(table: HTMLElement): HTMLElement[] {
@@ -133,9 +129,24 @@ export function resolveEdgeDefault(table: HTMLElement): BorderSpec | null {
   return normalize({ ...EDGE_DEFAULT });
 }
 
+// A table embedded in a parent cell. The perimeter passes below never fall back
+// to the table default for such a table (the parent cell owns that boundary), so
+// edge writers must materialize its perimeter explicitly instead of leaving the
+// entries unset.
+export function isNestedTable(table: HTMLElement): boolean {
+  return !!(
+    table.parentElement &&
+    table.parentElement.classList &&
+    table.parentElement.classList.contains("bloom-cell")
+  );
+}
+
 export function buildRenderModel(table: HTMLElement): RenderModel {
-  const columnWidths = getAttrList(table, "data-column-widths");
-  const rowHeights = getAttrList(table, "data-row-heights");
+  // The shared table-model readers substitute the default size for an empty
+  // token, so a malformed attribute still yields a valid grid-template rule
+  // for every declared position.
+  const columnWidths = getColumnWidths(table);
+  const rowHeights = getRowHeights(table);
 
   const templateColumns = columnWidths.map((x) => makeSizeRule(x, MIN_COLUMN_WIDTH)).join(" ");
   const templateRows = rowHeights.map((x) => makeSizeRule(x, MIN_ROW_HEIGHT)).join(" ");
@@ -158,16 +169,12 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   const rows = rowHeights.length;
   const cols = columnWidths.length;
 
-  // Detect if this table is embedded inside a parent cell. If so, we suppress
-  // its perimeter painting so that the shared boundary between the parent
-  // cell and this nested table is represented by a single edge (the parent).
-  // This keeps the mental model "one edge, one stroke" and avoids double 1px
-  // borders showing side-by-side.
-  const isNestedTable = !!(
-    table.parentElement &&
-    table.parentElement.classList &&
-    table.parentElement.classList.contains("bloom-cell")
-  );
+  // A table embedded inside a parent cell suppresses the DEFAULT for its
+  // perimeter, so that the shared boundary between the parent cell and this
+  // nested table is represented by a single edge (the parent). This keeps the
+  // mental model "one edge, one stroke" and avoids double 1px borders showing
+  // side-by-side.
+  const nested = isNestedTable(table);
 
   function idx(r: number, c: number): number {
     return r * cols + c;
@@ -280,7 +287,7 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     const { north, south } = readH(b, c);
     const facing = which === "top" ? south : north;
     if (b === 0 || b === rows) {
-      return paintedSpec(facing ?? (isNestedTable ? null : edgeDefault));
+      return paintedSpec(facing ?? (nested ? null : edgeDefault));
     }
     if (hasPositiveGapY(b - 1)) return paintedSpec(facing ?? edgeDefault);
     const side = pickSide(north || null, south || null, "leftTop") ?? "a";
@@ -293,7 +300,7 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     const { west, east } = readV(r, b);
     const facing = which === "left" ? east : west;
     if (b === 0 || b === cols) {
-      return paintedSpec(facing ?? (isNestedTable ? null : edgeDefault));
+      return paintedSpec(facing ?? (nested ? null : edgeDefault));
     }
     if (hasPositiveGapX(b - 1)) return paintedSpec(facing ?? edgeDefault);
     const side = pickSide(west || null, east || null, "leftTop") ?? "a";
@@ -405,7 +412,7 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   // resolved above.
   {
     // Nested tables honor explicit perimeters only (no default fallback).
-    const fallback = isNestedTable ? null : edgeDefault ?? null;
+    const fallback = nested ? null : edgeDefault ?? null;
     // Top perimeter: H at r=0 - use south side (faces the cells)
     for (let c = 0; c < cols; c++) {
       const { south } = readH(0, c);

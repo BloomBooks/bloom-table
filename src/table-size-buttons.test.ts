@@ -62,7 +62,7 @@ const addPreview = () =>
   document.querySelector<HTMLElement>('[data-table-overlay="add-preview"]');
 
 beforeEach(() => {
-  tableHistoryManager.reset?.();
+  tableHistoryManager.reset();
   document.body.innerHTML = "";
   resetTableSizeButtons();
   (globalThis as any).__realRaf = globalThis.requestAnimationFrame;
@@ -153,6 +153,192 @@ describe("overlay repositioning", () => {
     scroller.dispatchEvent(new Event("scroll"));
 
     expect(pill.style.top).not.toBe(before);
+  });
+});
+
+const menuPopup = () => document.querySelector<HTMLElement>("[data-btable-menu]");
+
+const menuItem = (label: string) =>
+  menuPopup()?.querySelector<HTMLElement>(`button[aria-label="${label}"]`) ?? null;
+
+const click = (el: HTMLElement) => el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+const pill = (kind: string) =>
+  document.querySelector<HTMLElement>(`[data-btable-menu-pill="${kind}"]`)!;
+
+const cellTexts = (table: HTMLElement) =>
+  Array.from(table.querySelectorAll(".bloom-cell")).map((c) => c.textContent?.trim());
+
+describe("the perimeter '+' buttons", () => {
+  it("appends a row at the table's bottom edge, undoably", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]); // selection in row 0; the append still lands at the end
+
+    rowAddButton()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(table.querySelectorAll(".bloom-cell").length).toBe(6);
+    expect((table.getAttribute("data-row-heights") || "").split(",").length).toBe(3);
+    // The new row went below the existing rows, not below the selected one.
+    expect(cellTexts(table).slice(0, 4)).toEqual(["r0c0", "r0c1", "r1c0", "r1c1"]);
+
+    expect(tableHistoryManager.undoLast()).toBe(true);
+    expect(table.querySelectorAll(".bloom-cell").length).toBe(4);
+  });
+
+  it("appends a column at the table's right edge, undoably", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+
+    document
+      .querySelector<HTMLElement>('button[aria-label="Insert Column Right"]')!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(table.querySelectorAll(".bloom-cell").length).toBe(6);
+    expect((table.getAttribute("data-column-widths") || "").split(",").length).toBe(3);
+
+    expect(tableHistoryManager.undoLast()).toBe(true);
+    expect((table.getAttribute("data-column-widths") || "").split(",").length).toBe(2);
+  });
+});
+
+describe("pill menus", () => {
+  it("opens on a pill click, toggles closed on a second click", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+
+    click(pill("row"));
+    expect(menuPopup()).not.toBe(null);
+
+    click(pill("row"));
+    expect(menuPopup()).toBe(null);
+  });
+
+  it("closes on Escape and on a mousedown outside the popup", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+
+    click(pill("row"));
+    expect(menuPopup()).not.toBe(null);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(menuPopup()).toBe(null);
+
+    click(pill("row"));
+    expect(menuPopup()).not.toBe(null);
+    document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    expect(menuPopup()).toBe(null);
+  });
+
+  it("Delete Row removes the selected cell's row and closes the menu", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[2]); // row 1
+
+    click(pill("row"));
+    click(menuItem("Delete Row")!);
+
+    expect(menuPopup()).toBe(null);
+    expect(cellTexts(table)).toEqual(["r0c0", "r0c1"]);
+    expect((table.getAttribute("data-row-heights") || "").split(",").length).toBe(1);
+
+    expect(tableHistoryManager.undoLast()).toBe(true);
+    expect(table.querySelectorAll(".bloom-cell").length).toBe(4);
+  });
+
+  it("hovering Delete Row previews the doomed row's exact box", () => {
+    const { cells } = makeTable();
+    focusCell(cells[2]); // row 1 occupies [100,150]..[200,200]
+
+    click(pill("row"));
+    menuItem("Delete Row")!.dispatchEvent(new MouseEvent("mouseenter"));
+
+    const preview = document.querySelector<HTMLElement>(
+      '[data-table-overlay="delete-preview"]',
+    )!;
+    expect(preview.style.display).toBe("block");
+    expect(preview.style.left).toBe("100px");
+    expect(preview.style.top).toBe("150px");
+    expect(preview.style.width).toBe("100px");
+    expect(preview.style.height).toBe("50px");
+
+    menuItem("Delete Row")!.dispatchEvent(new MouseEvent("mouseleave"));
+    expect(preview.style.display).toBe("none");
+  });
+
+  it("Delete Column removes the selected cell's column", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[1]); // column 1
+
+    click(pill("column"));
+    click(menuItem("Delete Column")!);
+
+    expect(cellTexts(table)).toEqual(["r0c0", "r1c0"]);
+    expect((table.getAttribute("data-column-widths") || "").split(",").length).toBe(1);
+  });
+
+  it("Add Row Below inserts relative to the selected cell, not at the table edge", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]); // row 0
+
+    click(pill("row"));
+    click(menuItem("Add Row Below")!);
+
+    // Three rows now, with the blank row between the two original ones.
+    expect((table.getAttribute("data-row-heights") || "").split(",").length).toBe(3);
+    const texts = cellTexts(table);
+    expect(texts.slice(0, 2)).toEqual(["r0c0", "r0c1"]);
+    expect(texts.slice(4)).toEqual(["r1c0", "r1c1"]);
+  });
+
+  it("Delete Table removes the whole table from the document", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+
+    click(pill("table"));
+    click(menuItem("Delete Table")!);
+
+    expect(document.body.contains(table)).toBe(false);
+    expect(menuPopup()).toBe(null);
+  });
+});
+
+describe("the cell context menu", () => {
+  const rightClick = (el: HTMLElement) =>
+    el.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }),
+    );
+
+  it("merges the cell rightward, then Split restores it", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+
+    rightClick(cells[0].querySelector("[contenteditable]") as HTMLElement);
+    expect(menuPopup()).not.toBe(null);
+    click(menuItem("Merge with cell to the right")!);
+
+    expect(cells[0].getAttribute("data-span-x")).toBe("2");
+    expect(cells[1].classList.contains("bloom-skip")).toBe(true);
+
+    rightClick(cells[0].querySelector("[contenteditable]") as HTMLElement);
+    click(menuItem("Split")!);
+
+    expect(cells[0].getAttribute("data-span-x") ?? "1").toBe("1");
+    expect(cells[1].classList.contains("bloom-skip")).toBe(false);
+    expect(document.body.contains(table)).toBe(true);
+  });
+
+  it("merges the cell that was right-clicked, not the one that is selected", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]); // cell r0c0 is the selected cell
+    expect(cells[0].classList.contains("cell--selected")).toBe(true);
+
+    // Right-click a DIFFERENT cell. A right-click does not move the selection
+    // (only the primary button does), so the two differ while the menu is open.
+    rightClick(cells[2]);
+    click(menuItem("Merge with cell to the right")!);
+
+    expect(cells[2].getAttribute("data-span-x")).toBe("2");
+    expect(cells[3].classList.contains("bloom-skip")).toBe(true);
+    // The selected cell is untouched.
+    expect(cells[0].getAttribute("data-span-x") ?? "1").toBe("1");
   });
 });
 

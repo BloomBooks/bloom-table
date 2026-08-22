@@ -36,3 +36,51 @@ describe("computeInitialSelection", () => {
     expect(Array.from(sel).sort()).toEqual(["bottom", "left", "right"].sort());
   });
 });
+
+describe("computeInitialSelection tie-breaks", () => {
+  it("rule 2: on a size tie, a group containing an outer edge beats an inner-only group", () => {
+    const map: BorderValueMap = {
+      top: ev(1, "solid", 0),
+      right: ev(1, "solid", 0),
+      bottom: ev(2, "dashed", 0),
+      left: ev(4, "dotted", 0),
+      innerH: ev(1, "double", 0),
+      innerV: ev(1, "double", 0),
+    } as any;
+    // {top,right} and {innerH,innerV} both have size 2.
+    const sel = computeInitialSelection(map, true);
+    expect(Array.from(sel).sort()).toEqual(["right", "top"].sort());
+  });
+
+  it("rule 3: on a further tie, more contiguous outer edges win", () => {
+    const map: BorderValueMap = {
+      top: ev(1, "solid", 0),
+      right: ev(1, "solid", 0),
+      bottom: ev(2, "dashed", 0),
+      left: ev(4, "dotted", 0),
+      innerH: ev(2, "dashed", 0),
+      innerV: ev(1, "double", 0),
+    } as any;
+    // {top,right}: two ADJACENT outer edges (contiguity 1).
+    // {bottom,innerH}: same size, has an outer edge, but contiguity 0.
+    const sel = computeInitialSelection(map, true);
+    expect(Array.from(sel).sort()).toEqual(["right", "top"].sort());
+  });
+
+  it("rule 4: a full tie falls back to a deterministic alphabetical pick", () => {
+    const map: BorderValueMap = {
+      top: ev(1, "solid", 0),
+      right: ev(4, "dotted", 0),
+      bottom: ev(1, "solid", 0),
+      left: ev(2, "dashed", 0),
+      innerH: ev(2, "dashed", 0),
+      innerV: ev(8 as any, "double", 0),
+    } as any;
+    // {top,bottom} vs {left,innerH}: size 2 each, both contain an outer edge,
+    // and neither pair of outer edges is adjacent (contiguity 0 for both).
+    // The final rule compares the joined edge names: "left,innerH" sorts
+    // before "top,bottom".
+    const sel = computeInitialSelection(map, true);
+    expect(Array.from(sel).sort()).toEqual(["innerH", "left"].sort());
+  });
+});

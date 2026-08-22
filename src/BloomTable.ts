@@ -348,6 +348,28 @@ export class BloomTable {
     render(this.table);
   }
 
+  // Undo/redo, table-aware. These live on the controller (not only as module
+  // functions) so a host that injects its api cross-iframe reaches the history
+  // manager of the realm that owns the table: instances close over this
+  // module's tableHistoryManager. The can* variants pass the table so they
+  // report false when the newest entry belongs to a different table — i.e.
+  // exactly when undo()/redo() would refuse.
+  undo(): boolean {
+    return tableHistoryManager.undo(this.table);
+  }
+
+  redo(): boolean {
+    return tableHistoryManager.redo(this.table);
+  }
+
+  canUndo(): boolean {
+    return tableHistoryManager.canUndo(this.table);
+  }
+
+  canRedo(): boolean {
+    return tableHistoryManager.canRedo(this.table);
+  }
+
   // Spans: setCellSpan is the single writer — it needs to see the CURRENT span
   // in data-* to know which cells to un-cover, so writing data-* here first
   // would make it a no-op and leave stale bloom-skip classes behind.

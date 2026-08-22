@@ -4,6 +4,9 @@ import {
   setColumnWidths,
   getRowHeights,
   setRowHeights,
+  parseSizeList,
+  defaultColumnWidth,
+  defaultRowHeight,
   getSpan,
   setSpan,
   getTableCorners,
@@ -39,6 +42,49 @@ describe("table-model", () => {
 
     setRowHeights(g, ["20px", "hug"]);
     expect(getRowHeights(g)).toEqual(["20px", "hug"]);
+  });
+
+  // Persisted HTML is user-editable, so the size attributes can arrive with
+  // empty tokens. The rule (shared by every reader via parseSizeList): an
+  // empty token means "the default size for that position" — the position is
+  // kept, never dropped — while a wholly empty or absent attribute declares
+  // zero positions.
+  describe("size-list attributes with empty tokens", () => {
+    it("substitutes the default for an interior empty token, preserving position", () => {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,,50px");
+      expect(getColumnWidths(g)).toEqual(["100px", defaultColumnWidth, "50px"]);
+      g.setAttribute("data-row-heights", "20px,,30px");
+      expect(getRowHeights(g)).toEqual(["20px", defaultRowHeight, "30px"]);
+    });
+
+    it("a trailing comma declares one more position with the default size", () => {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,");
+      expect(getColumnWidths(g)).toEqual(["100px", defaultColumnWidth]);
+    });
+
+    it("whitespace-only tokens count as empty; other tokens are trimmed", () => {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", " 100px ,  , fill");
+      expect(getColumnWidths(g)).toEqual(["100px", defaultColumnWidth, "fill"]);
+    });
+
+    it("an empty or absent attribute declares zero positions", () => {
+      const g = makeTable();
+      expect(getColumnWidths(g)).toEqual([]);
+      expect(getRowHeights(g)).toEqual([]);
+      g.setAttribute("data-column-widths", "");
+      g.setAttribute("data-row-heights", "   ");
+      expect(getColumnWidths(g)).toEqual([]);
+      expect(getRowHeights(g)).toEqual([]);
+    });
+
+    it("parseSizeList is the shared tokenizer behind both getters", () => {
+      expect(parseSizeList("a,,b", "D")).toEqual(["a", "D", "b"]);
+      expect(parseSizeList(null, "D")).toEqual([]);
+      expect(parseSizeList(",", "D")).toEqual(["D", "D"]);
+    });
   });
 
   it("reads/writes span via data-span-x/y", () => {

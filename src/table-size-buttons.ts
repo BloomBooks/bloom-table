@@ -29,6 +29,8 @@ import {
   getCellPadding,
   getCellCorners,
   getTableBackground,
+  getColumnWidths,
+  getRowHeights,
   type CellAlign,
 } from "./table-model";
 import { representativeBorderColorHex } from "./color-utils";
@@ -169,6 +171,12 @@ export function resetTableSizeButtons(): void {
     cancelAnimationFrame(repositionRaf);
     repositionRaf = 0;
   }
+  // A frame already queued by the proximity gate would run updateProximityGate
+  // after the reset and rebuild the overlay DOM this function just cleared.
+  if (gateRaf) {
+    cancelAnimationFrame(gateRaf);
+    gateRaf = 0;
+  }
 }
 
 // Named (not inline) so resetTableSizeButtons can remove them again. Anonymous
@@ -194,6 +202,10 @@ function onContextMenuForOverlays(event: Event): void {
   const table = cell.closest(".bloom-table") as HTMLElement | null;
   if (!table) return;
   event.preventDefault();
+  // Paint Format owns every click on a cell while it runs. Opening the Cell
+  // menu here would put a menu on top of the active mode, and picking "Paint
+  // format" in it would silently re-enter with a different pattern.
+  if (isPaintFormatModeActive()) return;
   showEdgeOverlays(table);
   openMenu(
     ["cell"],
@@ -214,6 +226,10 @@ function removeTableSizeButtonListeners(): void {
   window.removeEventListener("resize", scheduleOverlayReposition);
   window.removeEventListener("scroll", scheduleOverlayReposition, kScrollListenerOptions);
   document.removeEventListener("tableHistoryUpdated", scheduleOverlayReposition as EventListener);
+  // Removal matches on the capture flag only, so the passive option that the
+  // install side passes is irrelevant here.
+  document.removeEventListener("mousemove", onMouseMoveForProximityGate as EventListener);
+  gateInstalled = false;
 }
 
 export function ensureTableSizeButtons(): void {
@@ -557,8 +573,19 @@ function makeMenuItem(
     item.addEventListener("click", (e) => {
       e.stopPropagation();
       if (previewKind) hideDeletePreview();
+      // Every command must act on the cell the menu was opened for. Closing the
+      // popup clears menuTargetCell, and getMenuCell would then fall back to
+      // whatever cell carries .cell--selected — a different cell, because a
+      // right-click on a cell with no editable child never selects it. So hold
+      // the target across the call.
+      const target = menuTargetCell;
       closeMenuPopup();
-      fn();
+      menuTargetCell = target;
+      try {
+        fn();
+      } finally {
+        menuTargetCell = null;
+      }
     });
   }
   return item;
@@ -1436,27 +1463,28 @@ function updateProximityGate(): void {
   }
 }
 
+// Named (not inline) so resetTableSizeButtons can remove it again: an
+// anonymous closure here would keep driving the gate after a reset, rebuilding
+// the very overlay DOM the reset just cleared.
+function onMouseMoveForProximityGate(e: MouseEvent): void {
+  gateMouseX = e.clientX;
+  gateMouseY = e.clientY;
+  // Coalesce bursts of mousemove into one evaluation per frame.
+  if (typeof requestAnimationFrame !== "function") {
+    updateProximityGate();
+    return;
+  }
+  if (gateRaf) return;
+  gateRaf = requestAnimationFrame(() => {
+    gateRaf = 0;
+    updateProximityGate();
+  });
+}
+
 function installProximityGate(): void {
   if (gateInstalled) return;
   gateInstalled = true;
-  document.addEventListener(
-    "mousemove",
-    (e) => {
-      gateMouseX = e.clientX;
-      gateMouseY = e.clientY;
-      // Coalesce bursts of mousemove into one evaluation per frame.
-      if (typeof requestAnimationFrame !== "function") {
-        updateProximityGate();
-        return;
-      }
-      if (gateRaf) return;
-      gateRaf = requestAnimationFrame(() => {
-        gateRaf = 0;
-        updateProximityGate();
-      });
-    },
-    { passive: true },
-  );
+  document.addEventListener("mousemove", onMouseMoveForProximityGate, { passive: true });
 }
 
 // Removes anchor names that were NOT minted this session from `root` and its
@@ -1653,9 +1681,7 @@ function tryInsertColumnRight() {
   const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
-    const widths = (table.getAttribute("data-column-widths") || "")
-      .split(",")
-      .filter((x) => x.length > 0);
+    const widths = getColumnWidths(table);
     new BloomTable(table).addColumnAt(widths.length, widths.length > 0 ? widths.length - 1 : undefined);
     scheduleOverlayReposition();
   } catch {}
@@ -1666,9 +1692,7 @@ function tryInsertRowBelow() {
   const table = (cell?.closest(".bloom-table") as HTMLElement | null) ?? overlayTable;
   if (!table) return;
   try {
-    const heights = (table.getAttribute("data-row-heights") || "")
-      .split(",")
-      .filter((x) => x.length > 0);
+    const heights = getRowHeights(table);
     new BloomTable(table).addRowAt(heights.length, heights.length > 0 ? heights.length - 1 : undefined);
     scheduleOverlayReposition();
   } catch {}

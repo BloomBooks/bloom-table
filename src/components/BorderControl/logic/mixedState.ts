@@ -2,6 +2,15 @@ import { BorderStyle, BorderValueMap, BorderWeight, CornerRadius, SelectedEdges 
 
 export type MixedOr<T> = T | "mixed";
 
+// An EMPTY selection reports "mixed" too, on purpose. The three compute
+// functions answer "what value do the Style/Weight menus show", and with no
+// edge selected there is no value to show, which is exactly what "mixed"
+// renders (a blank menu with no option ticked). Nothing acts on the sentinel:
+// interdependencyDisabled leaves both menus enabled, and BorderControl.apply
+// returns early on an empty selection, so a click cannot write anything. A
+// separate "empty" sentinel would therefore only give every caller a second
+// case to map back onto the same display.
+
 function unique<T>(arr: T[]): T[] {
   return Array.from(new Set(arr));
 }

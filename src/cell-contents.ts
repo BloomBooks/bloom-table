@@ -49,16 +49,22 @@ export const defaultCellContentsForEachType: CellContentType[] = [
     id: "image",
     englishName: "Image",
     icon: imageIcon,
-    templateHtml: `<img src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Green_parrot_on_branch_with_yellow_head.svg/195px-Green_parrot_on_branch_with_yellow_head.svg.png' alt='Placeholder Image' />`,
+    // Bundled inline SVG placeholder (light gray frame with a picture glyph), so an
+    // offline machine shows a clean placeholder instead of broken-asset chrome.
+    // (The xmlns URL is the SVG namespace identifier, not a network fetch.)
+    templateHtml: `<img src='data:image/svg+xml,%3Csvg%20xmlns="http://www.w3.org/2000/svg"%20viewBox="0%200%20160%20120"%3E%3Crect%20width="160"%20height="120"%20fill="%23e2e2e2"/%3E%3Ccircle%20cx="55"%20cy="42"%20r="11"%20fill="%23aaaaaa"/%3E%3Cpath%20d="M30,95L70,55L95,80L113,62L134,95Z"%20fill="%23aaaaaa"/%3E%3C/svg%3E' alt='Placeholder Image' />`,
     regexToIdentify: /<img/,
   },
   {
     id: "video",
     englishName: "Video",
     icon: videoIcon,
-    // basic HTML5 video tag with controls and a placeholder source
-    templateHtml: `<video controls preload='metadata' style='max-width: 100%; max-height: 100%'>
-  <source src='https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4' type='video/mp4'>
+    // Basic HTML5 video tag with controls but no source: a bundled inline SVG
+    // poster (gray frame with a play glyph) stands in until the host supplies real
+    // video, so an offline machine shows a clean placeholder instead of
+    // broken-asset chrome. (The xmlns URL is the SVG namespace identifier, not a
+    // network fetch.)
+    templateHtml: `<video controls preload='metadata' poster='data:image/svg+xml,%3Csvg%20xmlns="http://www.w3.org/2000/svg"%20viewBox="0%200%20160%20120"%3E%3Crect%20width="160"%20height="120"%20fill="%23e2e2e2"/%3E%3Cpath%20d="M65,40L105,60L65,80Z"%20fill="%23aaaaaa"/%3E%3C/svg%3E' style='max-width: 100%; max-height: 100%'>
   Your browser does not support the video tag.
 </video>`,
     // heuristically detect presence of a <video> tag
@@ -257,6 +263,13 @@ export function setupContentsOfCell(
   // the "tableHistoryUpdated" event instead.
   // Nothing to report if the rebuild did not actually happen.
   if (notifyHost && rebuiltCell) dispatchCellContentChanged(cell, targetType);
+
+  // No rebuilt content to return, and worse, nothing safe to return: when the
+  // operation throws, the history manager restores the top-level table's whole
+  // innerHTML, which detaches this very `cell`. cell.firstChild would then be a
+  // node that is no longer in the document, and a caller that focuses it or
+  // wires an editor onto it would act on discarded DOM.
+  if (!rebuiltCell) return null;
 
   // for testing purposes, return the child
   return (cell.firstChild as HTMLElement) || null;

@@ -10,10 +10,10 @@
 // declared sizes, and spans are unchanged. Build it before mutating, use it,
 // throw it away.
 //
-// This module deliberately imports nothing except getSpan from table-model,
-// so structure.ts (and anything else) can depend on it without import cycles.
+// This module deliberately imports nothing except table-model, so structure.ts
+// (and anything else) can depend on it without import cycles.
 
-import { getSpan } from "./table-model";
+import { getSpan, getColumnWidths, getRowHeights } from "./table-model";
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) {
@@ -71,18 +71,14 @@ export interface GridView {
 /**
  * Build a GridView in a single pass over the table.
  *
- * Dimensions come from data-column-widths / data-row-heights with the same
- * tokenization as structure.getTableInfo: split on comma, drop empty or
- * whitespace-only tokens. (table-model's getColumnWidths keeps empties, so it
- * would disagree with every position computed from getTableInfo.)
+ * Dimensions come from table-model's getColumnWidths / getRowHeights — the one
+ * tokenizer for the size attributes (positional; an empty token means "default
+ * size for that position" and is never dropped) — so positions computed here
+ * agree with structure.getTableInfo and every other reader.
  */
 export function buildGrid(table: HTMLElement): GridView {
-  const cols = (table.getAttribute("data-column-widths") || "")
-    .split(",")
-    .filter((width) => width.trim() !== "").length;
-  const rows = (table.getAttribute("data-row-heights") || "")
-    .split(",")
-    .filter((height) => height.trim() !== "").length;
+  const cols = getColumnWidths(table).length;
+  const rows = getRowHeights(table).length;
 
   const cells = cellsOf(table);
 

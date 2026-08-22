@@ -181,7 +181,17 @@ function resolveEdge(
 /** Change border color / style / weight while preserving whatever isn't being
  *  set. Cell/row/column scopes re-write each target cell's perimeter; table
  *  scope re-writes the outer, inner, and default borders so newly added rows
- *  and columns pick up the change too. */
+ *  and columns pick up the change too.
+ *
+ *  Tri-state note: the value maps read here are RESOLVED. In storage an edge
+ *  entry is either explicitly painted, explicitly none (weight 0), or never
+ *  set — a never-set entry renders with the table default and follows later
+ *  default edits, which the maps cannot show (they report the default value
+ *  itself). Writing the resolved values back is still safe: the edge-utils
+ *  writers skip stamping a never-set entry whose new value renders exactly
+ *  like the current default, so a round-trip that changes nothing (or changes
+ *  a value to what the default already paints) leaves inheriting edges
+ *  inheriting instead of freezing them at today's default. */
 export function applyBorderProps(
   table: HTMLElement,
   scope: FormattingScope,
@@ -195,6 +205,12 @@ export function applyBorderProps(
       const color =
         props.color ?? (firstCell ? representativeBorderColorHex(firstCell) : "#000000");
       const side = (s: { weight: number; style: BorderStyle }) => resolveEdge(s, props, color);
+      // The default goes first: the writers below leave a never-set entry unset
+      // when the value they are asked to write renders like the CURRENT
+      // default, so changing the default afterwards would move it out from
+      // under the entries they just left alone — an untouched perimeter that
+      // matched the old default would adopt the new inner value instead.
+      setDefaultBorder(table, side(base.innerH) as any, color);
       applyOuterBorders(
         table,
         {
@@ -207,7 +223,6 @@ export function applyBorderProps(
       );
       applyUniformInner(table, "innerH", side(base.innerH) as any, color);
       applyUniformInner(table, "innerV", side(base.innerV) as any, color);
-      setDefaultBorder(table, side(base.innerH) as any, color);
       render(table);
     });
     return;

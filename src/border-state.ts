@@ -1,4 +1,4 @@
-import { buildRenderModel } from "./table-renderer";
+import { buildRenderModel, resolveEdgeDefault } from "./table-renderer";
 import { getTableCells } from "./structure";
 import { EDGE_DEFAULT } from "./defaults";
 import type {
@@ -17,6 +17,15 @@ const snapWeight = (w: number): BorderWeight => {
 const isPaintedSpec = (spec: any): boolean =>
   !!spec && spec.style !== "none" && Number(spec.weight) > 0;
 
+/** RESOLVED outer/inner border values for the table panel. Stored edge
+ *  entries are tri-state — explicitly painted, explicitly none (weight 0),
+ *  or never set (null: renders with the table default and follows later
+ *  default edits) — but this map collapses the last state: a never-set edge
+ *  reports the default value it currently renders with, indistinguishable
+ *  from an edge somebody explicitly set to that value. The edge-utils writers
+ *  compensate: writing a value a never-set entry already renders via the
+ *  default leaves the entry unset, so reading this map and writing it back
+ *  unchanged does not freeze inheriting edges at today's default. */
 export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap {
   const model = buildRenderModel(table);
   const rows = model.rowHeights.length;
@@ -78,7 +87,16 @@ export function getTableOuterBorderValueMap(table: HTMLElement): BorderValueMap 
     const painted = specs.find(isPaintedSpec);
     if (painted) return painted;
     if (specs.some((s) => s != null)) return { weight: 0, style: "none" } as any;
-    return { weight: EDGE_DEFAULT.weight, style: EDGE_DEFAULT.style } as any;
+    // No interior boundary on this axis at all (a single row or column, or
+    // every boundary inside a merge). Report the table's own default, which is
+    // what the renderer would paint for a boundary that appeared: reporting the
+    // compile-time default instead would show a line the table does not have,
+    // and a table-scope edit would then write that phantom line into the
+    // default and paint every inheriting edge with it.
+    const dflt = resolveEdgeDefault(table);
+    return dflt
+      ? ({ weight: dflt.weight, style: dflt.style } as any)
+      : ({ weight: 0, style: "none" } as any);
   };
 
   return {
@@ -122,6 +140,13 @@ function resolveCellPerimeterSpecs(
   };
 }
 
+/** RESOLVED values for a cell's four perimeter edges (inner keys are stubbed
+ *  to none — a single cell has no interior). Like the table map above, this
+ *  collapses the stored tri-state: a never-set edge reports the table default
+ *  it currently renders with, and an edge this cell explicitly declined
+ *  (weight 0 / 'none') reports plain none. Callers writing the map back rely
+ *  on applyCellPerimeter's guard to keep never-set entries unset when the
+ *  value round-trips unchanged. */
 export function getCellPerimeterValueMap(cell: HTMLElement): BorderValueMap {
   const specs = resolveCellPerimeterSpecs(cell);
   if (!specs) {
@@ -198,8 +223,15 @@ export function getCellPerimeterColors(cell: HTMLElement): {
   left: string | null;
 } {
   const specs = resolveCellPerimeterSpecs(cell);
+  // An invisible spec's color is not a user choice: the writers stamp a
+  // fallback color (edge-utils' innerColorFallback) onto every explicit 'none'
+  // they record. Reporting it would make a caller reuse that synthetic color
+  // when the edge becomes visible again, so treat an invisible edge as having
+  // no color.
+  const isVisible = (spec: any): boolean =>
+    !!spec && spec.style !== "none" && Number(spec.weight) > 0;
   const colorOf = (spec: any): string | null =>
-    spec && typeof spec.color === "string" && spec.color ? spec.color : null;
+    isVisible(spec) && typeof spec.color === "string" && spec.color ? spec.color : null;
   return {
     top: colorOf(specs?.top),
     right: colorOf(specs?.right),

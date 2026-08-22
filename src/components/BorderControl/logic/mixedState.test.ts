@@ -65,3 +65,13 @@ describe("mixed state", () => {
     });
   });
 });
+
+describe("mixed state with an empty selection", () => {
+  it("reports 'mixed' for weight, style, and radius, so the menus show no value", () => {
+    const map = mapAll(ev(2, "solid", 4));
+    const sel = new Set() as any;
+    expect(computeMixedWeight(map, sel)).toBe("mixed");
+    expect(computeMixedStyle(map, sel)).toBe("mixed");
+    expect(computeMixedRadius(map, sel)).toBe("mixed");
+  });
+});

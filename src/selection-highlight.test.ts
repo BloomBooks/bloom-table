@@ -119,6 +119,51 @@ describe("selection mousedown handling", () => {
     }
   });
 
+  it("leaves a click inside the cell's own editable to the browser", () => {
+    const table = buildTable(`<div contenteditable="true">B</div>`);
+    const cell = table.querySelector(".bloom-cell") as HTMLElement;
+    const editable = cell.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    const event = mousedown(editable, 0);
+
+    // Native caret placement must survive: no preventDefault, no forced
+    // caret move to the end of the content.
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("does not hand a nested table's editable to the outer cell", () => {
+    // The second cell holds a nested table; its only editables belong to the
+    // NESTED table's cells, so ownEditable must not claim them for the outer cell.
+    const table = buildTable(`
+      <div class="bloom-table" data-column-widths="fill" data-row-heights="fit">
+        <div class="bloom-cell"><div contenteditable="true">inner</div></div>
+      </div>`);
+    const outerCell = table.querySelectorAll(".bloom-cell")[1] as HTMLElement;
+    const innerEditable = outerCell.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    // A click on the outer cell's padding selects the outer cell itself
+    // (focusable via tabindex), not the nested table's text box.
+    mousedown(outerCell, 0);
+    expect(document.activeElement).toBe(outerCell);
+    expect(outerCell.getAttribute("tabindex")).toBe("-1");
+    expect(document.activeElement).not.toBe(innerEditable);
+  });
+
+  it("lets a click in a nested cell's editable reach that editable untouched", () => {
+    const table = buildTable(`
+      <div class="bloom-table" data-column-widths="fill" data-row-heights="fit">
+        <div class="bloom-cell"><div contenteditable="true">inner</div></div>
+      </div>`);
+    const outerCell = table.querySelectorAll(".bloom-cell")[1] as HTMLElement;
+    const innerEditable = outerCell.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    const event = mousedown(innerEditable, 0);
+
+    // The click landed in the INNER cell's own editable, so native caret
+    // placement applies there.
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("selects the cell without suppressing mousedown on media content", () => {
     const table = buildTable(`<img alt="" src="x.png" />`);
     const imageCell = table.querySelectorAll(".bloom-cell")[1] as HTMLElement;

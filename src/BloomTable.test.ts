@@ -6,7 +6,7 @@ import { tableHistoryManager } from "./history";
 describe("BloomTable controller", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
-    tableHistoryManager.reset?.();
+    tableHistoryManager.reset();
   });
 
   function setupTable(): { table: HTMLElement; ctrl: BloomTable } {
@@ -394,5 +394,182 @@ describe("BloomTable controller", () => {
       );
       expect(calls.length).toBeGreaterThan(0);
     });
+  });
+});
+
+describe("BloomTable undo of structural operations", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    tableHistoryManager.reset();
+  });
+
+  function setup3x3(): { table: HTMLElement; ctrl: BloomTable } {
+    const table = document.createElement("div");
+    document.body.appendChild(table);
+    attachTable(table); // 2x2
+    const ctrl = new BloomTable(table);
+    ctrl.addRow();
+    ctrl.addColumn();
+    // Give every cell distinct text so restores are checkable.
+    const cells = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    cells.forEach((c, i) => (c.textContent = `cell-${i}`));
+    return { table, ctrl };
+  }
+
+  it("undo of removeRowAt restores every cell's content and the row heights", () => {
+    const { table, ctrl } = setup3x3();
+    const heightsBefore = table.getAttribute("data-row-heights");
+    const textsBefore = Array.from(table.querySelectorAll(".bloom-cell")).map(
+      (c) => c.textContent,
+    );
+
+    ctrl.removeRowAt(1);
+    expect(table.querySelectorAll(".bloom-cell").length).toBe(6);
+
+    expect(ctrl.undo()).toBe(true);
+    expect(table.getAttribute("data-row-heights")).toBe(heightsBefore);
+    const textsAfter = Array.from(table.querySelectorAll(".bloom-cell")).map(
+      (c) => c.textContent,
+    );
+    expect(textsAfter).toEqual(textsBefore);
+  });
+
+  it("undo of addColumnAt restores the column widths and cell count", () => {
+    const { table, ctrl } = setup3x3();
+    const widthsBefore = table.getAttribute("data-column-widths");
+
+    ctrl.addColumnAt(1);
+    expect(table.getAttribute("data-column-widths")!.split(",").length).toBe(4);
+
+    expect(ctrl.undo()).toBe(true);
+    expect(table.getAttribute("data-column-widths")).toBe(widthsBefore);
+    expect(table.querySelectorAll(".bloom-cell").length).toBe(9);
+  });
+
+  it("undo of a merge removes the skip classes and the span attributes", () => {
+    const { table, ctrl } = setup3x3();
+    const cells = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+
+    ctrl.setSpan(cells[0], 2, 2);
+    expect(cells[1].classList.contains("bloom-skip")).toBe(true);
+
+    expect(ctrl.undo()).toBe(true);
+    // Undo restores innerHTML, so re-query the (recreated) cells.
+    const restored = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    expect(restored.length).toBe(9);
+    expect(restored.filter((c) => c.classList.contains("bloom-skip")).length).toBe(0);
+    const spanX = restored[0].getAttribute("data-span-x");
+    expect(spanX === null || spanX === "1").toBe(true);
+  });
+
+  it("undo of duplicateRowAt removes the copy and keeps the source intact", () => {
+    const { table, ctrl } = setup3x3();
+    const htmlBefore = table.innerHTML;
+
+    ctrl.duplicateRowAt(1);
+    expect(table.getAttribute("data-row-heights")!.split(",").length).toBe(4);
+
+    expect(ctrl.undo()).toBe(true);
+    expect(table.getAttribute("data-row-heights")!.split(",").length).toBe(3);
+    expect(table.innerHTML).toBe(htmlBefore);
+  });
+});
+
+describe("BloomTable selection-driven index math", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    tableHistoryManager.reset();
+  });
+
+  function setup3x3(): { table: HTMLElement; ctrl: BloomTable; cells: HTMLElement[] } {
+    const table = document.createElement("div");
+    document.body.appendChild(table);
+    attachTable(table);
+    const ctrl = new BloomTable(table);
+    ctrl.addRow();
+    ctrl.addColumn();
+    const cells = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    return { table, ctrl, cells };
+  }
+
+  it("addRow with a selected cell copies that cell's row and focuses its column", () => {
+    const { table, ctrl, cells } = setup3x3();
+    // Mark row 1 so inheritance is visible; select r1c2 (index 5 with 3 cols).
+    cells[3].setAttribute("data-bg", "#112233");
+    cells[4].setAttribute("data-bg", "#112233");
+    cells[5].setAttribute("data-bg", "#112233");
+    cells[5].classList.add("cell--selected");
+
+    ctrl.addRow();
+
+    const all = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    expect(all.length).toBe(12);
+    const newRow = all.slice(9);
+    // Inherits the SELECTED row's settings, not row 0's.
+    expect(newRow.map((c) => c.getAttribute("data-bg"))).toEqual([
+      "#112233",
+      "#112233",
+      "#112233",
+    ]);
+    // Focus lands in the new row at the selected column (2).
+    expect(newRow[2].contains(document.activeElement)).toBe(true);
+  });
+
+  it("addColumn with a selected cell copies that cell's column and focuses its row", () => {
+    const { table, ctrl, cells } = setup3x3();
+    // Mark column 1; select r2c1 (index 7).
+    cells[1].setAttribute("data-bg", "#445566");
+    cells[4].setAttribute("data-bg", "#445566");
+    cells[7].setAttribute("data-bg", "#445566");
+    cells[7].classList.add("cell--selected");
+
+    ctrl.addColumn();
+
+    expect(table.getAttribute("data-column-widths")!.split(",").length).toBe(4);
+    const all = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    // New column is the last in each row (indexes 3, 7, 11 with 4 cols).
+    const newCol = [all[3], all[7], all[11]];
+    expect(newCol.map((c) => c.getAttribute("data-bg"))).toEqual([
+      "#445566",
+      "#445566",
+      "#445566",
+    ]);
+    // Focus lands in the new column at the selected row (2).
+    expect(newCol[2].contains(document.activeElement)).toBe(true);
+  });
+
+  it("the selection math still holds when a merge's skip cells sit earlier in the child list", () => {
+    const { table, ctrl, cells } = setup3x3();
+    // Merge r0c0 across two columns: cells[1] becomes a skip cell but remains a
+    // child, so row-major child indexing stays intact.
+    ctrl.setSpan(cells[0], 2, 1);
+    expect(cells[1].classList.contains("bloom-skip")).toBe(true);
+
+    cells[3].setAttribute("data-bg", "#778899");
+    cells[4].setAttribute("data-bg", "#778899");
+    cells[5].setAttribute("data-bg", "#778899");
+    cells[5].classList.add("cell--selected"); // r1c2
+
+    ctrl.addRow();
+
+    const all = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    const newRow = all.slice(9);
+    expect(newRow.map((c) => c.getAttribute("data-bg"))).toEqual([
+      "#778899",
+      "#778899",
+      "#778899",
+    ]);
+  });
+
+  it("removeRowAt keeps focus in the selected column of the surviving row", () => {
+    const { table, ctrl, cells } = setup3x3();
+    cells[4].classList.add("cell--selected"); // r1c1
+
+    ctrl.removeRowAt(1);
+
+    const all = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    expect(all.length).toBe(6);
+    // Focus target: row min(1, rows-1)=1, column 1 -> index 4 of the 2x3 grid.
+    expect(all[4].contains(document.activeElement)).toBe(true);
   });
 });

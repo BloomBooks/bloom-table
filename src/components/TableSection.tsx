@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { BorderControl } from "./BorderControl/BorderControl";
 import Section from "./Section";
 import type { BorderValueMap, CornerRadius } from "./BorderControl/logic/types";
+import { kCornerRadii } from "./BorderControl/logic/types";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 // no table-model reads here; we derive current state via border-state/renderer
 import { TableApi, useTableApi } from "./TableApiContext";
@@ -28,7 +29,7 @@ const buildBorderMapFromTable = (api: TableApi, g: HTMLElement): BorderValueMap 
 
   // Preserve corner radius reading from computed style (render owns setting)
   const radiusPx = parsePx(cs.borderTopLeftRadius);
-  const radius: CornerRadius = ([0, 2, 4, 8] as number[]).includes(radiusPx)
+  const radius: CornerRadius = kCornerRadii.includes(radiusPx)
     ? (radiusPx as CornerRadius)
     : 0;
 
@@ -55,6 +56,22 @@ const applyBorderMapToTable = (
   const current = firstCell ? representativeBorderColorHex(firstCell) : (cs.color || "#000").trim();
   const outerColor = (color ?? current).trim();
   const innerColor = (color ?? current).trim();
+
+  // The default (what every never-set edge entry renders with) is written
+  // FIRST, because the writers below decide whether to leave a never-set entry
+  // unset by comparing the value they are asked to write against the CURRENT
+  // default. Written last, it moved the default out from under the entries they
+  // had just decided to leave alone: an untouched perimeter that matched the
+  // old default would silently adopt the new inner value.
+  api.setDefaultBorder(
+    g,
+    {
+      weight: map.innerH.weight,
+      style: map.innerH.style,
+      color: innerColor,
+    } as any,
+    innerColor,
+  );
 
   // Write outer edges individually for each side based on the UI map
   api.applyOuterBorders(
@@ -101,17 +118,6 @@ const applyBorderMapToTable = (
     innerColor,
   );
 
-  // Default border as a safety for unspecified edges
-  api.setDefaultBorder(
-    g,
-    {
-      weight: map.innerH.weight,
-      style: map.innerH.style,
-      color: innerColor,
-    } as any,
-    innerColor,
-  );
-
   // Re-render so the per-cell inline styles reflect the updated model
   api.render(g);
 };
@@ -141,7 +147,7 @@ export const TableSection: React.FC<Props> = ({ table }) => {
     const uniq = Array.from(new Set(radii));
     if (uniq.length !== 1) return "mixed";
     const r = uniq[0];
-    return ([0, 2, 4, 8] as number[]).includes(r) ? (r as CornerRadius) : ("mixed" as const);
+    return kCornerRadii.includes(r) ? (r as CornerRadius) : ("mixed" as const);
   };
 
   // The menu's displayed radius is derived from the table on every render, so a
@@ -227,9 +233,10 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                   <div className="flex flex-col gap-2 ml-2">
                     <Slider
                       aria-label="Gap X"
+                      identity={elementKey(table)}
                       label="X"
                       min={0}
-                      max={40}
+                      max={100}
                       unit="px"
                       value={parsePx(api.getGapX(table)[0])}
                       onChange={(v) => {
@@ -239,9 +246,10 @@ export const TableSection: React.FC<Props> = ({ table }) => {
                     />
                     <Slider
                       aria-label="Gap Y"
+                      identity={elementKey(table)}
                       label="Y"
                       min={0}
-                      max={40}
+                      max={100}
                       unit="px"
                       value={parsePx(api.getGapY(table)[0])}
                       onChange={(v) => {

@@ -4,7 +4,7 @@ import RadioGroup from "./RadioGroup";
 import IconButton from "./IconButton";
 import { BorderControl } from "./BorderControl/BorderControl";
 import type { BorderStyle, BorderValueMap } from "./BorderControl/logic/types";
-import type { CellAlign } from "../table-model";
+import { getColumnWidths, type CellAlign } from "../table-model";
 import CornerMenu from "./BorderControl/menus/CornerMenu";
 import type { CornerRadius } from "./BorderControl/logic/types";
 import { TableApi, useTableApi } from "./TableApiContext";
@@ -120,6 +120,20 @@ const CellSection: React.FC<Props> = ({
     }
   })();
   const canSplit = span.x > 1 || span.y > 1;
+  // Merge extends the cell one column to the right, so it has nowhere to go
+  // once the span already reaches the last column. Without this the click runs
+  // a span change that fails a bounds assertion inside the history entry, which
+  // logs and swallows it: an enabled button that does nothing.
+  const canMerge = (() => {
+    const table = currentCell?.closest(".bloom-table") as HTMLElement | null;
+    if (!currentCell || !table) return false;
+    try {
+      const { column } = api.getRowAndColumn(table, currentCell);
+      return column + span.x < getColumnWidths(table).length;
+    } catch {
+      return false; // can't place the cell; treat Merge as unavailable
+    }
+  })();
 
   return (
     <Section label="Cell">
@@ -239,6 +253,7 @@ const CellSection: React.FC<Props> = ({
           <Slider
             className="ml-2"
             aria-label="Cell padding"
+            identity={elementKey(currentCell)}
             disabled={disabled}
             min={0}
             max={40}
@@ -286,7 +301,7 @@ const CellSection: React.FC<Props> = ({
             title="Merge"
             icon={mergeIcon}
             onClick={onExtend}
-            disabled={disabled || !currentCell}
+            disabled={disabled || !canMerge}
           />
           <IconButton
             alt="Split"

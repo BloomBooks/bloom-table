@@ -61,6 +61,47 @@ it("attach(empty div) gets 2x2 table", () => {
   expect(info.cellCount).toBe(4);
 });
 
+describe("getTableInfo with malformed size attributes", () => {
+  // An empty token in data-column-widths / data-row-heights means "default
+  // size for that position". The position is preserved — dropping it would
+  // change the declared column/row count and misplace every cell after it.
+  it("keeps the position of an empty width token, substituting the default", () => {
+    const table = newTable(); // 2x2 with 4 cells
+    table.setAttribute("data-column-widths", "100px,");
+    const info = getTableInfo(table);
+    expect(info.columnCount).toBe(2);
+    expect(info.columnWidths).toEqual(["100px", defaultColumnWidth]);
+    // The declared count still matches the DOM, so positions stay coherent.
+    expect(info.cellCount).toBe(4);
+    expect(getCell(table, 1, 1)).toBe(getTableCells(table)[3]);
+  });
+
+  it("keeps the position of an interior empty height token", () => {
+    const table = newTable();
+    table.setAttribute("data-row-heights", ",50px");
+    const info = getTableInfo(table);
+    expect(info.rowCount).toBe(2);
+    expect(info.rowHeights).toEqual([defaultRowHeight, "50px"]);
+  });
+
+  it("whitespace-only tokens count as positions too", () => {
+    const table = newTable();
+    table.setAttribute("data-column-widths", "100px,  ,fill");
+    const info = getTableInfo(table);
+    expect(info.columnCount).toBe(3);
+    expect(info.columnWidths).toEqual(["100px", defaultColumnWidth, "fill"]);
+  });
+
+  it("an entirely empty attribute still declares zero rows/columns", () => {
+    const table = newTable();
+    table.setAttribute("data-column-widths", "");
+    table.setAttribute("data-row-heights", "");
+    const info = getTableInfo(table);
+    expect(info.columnCount).toBe(0);
+    expect(info.rowCount).toBe(0);
+  });
+});
+
 it("addColumn adds a new cell to all rows", () => {
   const table = newTable();
   const original = getTableInfo(table);
@@ -1411,6 +1452,16 @@ describe("structural edits keep the edge and gap arrays aligned", () => {
 
     removeColumnAt(table, 0);
     expect(table.getAttribute("data-gap-x")).toBe("20px");
+  });
+
+  it("an interior insert duplicates the gap of the boundary it splits", () => {
+    const table = grid(3, 2);
+    table.setAttribute("data-gap-x", "10px,0");
+
+    // The new column lands between columns 0 and 1, splitting the 10px
+    // boundary, so both halves of that boundary keep 10px.
+    addColumnAt(table, 1);
+    expect(table.getAttribute("data-gap-x")).toBe("10px,10px,0");
   });
 
   it("a single gap value is left alone (it already applies to every boundary)", () => {

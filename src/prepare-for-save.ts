@@ -16,6 +16,17 @@
 // Legacy: older renderer versions wrote per-cell hint colors inline (boundary
 // hints are pure CSS now). Keep stripping them so content saved by an old
 // version comes out clean.
+// Paint Format mode must be exited here (see below), but paint-format.ts sits
+// in an import cycle with this module's callers (attach -> table-size-buttons
+// -> paint-format), so importing it here would evaluate that module before its
+// own top-level state exists. Instead paint-format registers its exit function
+// at load time, the same indirection it uses for the overlay hider. A host that
+// never loads paint-format has no mode to exit, so the no-op default is right.
+let paintFormatExiter: () => void = () => {};
+export function setPaintFormatExiter(fn: () => void): void {
+  paintFormatExiter = fn;
+}
+
 const kHintColorProps = [
   "--hint-top-color",
   "--hint-right-color",
@@ -24,6 +35,14 @@ const kHintColorProps = [
 ];
 
 export function removeTableEditingArtifacts(root: ParentNode = document): void {
+  // Leave Paint Format mode first. Its badge and <style> are tagged overlays
+  // and its body class is stripped below, so without this the mode would keep
+  // running with every visual cue gone: its capture-phase document listeners
+  // would still swallow each click and stamp the copied formatting, with
+  // nothing on screen to say the mode is on. The mode is module-global state,
+  // so it is exited whatever `root` is.
+  paintFormatExiter();
+
   // Every piece of edit-time chrome outside the table is tagged
   // data-table-overlay at creation: the ProximityDiv wrappers appended to
   // <body> (which carry the "+" add buttons, the row/column/table menu pills

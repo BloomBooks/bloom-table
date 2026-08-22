@@ -71,6 +71,10 @@ import {
   setGapX,
   getGapY,
   setGapY,
+  getColumnWidths,
+  getRowHeights,
+  defaultColumnWidth,
+  defaultRowHeight,
 } from "./table-model";
 import { buildGrid, type GridView, type SpanCover } from "./grid";
 
@@ -390,9 +394,14 @@ function spliceGapForInsertedLine(
 ): void {
   const tokens = perBoundaryGaps(table, axis, lineCount);
   if (!tokens) return;
-  // The new line splits a boundary; the new one starts out like the one it split.
+  // The new line splits a boundary; the new one starts out like the one it
+  // split. Token b sits between lines b and b+1, so a line arriving at
+  // insertIndex splits the boundary whose token is insertIndex - 1 — matching
+  // the edge arrays, where the cloned entry is the one at index insertIndex
+  // (perimeter included, so one further along than the gap list). Inserting at
+  // the front splits no boundary, so the new first token copies token 0.
   const at = Math.min(insertIndex, tokens.length);
-  const source = tokens[Math.min(insertIndex, tokens.length - 1)] ?? "0";
+  const source = tokens[Math.max(0, Math.min(insertIndex - 1, tokens.length - 1))] ?? "0";
   tokens.splice(at, 0, source);
   gapAccess(axis).set(table, tokens);
 }
@@ -490,11 +499,9 @@ function createCell(): HTMLElement {
   return newCell;
 }
 
-// A new table, and a new column in an old one, grows to share the width of the
-// page. A table the user has just made is nearly always meant to span the
-// space it sits in, and a column that hugs its text leaves that space empty.
-export const defaultColumnWidth = "fill";
-export const defaultRowHeight = "hug";
+// The default sizes live in table-model.ts (next to the size-list tokenizer
+// that substitutes them); re-exported here so existing importers keep working.
+export { defaultColumnWidth, defaultRowHeight } from "./table-model";
 
 export const getTargetTable = (): HTMLElement | null => {
   // Start from the currently focused element
@@ -619,14 +626,12 @@ export function getTableInfo(table: HTMLElement): {
   rowHeights: string[];
   cellCount: number;
 } {
-  // Parse column widths from data attribute, filtering out empty values
-  const columnWidths = (table.getAttribute("data-column-widths") || "")
-    .split(",")
-    .filter((width) => width.trim() !== "");
-  // Parse row heights from data attribute, filtering out empty values
-  const rowHeights = (table.getAttribute("data-row-heights") || "")
-    .split(",")
-    .filter((height) => height.trim() !== ""); // Count actual cell elements in the DOM (may differ from expected due to spans)
+  // The shared table-model readers: positional, with an empty token meaning
+  // "default size for that position" (substituted, never dropped), so the
+  // declared counts here agree with every other layer.
+  const columnWidths = getColumnWidths(table);
+  const rowHeights = getRowHeights(table);
+  // Count actual cell elements in the DOM (may differ from expected due to spans)
   const cellCount = getTableCells(table).length;
 
   return {
@@ -1439,8 +1444,7 @@ export function setColumnWidth(
     `Column index ${columnIndex} is out of bounds`,
   );
 
-  const currentWidths = table.getAttribute("data-column-widths") || "";
-  const widthArray = currentWidths.split(",");
+  const widthArray = getColumnWidths(table);
   if (columnIndex >= 0 && columnIndex < widthArray.length) {
     widthArray[columnIndex] = width;
     table.setAttribute("data-column-widths", widthArray.join(","));
@@ -1454,9 +1458,9 @@ export function getColumnWidth(table: HTMLElement, columnIndex: number): string 
     `Column index ${columnIndex} is out of bounds`,
   );
 
-  const currentWidths = table.getAttribute("data-column-widths") || "";
-  const widthArray = currentWidths.split(",");
-  return widthArray[columnIndex] || null;
+  // tableInfo.columnWidths came through the shared tokenizer, so an empty
+  // token has already become the default size rather than null.
+  return tableInfo.columnWidths[columnIndex] ?? null;
 }
 
 /** Gets the raw height spec for a given row (e.g., "hug", "fill", or "42px"). */
@@ -1464,9 +1468,9 @@ export function getRowHeight(table: HTMLElement, rowIndex: number): string | nul
   assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
   const tableInfo = getTableInfo(table);
   assert(rowIndex >= 0 && rowIndex < tableInfo.rowCount, `Row index ${rowIndex} is out of bounds`);
-  const currentHeights = table.getAttribute("data-row-heights") || "";
-  const heightArray = currentHeights.split(",");
-  return heightArray[rowIndex] || null;
+  // tableInfo.rowHeights came through the shared tokenizer, so an empty token
+  // has already become the default size rather than null.
+  return tableInfo.rowHeights[rowIndex] ?? null;
 }
 
 /** Sets the height for a given row to a spec (e.g., "hug", "fill", or "42px"). */
@@ -1474,16 +1478,12 @@ export function setRowHeight(table: HTMLElement, rowIndex: number, height: strin
   assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
   const tableInfo = getTableInfo(table);
   assert(rowIndex >= 0 && rowIndex < tableInfo.rowCount, `Row index ${rowIndex} is out of bounds`);
-  const currentHeights = table.getAttribute("data-row-heights") || "";
-  const heightArray = currentHeights ? currentHeights.split(",") : [];
+  // The shared tokenizer already substituted the default for any empty token.
+  const heightArray = getRowHeights(table);
 
   // Ensure array is sized to number of rows
-  if (heightArray.length < tableInfo.rowCount) {
-    heightArray.length = tableInfo.rowCount;
-  }
-  // Fill any empty slots with 'hug'
-  for (let i = 0; i < heightArray.length; i++) {
-    if (!heightArray[i]) heightArray[i] = "hug";
+  while (heightArray.length < tableInfo.rowCount) {
+    heightArray.push(defaultRowHeight);
   }
   if (rowIndex >= 0 && rowIndex < heightArray.length) {
     heightArray[rowIndex] = height;

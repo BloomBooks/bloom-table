@@ -34,6 +34,13 @@ const TableMenu: React.FC<{
   // Where the selected cell sat, remembered while it is still in the document.
   // Undo replaces every cell element, so this is the only way back to it.
   const lastCellLocation = useRef<{ table: HTMLElement; row: number; column: number } | null>(null);
+  // Deliberately re-read on EVERY render, not just when the cell element
+  // changes: a structural operation (insert or delete a row above, a merge)
+  // keeps the selected element and moves it to different coordinates, so a
+  // location remembered per element goes stale and the next undo would refocus
+  // whatever cell now sits at the old coordinates. Every such operation ends in
+  // a tableHistoryUpdated render, so this runs before the location is needed.
+  // The read is one cheap lookup, already guarded.
   useEffect(() => {
     if (!currentCell || !currentCell.isConnected) return;
     const t = currentCell.closest(".bloom-table") as HTMLElement | null;
@@ -44,7 +51,7 @@ const TableMenu: React.FC<{
     } catch {
       // Cell isn't laid out (yet); leave the previous location alone.
     }
-  }, [currentCell, api]);
+  });
 
   // The cell now occupying a remembered position, or the table's first cell if
   // that position no longer exists (e.g. undoing an insert removed the row).
@@ -209,10 +216,26 @@ const TableMenu: React.FC<{
     api.undoLastOperation(table);
   };
 
+  const handleRedo = () => {
+    const table = getTargetTableFromSelection();
+    if (!table) return;
+    // Through api.BloomTable so the redo runs against the history manager of
+    // the realm that owns the table (see TableApi's rationale).
+    new api.BloomTable(table).redo();
+  };
+
   // (Old border toggle handlers removed in favor of BorderControl)
 
   const table = getTargetTableFromSelection() ?? undefined;
   const parentCell = table?.parentElement?.closest(".bloom-cell");
+
+  // Table-aware button state: canUndo()/canRedo() asked without a table can
+  // report true while the newest entry belongs to a DIFFERENT table, in which
+  // case the click would be refused and silently no-op. The controller passes
+  // the table through, so the buttons only claim what a click would deliver.
+  const undoRedoController = table ? new api.BloomTable(table) : null;
+  const undoEnabled = !!undoRedoController && undoRedoController.canUndo();
+  const redoEnabled = !!undoRedoController && undoRedoController.canRedo();
 
   // When there's no selected cell (or it isn't inside a table), there's nothing
   // for the cell/row/column/table controls to act on. We still render them, but
@@ -287,20 +310,33 @@ const TableMenu: React.FC<{
             />
           </div>
 
-          {/* Top actions: Undo + Select Parent */}
+          {/* Top actions: Undo + Redo + Select Parent */}
           <div className="flex items-center gap-2 px-2 pb-2 border-gray-200 mb-2">
             <button
               className="px-2 py-1 rounded-md text-sm"
               style={{
-                backgroundColor: api.canUndo() && table ? "#2D8294" : "#555",
+                backgroundColor: undoEnabled ? "#2D8294" : "#555",
                 color: "rgba(255,255,255,0.95)",
-                cursor: api.canUndo() && table ? "pointer" : "not-allowed",
-                opacity: api.canUndo() && table ? 1 : 0.6,
+                cursor: undoEnabled ? "pointer" : "not-allowed",
+                opacity: undoEnabled ? 1 : 0.6,
               }}
-              disabled={!api.canUndo() || !table}
+              disabled={!undoEnabled}
               onClick={handleUndo}
             >
               Undo
+            </button>
+            <button
+              className="px-2 py-1 rounded-md text-sm"
+              style={{
+                backgroundColor: redoEnabled ? "#2D8294" : "#555",
+                color: "rgba(255,255,255,0.95)",
+                cursor: redoEnabled ? "pointer" : "not-allowed",
+                opacity: redoEnabled ? 1 : 0.6,
+              }}
+              disabled={!redoEnabled}
+              onClick={handleRedo}
+            >
+              Redo
             </button>
             <button
               className="px-2 py-1 rounded-md text-sm"

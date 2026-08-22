@@ -1,5 +1,5 @@
 import { dragToResize } from "./drag-to-resize";
-import { tableHistoryManager } from "./history";
+import { setRestoreReattacher, tableHistoryManager } from "./history";
 import { addColumn, addRow } from "./structure";
 import { migrateTable } from "./migrate";
 import { attachTextEditing, detachTextEditing } from "./text-editing";
@@ -50,6 +50,12 @@ export function attachTable(tableDiv: HTMLElement): void {
   // Apply initial render so styles (borders, corners, spans) are applied immediately
   render(tableDiv);
 }
+
+// Undo and redo rebuild nested tables as fresh, unattached elements; history.ts
+// cannot import this module (that would be a circular import), so it takes the
+// callback. Function declarations hoist, so registering here at module scope is
+// safe.
+setRestoreReattacher(attachTable);
 
 export function detachTable(tableDiv: HTMLElement): void {
   if (!tableDiv) throw new Error("Table element is required");

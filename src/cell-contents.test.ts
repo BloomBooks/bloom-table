@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vite-plus/test";
 import {
+  defaultCellContentsForEachType,
   getCurrentContentTypeId,
   kTableCellContentChangedEvent,
   registerCellContentType,
@@ -75,6 +76,9 @@ describe("setupContentsOfCell content-changed notification", () => {
 
     expect(cell.innerHTML).toBe(""); // the rebuild never happened
     expect(listener).not.toHaveBeenCalled();
+    // Assert the refusal came from the history manager rejecting an unattached
+    // table, not from setupContentsOfCell skipping the history path entirely.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("detached or null table"));
     warn.mockRestore();
     table.remove();
   });
@@ -111,13 +115,45 @@ describe("setupContentsOfCell content-changed notification", () => {
     const listener = vi.fn();
     cell.addEventListener(kTableCellContentChangedEvent, listener);
 
-    setupContentsOfCell(cell, "two-roots", true);
+    const returned = setupContentsOfCell(cell, "two-roots", true);
 
     expect(listener).not.toHaveBeenCalled();
+    // The failed operation made the history manager restore the table's whole
+    // innerHTML, so `cell` is detached: reporting a child of it would hand the
+    // caller DOM that is no longer in the document.
+    expect(returned).toBe(null);
     unregisterCellContentType("two-roots");
     error.mockRestore();
     tableHistoryManager.reset();
     table.remove();
+  });
+});
+
+describe("placeholder markup is self-contained", () => {
+  it("no built-in template references a remote http(s) URL", () => {
+    for (const content of defaultCellContentsForEachType) {
+      // The SVG namespace declaration inside a data: URI (xmlns="http://www.w3.org/2000/svg")
+      // is an identifier, not a fetch, so strip xmlns attributes before checking.
+      const withoutNamespaceDecls = content.templateHtml.replace(/xmlns="[^"]*"/g, "");
+      expect(withoutNamespaceDecls, `template for '${content.id}'`).not.toMatch(/https?:\/\//);
+    }
+  });
+
+  it("no src/href/poster attribute in a built-in template points at the network", () => {
+    for (const content of defaultCellContentsForEachType) {
+      const container = document.createElement("div");
+      container.innerHTML = content.templateHtml;
+      for (const el of container.querySelectorAll("*")) {
+        for (const attrName of ["src", "href", "poster", "srcset"]) {
+          const value = el.getAttribute(attrName);
+          if (value) {
+            expect(value, `${attrName} in template for '${content.id}'`).not.toMatch(
+              /^\s*(https?:)?\/\//i,
+            );
+          }
+        }
+      }
+    }
   });
 });
 

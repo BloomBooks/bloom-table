@@ -13,6 +13,9 @@ type Props = {
   disabled?: boolean;
   onChange: (value: number) => void;
   className?: string;
+  /** Identity of the element this slider edits (see elementKey). The echo below
+   *  is one target's value, so it has to resync when the target changes. */
+  identity?: string;
   "aria-label"?: string;
 };
 
@@ -28,6 +31,7 @@ const Slider: React.FC<Props> = ({
   disabled,
   onChange,
   className,
+  identity,
   ...rest
 }) => {
   // The thumb needs a synchronous source of truth. The panel reflects changes
@@ -36,6 +40,10 @@ const Slider: React.FC<Props> = ({
   // back to the stale prop on every input — the thumb "fights" the drag. We keep
   // a local echo that updates synchronously, and only adopt prop changes that are
   // genuinely external (not the delayed echo of a change we just emitted).
+  // `identity` is a dependency, not decoration: a new target can hand us the very
+  // number the prop already held (two cells that both render 8px), and a
+  // value-only effect then never re-runs, so the previous target's echo stays on
+  // screen and setting that same number emits nothing.
   const [local, setLocal] = useState(value);
   const lastEmitted = useRef(value);
   useEffect(() => {
@@ -43,7 +51,7 @@ const Slider: React.FC<Props> = ({
       lastEmitted.current = value;
       setLocal(value);
     }
-  }, [value]);
+  }, [value, identity]);
 
   const handle = (v: number) => {
     lastEmitted.current = v;

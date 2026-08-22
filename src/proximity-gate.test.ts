@@ -41,7 +41,7 @@ describe("proximity gate hides affordances when the cursor leaves the active zon
   let realRaf: typeof requestAnimationFrame;
 
   beforeEach(() => {
-    tableHistoryManager.reset?.();
+    tableHistoryManager.reset();
     document.body.innerHTML = "";
     resetTableSizeButtons();
     // Make the gate's requestAnimationFrame coalescing run synchronously.
@@ -133,7 +133,7 @@ describe("nested tables: overlays follow the table that owns the selection", () 
   let realRaf: typeof requestAnimationFrame;
 
   beforeEach(() => {
-    tableHistoryManager.reset?.();
+    tableHistoryManager.reset();
     document.body.innerHTML = "";
     resetTableSizeButtons();
     realRaf = globalThis.requestAnimationFrame;
@@ -218,13 +218,40 @@ describe("nested tables: overlays follow the table that owns the selection", () 
     detachTable(nested);
     detachTable(outer);
   });
+
+  it("a mousemove after resetTableSizeButtons builds no overlay DOM", () => {
+    document.body.innerHTML = `
+      <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">
+        <div class="bloom-cell"><div contenteditable>1</div></div>
+        <div class="bloom-cell"><div contenteditable>2</div></div>
+        <div class="bloom-cell"><div contenteditable>3</div></div>
+        <div class="bloom-cell"><div contenteditable>4</div></div>
+      </div>`;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
+    attachTable(table);
+    stubCellRects(table);
+    moveMouse(150, 150);
+    expect(tablePillsVisible()).toBe(true);
+
+    resetTableSizeButtons();
+    expect(document.querySelector("[data-btable-menu-pill]")).toBe(null);
+
+    // The gate's mousemove listener must be gone too: otherwise this move
+    // rebuilds the pills and their body-level wrappers behind the reset's back.
+    moveMouse(150, 150);
+    expect(document.querySelector("[data-btable-menu-pill]")).toBe(null);
+    expect(document.querySelector("[data-overlay-cluster]")).toBe(null);
+    expect(Array.from(document.body.children)).toEqual([table]);
+
+    detachTable(table);
+  });
 });
 
 describe("stale edit-time artifacts in loaded content are scrubbed on attach", () => {
   let realRaf: typeof requestAnimationFrame;
 
   beforeEach(() => {
-    tableHistoryManager.reset?.();
+    tableHistoryManager.reset();
     document.body.innerHTML = "";
     resetTableSizeButtons();
     realRaf = globalThis.requestAnimationFrame;

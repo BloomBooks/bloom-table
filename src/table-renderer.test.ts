@@ -876,6 +876,88 @@ describe("table-renderer", () => {
       expect((anchor.style as any).borderRightColor).toBe("red");
     });
 
+    it("ignores an authored edge on a boundary interior to a merge; skip cells and perimeter stay clean", () => {
+      // 2x2 grid; the top-left anchor spans both columns of row 0, so the
+      // vertical boundary at c=1 in row 0 is interior to the merge.
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,100px");
+      g.setAttribute("data-row-heights", "30px,30px");
+      const anchor = addCell(g, 2, 1); // (0,0), spans columns 0-1
+      const skip = addSkip(g); // (0,1), covered
+      addCell(g); // (1,0)
+      addCell(g); // (1,1)
+      const def = { weight: 1, style: "solid", color: "#000" };
+      g.setAttribute("data-border-default", JSON.stringify(def));
+      const heavy = { weight: 3, style: "solid", color: "red" };
+      g.setAttribute(
+        "data-edges-v",
+        JSON.stringify([
+          [null, heavy, null], // heavy sits on the boundary the merge covers
+          [null, null, null],
+        ]),
+      );
+      const m = buildRenderModel(g);
+      // The covered boundary contributes nothing: no side anywhere shows the
+      // heavy spec.
+      m.cellBorders.forEach((b) => {
+        for (const side of [b.top, b.right, b.bottom, b.left]) {
+          if (side) expect(side.weight).not.toBe(3);
+        }
+      });
+      // The anchor's right side is the table's right perimeter (default), not
+      // the authored interior spec.
+      expect(m.cellBorders[0].right).toEqual(def);
+      // Outer perimeter of the merged cell is intact.
+      expect(m.cellBorders[0].top).toEqual(def);
+      expect(m.cellBorders[0].left).toEqual(def);
+      // The skip cell paints nothing.
+      expect(m.cellBorders[1]).toEqual({ top: null, right: null, bottom: null, left: null });
+      render(g);
+      expect((anchor.style as any).borderRightWidth).toBe("1px");
+      for (const side of ["Top", "Right", "Bottom", "Left"]) {
+        expect((skip.style as any)[`border${side}Style`]).toBe("none");
+        expect((skip.style as any)[`border${side}Width`]).toBe("0px");
+      }
+    });
+
+    it("resolves a covered boundary against the spanning cell, not the skip placeholder", () => {
+      // Column 0 is a vertical merge spanning both rows. The boundary at c=1
+      // therefore meets the merge in two rows: the anchor's own row 0, and the
+      // covered row 1 where the merge is represented by a skip cell. The
+      // anchor's authored side wins its own row; a neighbor's authored side at
+      // the covered row paints on the neighbor without disturbing what the
+      // anchor's row already resolved.
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,100px");
+      g.setAttribute("data-row-heights", "30px,30px");
+      const anchor = addCell(g, 1, 2); // (0,0), spans both rows
+      addCell(g); // (0,1)
+      const skip = addSkip(g); // (1,0), covered
+      const neighbor = addCell(g); // (1,1)
+      const heavy = { weight: 3, style: "solid", color: "red" };
+      const light = { weight: 1, style: "solid", color: "blue" };
+      g.setAttribute(
+        "data-edges-v",
+        JSON.stringify([
+          [null, { west: heavy }, null], // anchor's own row: anchor's side
+          [null, { east: light }, null], // covered row: the neighbor's side
+        ]),
+      );
+      const m = buildRenderModel(g);
+      // Anchor's own row resolves the boundary to the anchor's heavy stroke.
+      expect(m.cellBorders[0].right).toEqual(heavy);
+      expect(m.cellBorders[1].left).toBeNull();
+      // The covered row resolves against the spanning cell: the neighbor keeps
+      // its own authored side, and the skip placeholder paints nothing.
+      expect(m.cellBorders[3].left).toEqual(light);
+      expect(m.cellBorders[2]).toEqual({ top: null, right: null, bottom: null, left: null });
+      render(g);
+      expect((anchor.style as any).borderRightWidth).toBe("3px");
+      expect((neighbor.style as any).borderLeftWidth).toBe("1px");
+      expect((neighbor.style as any).borderLeftColor).toBe("blue");
+      expect((skip.style as any).borderRightStyle).toBe("none");
+    });
+
     it("gives a merged cell no stroke on boundaries interior to the merge", () => {
       const g = makeTable();
       g.setAttribute("data-column-widths", "100px,100px");

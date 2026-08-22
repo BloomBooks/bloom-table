@@ -25,6 +25,7 @@ import {
 } from "./table-model";
 import { getCurrentContentTypeId, kTableCellContentChangedEvent } from "./cell-contents";
 import { render, buildRenderModel } from "./table-renderer";
+import { getTableOuterBorderValueMap } from "./border-state";
 
 // A 2x2 table matching the attribute model the renderer reads. Attached so
 // history-backed commands (content type) actually run.
@@ -45,7 +46,7 @@ function makeTable(): { table: HTMLElement; cells: HTMLElement[] } {
 }
 
 beforeEach(() => {
-  tableHistoryManager.reset?.();
+  tableHistoryManager.reset();
   document.body.innerHTML = "";
   resetTableSizeButtons();
 });
@@ -224,6 +225,123 @@ describe("last command wins across menus", () => {
     applyBorderStyle(table, "cell", getCellsInScope(table, "cell", cells[0]), "dotted");
     expect(cells[0].style.borderTopStyle).toBe("dotted");
     expect(cells[0].style.borderTopWidth).toBe("1px"); // re-armed from 0
+  });
+});
+
+describe("border tri-state: unchanged round-trips keep inheriting edges", () => {
+  // True when no explicit spec has been stamped into the edge arrays: every
+  // entry is still null/{} (never set), so every edge is inheriting the
+  // table default.
+  const allEntriesUnset = (table: HTMLElement): boolean => {
+    const parse = (name: string) => JSON.parse(table.getAttribute(name) || "[]") as unknown[][];
+    return [...parse("data-edges-h"), ...parse("data-edges-v")].every((line) =>
+      line.every((e) => e == null || Object.keys(e as object).length === 0),
+    );
+  };
+  const solidBlackDefault = JSON.stringify({ weight: 1, style: "solid", color: "#000" });
+
+  it("table scope: recoloring to the color everything already renders stamps nothing, so a later default edit still reaches every edge", () => {
+    const { table, cells } = makeTable();
+    table.setAttribute("data-border-default", solidBlackDefault);
+
+    // Same value the edges already render (only the hex spelling differs).
+    applyBorderColor(table, "table", getCellsInScope(table, "table", null), "#000000");
+    expect(allEntriesUnset(table)).toBe(true);
+
+    table.setAttribute(
+      "data-border-default",
+      JSON.stringify({ weight: 4, style: "dashed", color: "red" }),
+    );
+    render(table);
+    expect(cells[0].style.borderTopWidth).toBe("4px");
+    expect(cells[0].style.borderTopStyle).toBe("dashed");
+    const map = getTableOuterBorderValueMap(table);
+    expect(map.innerH.weight).toBe(4);
+    expect(map.innerH.style).toBe("dashed");
+    expect(map.innerV.weight).toBe(4);
+  });
+
+  it("cell scope: the same unchanged write leaves the cell's edges inheriting", () => {
+    const { table, cells } = makeTable();
+    table.setAttribute("data-border-default", solidBlackDefault);
+
+    applyBorderColor(table, "cell", getCellsInScope(table, "cell", cells[0]), "#000000");
+    expect(allEntriesUnset(table)).toBe(true);
+
+    table.setAttribute(
+      "data-border-default",
+      JSON.stringify({ weight: 2, style: "dotted", color: "#00ff00" }),
+    );
+    render(table);
+    expect(cells[0].style.borderTopWidth).toBe("2px");
+    expect(cells[0].style.borderTopStyle).toBe("dotted");
+  });
+
+  it("a uniform table-scope change moves the default, so every edge renders the new value", () => {
+    const { table, cells } = makeTable();
+    table.setAttribute("data-border-default", solidBlackDefault);
+
+    applyBorderWeight(table, "table", getCellsInScope(table, "table", null), 4);
+    render(table);
+    expect(cells[0].style.borderTopWidth).toBe("4px");
+    expect(cells[0].style.borderRightWidth).toBe("4px");
+    // A table-scope command rewrites the default too, and here every edge asked
+    // for the same value, so the edges stay inheriting rather than freezing at
+    // 4px — the next table-scope command still reaches all of them.
+    expect(allEntriesUnset(table)).toBe(true);
+    expect(JSON.parse(table.getAttribute("data-border-default")!).weight).toBe(4);
+
+    applyBorderWeight(table, "table", getCellsInScope(table, "table", null), 1);
+    render(table);
+    expect(cells[0].style.borderTopWidth).toBe("1px");
+  });
+
+  it("a table-scope edit does not let an inheriting perimeter follow the new default", () => {
+    const { table, cells } = makeTable();
+    table.setAttribute("data-border-default", solidBlackDefault); // 1px solid
+    // Make the interior thicker than the perimeter, and leave the top
+    // perimeter never-set (it renders the 1px default).
+    applyBorderWeight(table, "row", getCellsInScope(table, "row", cells[2]), 4);
+
+    // A style-only table edit. The perimeter's resolved value (1px solid) is
+    // written back unchanged, but the command also moves the default to the
+    // interior's 4px: the perimeter must not thicken with it.
+    applyBorderStyle(table, "table", getCellsInScope(table, "table", null), "solid");
+    render(table);
+
+    expect(cells[0].style.borderTopWidth).toBe("1px");
+    expect(cells[1].style.borderTopWidth).toBe("1px");
+  });
+
+  it("cell scope: an explicit 'none' is stamped, so a later default edit does not resurrect it", () => {
+    const { table, cells } = makeTable();
+    table.setAttribute("data-border-default", solidBlackDefault);
+
+    applyBorderStyle(table, "cell", getCellsInScope(table, "cell", cells[0]), "none");
+    expect(allEntriesUnset(table)).toBe(false);
+
+    table.setAttribute(
+      "data-border-default",
+      JSON.stringify({ weight: 2, style: "solid", color: "#000" }),
+    );
+    render(table);
+    expect(cells[0].style.borderTopWidth === "" || cells[0].style.borderTopWidth === "0px").toBe(
+      true,
+    );
+  });
+
+  it("table scope: turning every border off records the 'none' on the default", () => {
+    const { table, cells } = makeTable();
+    table.setAttribute("data-border-default", solidBlackDefault);
+
+    applyBorderStyle(table, "table", getCellsInScope(table, "table", null), "none");
+    render(table);
+
+    for (const side of ["borderTopWidth", "borderRightWidth", "borderBottomWidth"] as const) {
+      expect(cells[0].style[side] === "" || cells[0].style[side] === "0px").toBe(true);
+    }
+    const dflt = JSON.parse(table.getAttribute("data-border-default")!);
+    expect(dflt.weight === 0 || dflt.style === "none").toBe(true);
   });
 });
 

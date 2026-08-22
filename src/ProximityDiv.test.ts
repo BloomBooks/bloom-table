@@ -107,6 +107,45 @@ describe("ProximityDiv opacity", () => {
     expect(opacity).toBe(1);
   });
 
+  it("honors a custom minOpacity floor when far away", () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+
+    const child = document.createElement("div");
+    const prox = new ProximityDiv(parent, child, { minOpacity: 0.6 });
+    mockRect(child, { left: 100, top: 100, width: 200, height: 50 });
+    mockRect(prox.element, { left: 100, top: 100, width: 200, height: 50 });
+
+    // Far outside the 50px activation band: dims to ITS floor, not the 0.08 default.
+    moveMouse(20, 120);
+    expect(parseFloat(child.style.opacity)).toBeCloseTo(0.6, 3);
+
+    // And the ramp starts from that floor: 25px out is halfway up to 1.
+    moveMouse(75, 125);
+    const expected = 0.6 + (1 - 0.6) * (1 - 25 / 50);
+    expect(parseFloat(child.style.opacity)).toBeCloseTo(expected, 3);
+  });
+
+  it("destroy() removes the wrapper and stops reacting to document mousemove", () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+
+    const child = document.createElement("div");
+    const prox = new ProximityDiv(parent, child);
+    mockRect(child, { left: 100, top: 100, width: 200, height: 50 });
+    mockRect(prox.element, { left: 100, top: 100, width: 200, height: 50 });
+
+    moveMouse(500, 500); // far away: dim
+    expect(parseFloat(child.style.opacity)).toBeCloseTo(0.08, 3);
+
+    prox.destroy();
+    expect(document.body.contains(prox.element)).toBe(false);
+
+    // A mousemove right on top of the (former) rect must no longer brighten it.
+    moveMouse(150, 120);
+    expect(parseFloat(child.style.opacity)).toBeCloseTo(0.08, 3);
+  });
+
   it("updates opacity on child mouseenter even without document mousemove", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);

@@ -50,10 +50,38 @@ function setJSONAttr(el: HTMLElement, name: string, value: unknown | null) {
 }
 
 // Widths / Heights (lists)
+
+// A new table, and a new column in an old one, grows to share the width of the
+// page. A table the user has just made is nearly always meant to span the
+// space it sits in, and a column that hugs its text leaves that space empty.
+// (structure.ts re-exports these; they live here so the size-list reader below
+// can use them without an import cycle.)
+export const defaultColumnWidth = "fill";
+export const defaultRowHeight = "hug";
+
+/**
+ * THE tokenizer for the two size-list attributes (data-column-widths /
+ * data-row-heights). Every reader of those attributes goes through
+ * getColumnWidths / getRowHeights, which call this — so the whole codebase
+ * agrees on what a malformed attribute means.
+ *
+ * Positional semantics: the attribute declares one position per comma-separated
+ * token, and positions are never dropped. An empty or whitespace-only token
+ * (persisted HTML is user-editable, so "100px,,50px" can arrive) means "the
+ * default size for that position" and is substituted, keeping the count — a
+ * reader that silently dropped it would disagree with every other layer about
+ * how many columns/rows the table has, misplacing every cell after it.
+ * An entirely empty (or absent) attribute declares zero positions.
+ */
+export function parseSizeList(raw: string | null, defaultSize: string): string[] {
+  const v = (raw || "").trim();
+  if (v === "") return [];
+  return v.split(",").map((token) => token.trim() || defaultSize);
+}
+
 export function getColumnWidths(table: HTMLElement): string[] {
   assert(table.classList.contains("bloom-table"), "getColumnWidths: not a table");
-  const v = table.getAttribute("data-column-widths") || "";
-  return v === "" ? [] : v.split(",");
+  return parseSizeList(table.getAttribute("data-column-widths"), defaultColumnWidth);
 }
 
 export function setColumnWidths(table: HTMLElement, widths: string[]): void {
@@ -63,8 +91,7 @@ export function setColumnWidths(table: HTMLElement, widths: string[]): void {
 
 export function getRowHeights(table: HTMLElement): string[] {
   assert(table.classList.contains("bloom-table"), "getRowHeights: not a table");
-  const v = table.getAttribute("data-row-heights") || "";
-  return v === "" ? [] : v.split(",");
+  return parseSizeList(table.getAttribute("data-row-heights"), defaultRowHeight);
 }
 
 export function setRowHeights(table: HTMLElement, heights: string[]): void {

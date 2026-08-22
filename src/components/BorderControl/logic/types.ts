@@ -4,6 +4,12 @@ export type BorderWeight = 0 | 1 | 2 | 4;
 export type BorderStyle = "none" | "solid" | "dashed" | "dotted" | "double";
 export type CornerRadius = 0 | 2 | 4 | 8 | 16;
 
+// Every radius the model accepts, for code that has to recognize a radius read
+// back from the DOM. Keep it in step with CornerRadius: a value the menus can
+// write but this list omits reads back as "mixed", which flips the Corners menu
+// to "mixed" right after the user picked that value.
+export const kCornerRadii: number[] = [0, 2, 4, 8, 16];
+
 export interface EdgeValue {
   weight: BorderWeight;
   style: BorderStyle;

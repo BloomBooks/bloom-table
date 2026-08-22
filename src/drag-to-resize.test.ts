@@ -61,7 +61,7 @@ function columnWidths(table: HTMLElement): string[] {
 
 describe("drag to resize", () => {
   beforeEach(() => {
-    tableHistoryManager.reset?.();
+    tableHistoryManager.reset();
     document.body.innerHTML = "";
     resetTableSizeButtons();
     document.body.style.cursor = "";
@@ -167,6 +167,138 @@ describe("drag to resize", () => {
     moveDocument(400, 300);
     expect(table.getAttribute("data-column-widths")).toBe(widthsAfterDetach);
 
+    detachTable(table);
+  });
+
+  it("commits one undoable history entry per column drag and undo restores the original", () => {
+    const table = makeTable("100px,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    mouseDownAt(child, 198, 120);
+    moveDocument(238, 120); // 40px: well past the 3px movement threshold
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    expect(parseFloat(columnWidths(table)[0])).toBeCloseTo(140, 1);
+    expect(tableHistoryManager.getLastOperationLabel()).toMatch(/^Resize Column 1/);
+
+    expect(tableHistoryManager.undo(table)).toBe(true);
+    expect(columnWidths(table)[0]).toBe("100px");
+    // Exactly one entry was committed for the whole drag.
+    expect(tableHistoryManager.canUndo(table)).toBe(false);
+
+    detachTable(table);
+  });
+
+  it("commits nothing for a sub-3px wiggle", () => {
+    const table = makeTable("100px,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    mouseDownAt(child, 198, 120);
+    moveDocument(200, 120); // 2px: below the movement threshold
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    expect(tableHistoryManager.canUndo(table)).toBe(false);
+    expect(document.body.style.cursor).toBe("default"); // latch released anyway
+
+    detachTable(table);
+  });
+
+  it("clamps a column drag at the 50px minimum width", () => {
+    const table = makeTable("100px,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    mouseDownAt(child, 198, 120);
+    moveDocument(0, 120); // drag far leftward, way past the minimum
+
+    expect(columnWidths(table)[0]).toBe("50px");
+
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    detachTable(table);
+  });
+
+  it("commits a row drag as an mm height, undoable back to the original", () => {
+    const table = makeTable("hug,hug", "hug,30px");
+    const cells = layOutGrid(table);
+    const child = cells[2].firstElementChild as HTMLElement; // row 1 starts at y=150
+
+    mouseDownAt(child, 140, 198); // bottom edge of row 1 (rect 150..200)
+    moveDocument(140, 218); // +20px
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    const heights = (table.getAttribute("data-row-heights") || "").split(",");
+    // Rows are stored in mm: 30px + 20px = 50px ≈ 13.2mm.
+    expect(heights[1]).toMatch(/^[0-9]+(\.[0-9])?mm$/);
+    expect(parseFloat(heights[1])).toBeCloseTo(50 * (25.4 / 96), 1);
+    expect(tableHistoryManager.getLastOperationLabel()).toMatch(/^Resize Row 2/);
+
+    expect(tableHistoryManager.undo(table)).toBe(true);
+    expect((table.getAttribute("data-row-heights") || "").split(",")[1]).toBe("30px");
+
+    detachTable(table);
+  });
+
+  it("double-click on a row edge auto-sizes the row to 'hug', undoably", () => {
+    const table = makeTable("hug,hug", "40px,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    child.dispatchEvent(
+      new MouseEvent("dblclick", { clientX: 140, clientY: 148, bubbles: true }),
+    );
+
+    expect((table.getAttribute("data-row-heights") || "").split(",")[0]).toBe("hug");
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Auto-size Row 1");
+
+    expect(tableHistoryManager.undo(table)).toBe(true);
+    expect((table.getAttribute("data-row-heights") || "").split(",")[0]).toBe("40px");
+
+    detachTable(table);
+  });
+
+  it("double-click on a column edge auto-sizes the column to 'hug', undoably", () => {
+    const table = makeTable("120px,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    child.dispatchEvent(
+      new MouseEvent("dblclick", { clientX: 198, clientY: 120, bubbles: true }),
+    );
+
+    expect(columnWidths(table)[0]).toBe("hug");
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Auto-size Column 1");
+
+    expect(tableHistoryManager.undo(table)).toBe(true);
+    expect(columnWidths(table)[0]).toBe("120px");
+
+    detachTable(table);
+  });
+
+  it("doubles the drag delta when the table sits centered in a flex parent", () => {
+    document.body.innerHTML = `
+      <div style="display: flex; justify-content: center;">
+        <div class="bloom-table" data-column-widths="100px,hug" data-row-heights="hug,hug">
+          <div class="bloom-cell"><div contenteditable>1</div></div>
+          <div class="bloom-cell"><div contenteditable>2</div></div>
+          <div class="bloom-cell"><div contenteditable>3</div></div>
+          <div class="bloom-cell"><div contenteditable>4</div></div>
+        </div>
+      </div>`;
+    const table = document.querySelector(".bloom-table") as HTMLElement;
+    attachTable(table);
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    mouseDownAt(child, 198, 120);
+    moveDocument(218, 120); // +20px of mouse travel
+
+    // Centering makes the dragged divider move at half the mouse speed, so the
+    // delta is doubled to compensate: 100px + 2*20px.
+    expect(parseFloat(columnWidths(table)[0])).toBeCloseTo(140, 1);
+
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     detachTable(table);
   });
 
