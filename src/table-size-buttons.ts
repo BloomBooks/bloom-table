@@ -749,7 +749,7 @@ function buildContentTypeControls(ctx: MenuCtx, scope: FormattingScope): HTMLEle
   };
   for (const opt of contentTypeOptions()) {
     const b = makeIconToggle(opt.icon, opt.englishName, false, () => {
-      applyContentType(table, cells(), opt.id);
+      applyContentType(table, scope, cells(), opt.id);
       refreshContent();
     });
     b.dataset.ctId = opt.id;
@@ -788,7 +788,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   };
   for (const a of aligns) {
     const b = makeIconToggle(a.icon, a.title, false, () => {
-      applyAlignment(table, cells(), a.id);
+      applyAlignment(table, scope, cells(), a.id);
       refreshAlign();
     });
     b.dataset.align = a.id;
@@ -805,7 +805,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
       40,
       common((c) => firstPx(getCellPadding(c))) ?? firstPx(getCellPadding(seed)),
       "px",
-      (v) => applyPadding(table, cells(), v),
+      (v) => applyPadding(table, scope, cells(), v),
     ),
   );
 
@@ -885,7 +885,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   };
   for (const radius of [0, 4, 8, 16]) {
     const b = makeCornerToggle(radius, false, () => {
-      applyCorners(table, cells(), radius);
+      applyCorners(table, scope, cells(), radius);
       refreshCorners();
     });
     b.dataset.radius = String(radius);
@@ -919,7 +919,7 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
       makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
       makeMenuItem(
         "Paste properties",
-        () => pasteProperties(table, cells()),
+        () => pasteProperties(table, scope, cells()),
         undefined,
         !hasCopiedProperties(),
         kPasteIconSvg,

@@ -159,13 +159,13 @@ describe("paint format mode", () => {
     const pattern = [snapshotCellProperties(cells[0])];
 
     // One-cell pattern onto a two-cell row: both get it (cycling).
-    paintProperties(table, [cells[2], cells[3]], pattern);
+    paintProperties(table, "row", [cells[2], cells[3]], pattern);
     expect(getCellBackground(cells[2])).toBe("red");
     expect(getCellBackground(cells[3])).toBe("red");
 
     // Two-cell pattern onto a one-cell target: truncated to the first entry.
     const pattern2 = [snapshotCellProperties(cells[1]), snapshotCellProperties(cells[0])];
-    paintProperties(table, [cells[2]], pattern2);
+    paintProperties(table, "cell", [cells[2]], pattern2);
     expect(getCellBackground(cells[2])).toBe("blue");
   });
 });

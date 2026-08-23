@@ -719,3 +719,73 @@ describe("a history entry records the table its operation acted on", () => {
     expect(outer.getAttribute("data-column-widths")).toBe("200px");
   });
 });
+
+describe("an entry's detail", () => {
+  beforeEach(() => {
+    tableHistoryManager.reset();
+    document.body.innerHTML = "";
+  });
+
+  // Every "tableHistoryUpdated" event fired while fn runs.
+  function eventsDuring(fn: () => void): { operation: string; operationDetail?: string }[] {
+    const seen: { operation: string; operationDetail?: string }[] = [];
+    const listener = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      seen.push({ operation: d.operation, operationDetail: d.operationDetail });
+    };
+    document.addEventListener("tableHistoryUpdated", listener);
+    try {
+      fn();
+    } finally {
+      document.removeEventListener("tableHistoryUpdated", listener);
+    }
+    return seen;
+  }
+
+  it("rides along on the record, the undo, and the redo events", () => {
+    const a = makeTable("a", "<div class='bloom-cell'>A</div>");
+
+    const recorded = eventsDuring(() => {
+      tableHistoryManager.addHistoryEntry(
+        a,
+        { label: "Set Corners", detail: "radius 8, row 2 (2 cells)" },
+        () => a.setAttribute("data-corners", "8"),
+      );
+    });
+    expect(recorded).toEqual([
+      { operation: "Set Corners", operationDetail: "radius 8, row 2 (2 cells)" },
+    ]);
+
+    // The label stays short for tooltips; the detail travels beside it.
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Set Corners");
+    expect(tableHistoryManager.getEntriesForDebug()).toMatchObject([
+      { label: "Set Corners", detail: "radius 8, row 2 (2 cells)" },
+    ]);
+
+    const undone = eventsDuring(() => {
+      expect(tableHistoryManager.undo(a)).toBe(true);
+    });
+    expect(undone).toEqual([
+      { operation: "Undo Set Corners", operationDetail: "radius 8, row 2 (2 cells)" },
+    ]);
+
+    const redone = eventsDuring(() => {
+      expect(tableHistoryManager.redo(a)).toBe(true);
+    });
+    expect(redone).toEqual([
+      { operation: "Redo Set Corners", operationDetail: "radius 8, row 2 (2 cells)" },
+    ]);
+  });
+
+  it("is absent when the caller passes a label alone", () => {
+    const a = makeTable("a", "<div class='bloom-cell'>A</div>");
+
+    const recorded = eventsDuring(() => {
+      tableHistoryManager.addHistoryEntry(a, "Delete Table", () => {
+        a.setAttribute("data-deleted", "true");
+      });
+    });
+    expect(recorded).toEqual([{ operation: "Delete Table", operationDetail: undefined }]);
+    expect(tableHistoryManager.getEntriesForDebug()[0].detail).toBeUndefined();
+  });
+});

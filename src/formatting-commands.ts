@@ -8,6 +8,7 @@
 
 import { snapshotCellSettings, applyCellSettings, type CellSettings } from "./structure";
 import { buildGrid } from "./grid";
+import { describeTarget, kWholeTableTarget } from "./operation-detail";
 import { render } from "./table-renderer";
 import { tableHistoryManager } from "./history";
 import {
@@ -57,8 +58,15 @@ const tableCells = (table: HTMLElement): HTMLElement[] =>
 // this, Ctrl+Z after a formatting change would revert an unrelated earlier
 // operation while the formatting stayed.) No-ops on unattached tables, same
 // as every other history-backed operation.
-function withHistory(table: HTMLElement, description: string, op: () => void): void {
-  tableHistoryManager.addHistoryEntry(table, description, op);
+// The detail says what the command did and to which cells, for the debug
+// journal; see HistoryEntry.detail.
+function withHistory(
+  table: HTMLElement,
+  label: string,
+  detail: string | undefined,
+  op: () => void,
+): void {
+  tableHistoryManager.addHistoryEntry(table, { label, detail }, op);
 }
 
 /** The cells a formatting command targets: the given cell, its row, its
@@ -92,6 +100,7 @@ export function getCellsInScope(
 
 export function applyContentType(
   table: HTMLElement,
+  scope: FormattingScope,
   cells: HTMLElement[],
   contentTypeId: string,
 ): void {
@@ -104,7 +113,8 @@ export function applyContentType(
   // type being applied is the default one — and the host has to hear about the
   // contenteditable that rebuild just created.
   const wasDifferent = cells.filter((c) => getExistingContentTypeId(c) !== contentTypeId);
-  withHistory(table, "Change Content Type", () => {
+  const target = describeTarget(table, scope, cells);
+  withHistory(table, "Change Content Type", `${contentTypeId}, ${target}`, () => {
     for (const c of cells) setupContentsOfCell(c, contentTypeId, false, false);
     render(table);
   });
@@ -116,25 +126,45 @@ export function applyContentType(
   }
 }
 
-export function applyAlignment(table: HTMLElement, cells: HTMLElement[], align: CellAlign): void {
-  withHistory(table, "Set Alignment", () => {
+export function applyAlignment(
+  table: HTMLElement,
+  scope: FormattingScope,
+  cells: HTMLElement[],
+  align: CellAlign,
+): void {
+  withHistory(table, "Set Alignment", `${align}, ${describeTarget(table, scope, cells)}`, () => {
     for (const c of cells) setCellAlign(c, align);
     render(table);
   });
 }
 
-export function applyPadding(table: HTMLElement, cells: HTMLElement[], px: number): void {
-  withHistory(table, "Set Padding", () => {
+export function applyPadding(
+  table: HTMLElement,
+  scope: FormattingScope,
+  cells: HTMLElement[],
+  px: number,
+): void {
+  withHistory(table, "Set Padding", `${px}px, ${describeTarget(table, scope, cells)}`, () => {
     for (const c of cells) setCellPadding(c, `${px}px`);
     render(table);
   });
 }
 
-export function applyCorners(table: HTMLElement, cells: HTMLElement[], radius: number): void {
-  withHistory(table, "Set Corners", () => {
-    for (const c of cells) setCellCorners(c, radius ? { radius } : null);
-    render(table);
-  });
+export function applyCorners(
+  table: HTMLElement,
+  scope: FormattingScope,
+  cells: HTMLElement[],
+  radius: number,
+): void {
+  withHistory(
+    table,
+    "Set Corners",
+    `radius ${radius}, ${describeTarget(table, scope, cells)}`,
+    () => {
+      for (const c of cells) setCellCorners(c, radius ? { radius } : null);
+      render(table);
+    },
+  );
 }
 
 /** Fill colors the cells themselves; null clears back to the stylesheet
@@ -146,7 +176,8 @@ export function applyFill(
   cells: HTMLElement[],
   color: string | null,
 ): void {
-  withHistory(table, "Set Fill", () => {
+  const detail = `${color || "cleared"}, ${describeTarget(table, scope, cells)}`;
+  withHistory(table, "Set Fill", detail, () => {
     if (scope === "table") setTableBackground(table, null);
     for (const c of cells) setCellBackground(c, color || null);
     render(table);
@@ -158,6 +189,17 @@ export type BorderProps = {
   style?: BorderStyle;
   weight?: BorderWeight;
 };
+
+// The border properties a command was asked to change, for the history
+// entry's detail. Only the ones actually given appear, so the journal says
+// "weight 2" for a weight change instead of listing values nobody set.
+function describeBorderProps(props: BorderProps): string {
+  const parts: string[] = [];
+  if (props.color) parts.push(`color ${props.color}`);
+  if (props.style) parts.push(`style ${props.style}`);
+  if (props.weight !== undefined) parts.push(`weight ${props.weight}`);
+  return parts.join(", ");
+}
 
 // Resolve one edge's new value: apply the requested overrides on top of the
 // edge's current weight/style, then keep weight and style consistent — style
@@ -198,8 +240,13 @@ export function applyBorderProps(
   cells: HTMLElement[],
   props: BorderProps,
 ): void {
+  const changed = describeBorderProps(props);
   if (scope === "table") {
-    withHistory(table, "Change Border", () => {
+    // No cell count here: the table scope writes the outer, inner and default
+    // borders rather than each cell's perimeter, so a count of cells would
+    // describe something the command does not do.
+    const detail = changed ? `${changed}, ${kWholeTableTarget}` : kWholeTableTarget;
+    withHistory(table, "Change Border", detail, () => {
       const base = getTableOuterBorderValueMap(table);
       const firstCell = cells[0] ?? tableCells(table)[0];
       const color =
@@ -227,7 +274,8 @@ export function applyBorderProps(
     });
     return;
   }
-  withHistory(table, "Change Border", () => {
+  const target = describeTarget(table, scope, cells);
+  withHistory(table, "Change Border", changed ? `${changed}, ${target}` : target, () => {
     // Snapshot every perimeter before writing: cells share edges, so a write
     // for one cell must not feed into the map read for the next. Colors are
     // kept per edge so a style/weight change doesn't flatten a multi-colored
@@ -329,6 +377,7 @@ export function copyProperties(cells: HTMLElement[]): CopiedCellProperties | nul
 // the history entry closes.
 function stampProperties(
   table: HTMLElement,
+  scope: FormattingScope,
   cells: HTMLElement[],
   propsFor: (index: number) => CopiedCellProperties,
   label: string,
@@ -341,7 +390,9 @@ function stampProperties(
     // fallback, or an empty untyped cell gets rebuilt without the host hearing.
     if (t && getExistingContentTypeId(c) !== t) wasDifferent.push([c, t]);
   });
-  withHistory(table, label, () => {
+  // Only the target: what was stamped is a whole record of properties, which
+  // no short line can report.
+  withHistory(table, label, describeTarget(table, scope, cells), () => {
     cells.forEach((c, i) => {
       const p = propsFor(i);
       applyCellSettings(c, p.settings);
@@ -361,10 +412,14 @@ function stampProperties(
 
 /** Stamp the copied properties onto every cell in the target scope. No-op
  *  when nothing has been copied. */
-export function pasteProperties(table: HTMLElement, cells: HTMLElement[]): void {
+export function pasteProperties(
+  table: HTMLElement,
+  scope: FormattingScope,
+  cells: HTMLElement[],
+): void {
   const p = copiedProperties;
   if (!p) return;
-  stampProperties(table, cells, () => p, "Paste Properties");
+  stampProperties(table, scope, cells, () => p, "Paste Properties");
 }
 
 /** Paint-format stamping: apply a per-cell pattern (the snapshots of the
@@ -373,11 +428,12 @@ export function pasteProperties(table: HTMLElement, cells: HTMLElement[]): void 
  *  alternating across a longer target. Truncates when the target is shorter. */
 export function paintProperties(
   table: HTMLElement,
+  scope: FormattingScope,
   cells: HTMLElement[],
   pattern: CopiedCellProperties[],
 ): void {
   if (!pattern.length) return;
-  stampProperties(table, cells, (i) => pattern[i % pattern.length], "Paint Format");
+  stampProperties(table, scope, cells, (i) => pattern[i % pattern.length], "Paint Format");
 }
 
 export function applyBorderStyle(

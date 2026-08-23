@@ -334,13 +334,16 @@ export class DragToResize {
     const capturedOriginalValue = this.dragState.originalValue;
     const capturedTargetIndex = this.dragState.targetIndex;
 
-    let description: string;
+    let description: { label: string; detail: string };
     let performOperation: () => void;
     let undoOperation: (tableElement: HTMLElement, prevState: import("./history").TableState) => void;
 
     if (operationType === "column") {
       const newWidth = this.calculateFinalColumnWidth(targetElement); // targetElement is table here
-      description = `Resize Column ${capturedTargetIndex + 1} to ${newWidth}`;
+      description = {
+        label: "Resize Column",
+        detail: `column ${capturedTargetIndex + 1} to ${newWidth}`,
+      };
 
       performOperation = () => {
         const currentWidths = targetElement.getAttribute("data-column-widths") || "";
@@ -368,7 +371,10 @@ export class DragToResize {
       const rowHeights = currentRowHeights.split(",");
       const newHeight = rowHeights[capturedTargetIndex] || "hug";
 
-      description = `Resize Row ${capturedTargetIndex + 1} to ${newHeight}`;
+      description = {
+        label: "Resize Row",
+        detail: `row ${capturedTargetIndex + 1} to ${newHeight}`,
+      };
 
       performOperation = () => {
         // The height is already set during preview, so nothing to do here
@@ -564,7 +570,10 @@ export class DragToResize {
       const rowHeights = currentRowHeights.split(",");
       const currentHeight = rowIndex < rowHeights.length ? rowHeights[rowIndex] : "hug";
 
-      const description = `Auto-size Row ${rowIndex + 1}`;
+      const description = {
+        label: "Auto-size Row",
+        detail: `row ${rowIndex + 1} to hug its contents`,
+      };
 
       const performOperation = () => {
         const currentRowHeights = tableElement.getAttribute("data-row-heights") || "";
@@ -602,7 +611,10 @@ export class DragToResize {
       const widthArray = currentWidths.split(",");
       const currentWidth = columnIndex < widthArray.length ? widthArray[columnIndex] : "hug";
 
-      const description = `Auto-size Column ${columnIndex + 1}`;
+      const description = {
+        label: "Auto-size Column",
+        detail: `column ${columnIndex + 1} to hug its contents`,
+      };
 
       const performOperation = () => {
         setColumnWidth(table, columnIndex, "hug");

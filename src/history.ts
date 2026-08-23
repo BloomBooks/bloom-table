@@ -7,6 +7,12 @@ export interface HistoryEntry {
   state: TableState; // The state *before* the operation was performed
   timestamp: number;
   label: string;
+  // What the operation actually did, in the caller's own terms: the value it
+  // wrote and the row, column, or cells it wrote to ("radius 8, row 2 (2
+  // cells)"). The label stays short because menus and tooltips show it; the
+  // detail is for a debug log, where "Set Corners" alone says too little.
+  // Absent when the call site knows nothing beyond the label.
+  detail?: string;
   table?: HTMLElement; // The top-level table this entry applies to
   // Which table the operation itself acted on, as a chain of child indices from
   // the top-level table (empty for the top-level table itself). A custom
@@ -74,6 +80,22 @@ export function resolveOwnTable(top: HTMLElement, path: number[] | undefined): H
   return node.classList?.contains("bloom-table") ? (node as HTMLElement) : top;
 }
 
+// One entry as the diagnostics views report it.
+export interface DebugEntry {
+  label: string;
+  detail?: string;
+  timestamp: number;
+  tableInDom: boolean;
+}
+
+// What a caller passes to addHistoryEntry: the short label on its own, or the
+// label together with a detail describing what the operation did.
+export type OperationDescription = string | { label: string; detail?: string };
+
+const labelOf = (d: OperationDescription): string => (typeof d === "string" ? d : d.label);
+const detailOf = (d: OperationDescription): string | undefined =>
+  typeof d === "string" ? undefined : d.detail;
+
 class TableHistoryManager {
   private history: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
@@ -92,22 +114,23 @@ class TableHistoryManager {
   }
 
   // Read-only view of the undo stack for diagnostics (oldest first). Exposes
-  // labels and timing only, not the captured states.
-  getEntriesForDebug(): { label: string; timestamp: number; tableInDom: boolean }[] {
-    return this.history.map((e) => ({
-      label: e.label,
-      timestamp: e.timestamp,
-      tableInDom: !!e.table && document.body.contains(e.table),
-    }));
+  // labels, details and timing only, not the captured states.
+  getEntriesForDebug(): DebugEntry[] {
+    return this.history.map((e) => this.toDebugEntry(e));
   }
 
   // Same view over the redo stack.
-  getRedoEntriesForDebug(): { label: string; timestamp: number; tableInDom: boolean }[] {
-    return this.redoStack.map((e) => ({
+  getRedoEntriesForDebug(): DebugEntry[] {
+    return this.redoStack.map((e) => this.toDebugEntry(e));
+  }
+
+  private toDebugEntry(e: HistoryEntry): DebugEntry {
+    return {
       label: e.label,
+      detail: e.detail,
       timestamp: e.timestamp,
       tableInDom: !!e.table && document.body.contains(e.table),
-    }));
+    };
   }
   private captureTableState(table: HTMLElement): TableState {
     const attributes: Record<string, string> = {};
@@ -133,7 +156,7 @@ class TableHistoryManager {
   // success (e.g. notifying the host that a cell's contents changed).
   addHistoryEntry(
     table: HTMLElement,
-    description: string,
+    description: OperationDescription,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     performOperation: () => void, // The function that actually performs the DOM change
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,6 +165,8 @@ class TableHistoryManager {
     // element itself needs one.
     redoOperation?: (table: HTMLElement) => void,
   ): boolean {
+    const label = labelOf(description);
+    const detail = detailOf(description);
     // Find the top-level table - we may have been handed a child table, but our history is for the top-level table
     const topLevelTable = this.findTopLevelTable(table);
 
@@ -175,7 +200,8 @@ class TableHistoryManager {
       const entry: HistoryEntry = {
         state: stateBeforeOperation,
         timestamp: Date.now(),
-        label: description,
+        label,
+        detail,
         table: topLevelTable,
         ownTablePath,
         undoOperation,
@@ -212,7 +238,12 @@ class TableHistoryManager {
       this.operationInProgress = false;
       if (operationSuccess) {
         const event = new CustomEvent("tableHistoryUpdated", {
-          detail: { operation: description, canUndo: this.canUndo(), canRedo: this.canRedo() },
+          detail: {
+            operation: label,
+            operationDetail: detail,
+            canUndo: this.canUndo(),
+            canRedo: this.canRedo(),
+          },
         });
         document.dispatchEvent(event);
       }
@@ -287,6 +318,7 @@ class TableHistoryManager {
       const event = new CustomEvent("tableHistoryUpdated", {
         detail: {
           operation: `Undo ${entry.label}`,
+          operationDetail: entry.detail,
           undoSuccess: undoSuccess,
           canUndo: this.canUndo(),
           canRedo: this.canRedo(),
@@ -368,6 +400,7 @@ class TableHistoryManager {
       const event = new CustomEvent("tableHistoryUpdated", {
         detail: {
           operation: `Redo ${entry.label}`,
+          operationDetail: entry.detail,
           redoSuccess: redoSuccess,
           canUndo: this.canUndo(),
           canRedo: this.canRedo(),

@@ -248,7 +248,10 @@ export function setupContentsOfCell(
   if (putInHistory && table) {
     tableHistoryManager.addHistoryEntry(
       table,
-      `Change Cell from ${existingContentType} to ${targetType}`,
+      {
+        label: "Change Cell Content Type",
+        detail: `${existingContentType ?? "untyped"} to ${targetType}`,
+      },
       doIt,
     );
   } else {

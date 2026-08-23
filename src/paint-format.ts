@@ -122,7 +122,7 @@ function onPaintPointerDown(e: Event): void {
   if (typeof button === "number" && button !== 0) return;
   const targets =
     paintMode.scope === "cell" ? [cell] : getCellsInScope(table, paintMode.scope, cell);
-  paintProperties(table, targets, paintMode.pattern);
+  paintProperties(table, paintMode.scope, targets, paintMode.pattern);
   positionPaintBadge();
 }
 

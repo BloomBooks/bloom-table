@@ -124,8 +124,8 @@ describe("last command wins across menus", () => {
 
   it("alignment: column apply overwrites a cell's earlier choice", () => {
     const { table, cells } = makeTable();
-    applyAlignment(table, [cells[0]], "start");
-    applyAlignment(table, getCellsInScope(table, "column", cells[0]), "end");
+    applyAlignment(table, "cell", [cells[0]], "start");
+    applyAlignment(table, "column", getCellsInScope(table, "column", cells[0]), "end");
     expect(getCellAlign(cells[0])).toBe("end");
     expect(getCellAlign(cells[2])).toBe("end");
     expect(getCellAlign(cells[1])).toBe(null); // other column untouched
@@ -133,31 +133,31 @@ describe("last command wins across menus", () => {
 
   it("padding: table apply overwrites a cell's earlier choice, cell wins after", () => {
     const { table, cells } = makeTable();
-    applyPadding(table, [cells[1]], 4);
-    applyPadding(table, getCellsInScope(table, "table", null), 12);
+    applyPadding(table, "cell", [cells[1]], 4);
+    applyPadding(table, "table", getCellsInScope(table, "table", null), 12);
     for (const c of cells) expect(getCellPadding(c)).toBe("12px");
-    applyPadding(table, [cells[1]], 4);
+    applyPadding(table, "cell", [cells[1]], 4);
     expect(getCellPadding(cells[1])).toBe("4px");
     expect(getCellPadding(cells[0])).toBe("12px");
   });
 
   it("corners: row apply overwrites, radius 0 clears the attribute", () => {
     const { table, cells } = makeTable();
-    applyCorners(table, [cells[0]], 8);
-    applyCorners(table, getCellsInScope(table, "row", cells[0]), 4);
+    applyCorners(table, "cell", [cells[0]], 8);
+    applyCorners(table, "row", getCellsInScope(table, "row", cells[0]), 4);
     expect(getCellCorners(cells[0])?.radius).toBe(4);
     expect(getCellCorners(cells[1])?.radius).toBe(4);
     expect(getCellCorners(cells[2])).toBe(null);
-    applyCorners(table, getCellsInScope(table, "row", cells[0]), 0);
+    applyCorners(table, "row", getCellsInScope(table, "row", cells[0]), 0);
     expect(getCellCorners(cells[0])).toBe(null);
   });
 
   it("content type: row apply converts every cell, cell apply wins after", () => {
     const { table, cells } = makeTable();
-    applyContentType(table, getCellsInScope(table, "row", cells[0]), "image");
+    applyContentType(table, "row", getCellsInScope(table, "row", cells[0]), "image");
     expect(getCurrentContentTypeId(cells[0])).toBe("image");
     expect(getCurrentContentTypeId(cells[1])).toBe("image");
-    applyContentType(table, [cells[0]], "text");
+    applyContentType(table, "cell", [cells[0]], "text");
     expect(getCurrentContentTypeId(cells[0])).toBe("text");
     expect(getCurrentContentTypeId(cells[1])).toBe("image");
   });
@@ -348,16 +348,16 @@ describe("border tri-state: unchanged round-trips keep inheriting edges", () => 
 describe("copy/paste properties", () => {
   it("copies one cell's formatting and stamps it onto a row", () => {
     const { table, cells } = makeTable();
-    applyAlignment(table, [cells[0]], "end");
-    applyPadding(table, [cells[0]], 12);
+    applyAlignment(table, "cell", [cells[0]], "end");
+    applyPadding(table, "cell", [cells[0]], 12);
     applyFill(table, "cell", [cells[0]], "red");
-    applyCorners(table, [cells[0]], 8);
+    applyCorners(table, "cell", [cells[0]], 8);
     applyBorderColor(table, "cell", [cells[0]], "#ff0000");
 
     expect(copyProperties([cells[0]])).not.toBe(null);
     expect(hasCopiedProperties()).toBe(true);
 
-    pasteProperties(table, getCellsInScope(table, "row", cells[2]));
+    pasteProperties(table, "row", getCellsInScope(table, "row", cells[2]));
 
     for (const c of [cells[2], cells[3]]) {
       expect(getCellAlign(c)).toBe("end");
@@ -377,7 +377,7 @@ describe("copy/paste properties", () => {
     applyFill(table, "row", getCellsInScope(table, "row", cells[0]), "purple");
 
     copyProperties(getCellsInScope(table, "row", cells[0]));
-    pasteProperties(table, [cells[2]]);
+    pasteProperties(table, "cell", [cells[2]]);
     expect(getCellBackground(cells[2])).toBe("purple");
     expect(getCellBackground(cells[3])).toBe(null);
 
@@ -389,12 +389,12 @@ describe("copy/paste properties", () => {
   it("pasting from an unformatted cell clears the target's formatting", () => {
     const { table, cells } = makeTable();
     applyFill(table, "cell", [cells[0]], "red");
-    applyAlignment(table, [cells[0]], "end");
-    applyPadding(table, [cells[0]], 10);
-    applyCorners(table, [cells[0]], 8);
+    applyAlignment(table, "cell", [cells[0]], "end");
+    applyPadding(table, "cell", [cells[0]], 10);
+    applyCorners(table, "cell", [cells[0]], 8);
 
     copyProperties([cells[3]]); // untouched cell
-    pasteProperties(table, [cells[0]]);
+    pasteProperties(table, "cell", [cells[0]]);
 
     expect(getCellBackground(cells[0])).toBe(null);
     expect(getCellAlign(cells[0])).toBe(null);
@@ -445,7 +445,7 @@ describe("copy/paste properties", () => {
     expect(copied?.border.left.style).toBe("none");
     expect(copied?.border.right.style).toBe("none");
 
-    pasteProperties(table, [cells[3]]);
+    pasteProperties(table, "cell", [cells[3]]);
 
     const cb = buildRenderModel(table).cellBorders;
     const visible = (b: { weight: number; style: string } | null | undefined) =>
@@ -461,11 +461,11 @@ describe("copy/paste properties", () => {
 
   it("paste carries the content type: the target becomes an empty skeleton of it", () => {
     const { table, cells } = makeTable();
-    applyContentType(table, [cells[0]], "image");
+    applyContentType(table, "cell", [cells[0]], "image");
     expect(getCurrentContentTypeId(cells[0])).toBe("image");
 
     copyProperties([cells[0]]);
-    pasteProperties(table, [cells[3]]);
+    pasteProperties(table, "cell", [cells[3]]);
 
     expect(getCurrentContentTypeId(cells[3])).toBe("image");
     expect(cells[3].querySelector("img")).not.toBe(null);
@@ -505,7 +505,7 @@ describe("host notification for content-type rebuilds", () => {
     const { table, cells } = makeUntypedEmptyTable();
     const seen = recordNotifications(table);
 
-    applyContentType(table, [cells[0]], "text");
+    applyContentType(table, "cell", [cells[0]], "text");
 
     expect(cells[0].querySelector("[contenteditable]")).not.toBe(null);
     expect(seen).toEqual([cells[0]]);
@@ -513,21 +513,21 @@ describe("host notification for content-type rebuilds", () => {
 
   it("applyContentType stays quiet for a cell that already carries the type", () => {
     const { table, cells } = makeTable(); // cells already hold contenteditables
-    applyContentType(table, cells, "text"); // stamps data-content-type
+    applyContentType(table, "table", cells, "text"); // stamps data-content-type
     const seen = recordNotifications(table);
 
-    applyContentType(table, cells, "text");
+    applyContentType(table, "table", cells, "text");
 
     expect(seen).toEqual([]);
   });
 
   it("pasteProperties notifies for an empty untyped target stamped with the default type", () => {
     const { table, cells } = makeUntypedEmptyTable();
-    applyContentType(table, [cells[0]], "text"); // give the source a real type
+    applyContentType(table, "cell", [cells[0]], "text"); // give the source a real type
     const seen = recordNotifications(table);
 
     copyProperties([cells[0]]);
-    pasteProperties(table, [cells[1]]);
+    pasteProperties(table, "cell", [cells[1]]);
 
     expect(cells[1].querySelector("[contenteditable]")).not.toBe(null);
     expect(seen).toEqual([cells[1]]);
@@ -552,7 +552,7 @@ describe("undo integration", () => {
 
   it("a scope-wide content type change is one undo step", () => {
     const { table, cells } = makeTable();
-    applyContentType(table, getCellsInScope(table, "row", cells[0]), "image");
+    applyContentType(table, "row", getCellsInScope(table, "row", cells[0]), "image");
 
     tableHistoryManager.undo(table);
 
@@ -578,5 +578,77 @@ describe("per-edge border colors", () => {
     expect(cells[0].style.borderTopColor).toBe("#ff0000");
     // The blue shared edge did not get flattened to red by the weight change.
     expect(cells[0].style.borderRightColor).toBe("#0000ff");
+  });
+});
+
+describe("the detail a command records in history", () => {
+  // The newest entry's label and detail, as the debug journal reads them.
+  function lastEntry(): { label: string; detail?: string } {
+    const entries = tableHistoryManager.getEntriesForDebug();
+    return entries[entries.length - 1];
+  }
+
+  it("says the radius and which row the corners were set on", () => {
+    const { table, cells } = makeTable();
+    applyCorners(table, "row", getCellsInScope(table, "row", cells[2]), 8);
+    expect(lastEntry()).toMatchObject({
+      label: "Set Corners",
+      detail: "radius 8, row 2 (2 cells)",
+    });
+  });
+
+  it("names the cell for a cell-scope command", () => {
+    const { table, cells } = makeTable();
+    applyAlignment(table, "cell", [cells[2]], "center");
+    expect(lastEntry().detail).toBe("center, cell at row 2, column 1");
+  });
+
+  it("counts the cells for a column and for the whole table", () => {
+    const { table, cells } = makeTable();
+    applyFill(table, "column", getCellsInScope(table, "column", cells[1]), "#ff0000");
+    expect(lastEntry().detail).toBe("#ff0000, column 2 (2 cells)");
+
+    applyPadding(table, "table", getCellsInScope(table, "table", null), 12);
+    expect(lastEntry().detail).toBe("12px, whole table (4 cells)");
+  });
+
+  it("says the fill was cleared when no color was given", () => {
+    const { table, cells } = makeTable();
+    applyFill(table, "cell", [cells[0]], null);
+    expect(lastEntry().detail).toBe("cleared, cell at row 1, column 1");
+  });
+
+  it("lists only the border properties the command was given", () => {
+    const { table, cells } = makeTable();
+    applyBorderWeight(table, "row", getCellsInScope(table, "row", cells[0]), 2);
+    expect(lastEntry()).toMatchObject({
+      label: "Change Border",
+      detail: "weight 2, row 1 (2 cells)",
+    });
+
+    applyBorderStyle(table, "table", getCellsInScope(table, "table", null), "dashed");
+    // The table scope writes the outer, inner and default borders rather than
+    // each cell's perimeter, so it reports no cell count.
+    expect(lastEntry().detail).toBe("style dashed, whole table");
+  });
+
+  it("names the content type and the target cell", () => {
+    const { table, cells } = makeTable();
+    applyContentType(table, "cell", [cells[0]], "table");
+    expect(lastEntry()).toMatchObject({
+      label: "Change Content Type",
+      detail: "table, cell at row 1, column 1",
+    });
+  });
+
+  it("gives a paste of properties the target only", () => {
+    const { table, cells } = makeTable();
+    applyFill(table, "cell", [cells[0]], "#ff0000");
+    copyProperties([cells[0]]);
+    pasteProperties(table, "row", getCellsInScope(table, "row", cells[2]));
+    expect(lastEntry()).toMatchObject({
+      label: "Paste Properties",
+      detail: "row 2 (2 cells)",
+    });
   });
 });

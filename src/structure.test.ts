@@ -1663,3 +1663,44 @@ describe("a nested table that gains a track shares its host cell", () => {
     expect(getTableInfo(restored).columnCount).toBe(2);
   });
 });
+
+describe("the detail a structural operation records in history", () => {
+  // The newest entry's label and detail, as the debug journal reads them.
+  function lastEntry(): { label: string; detail?: string } {
+    const entries = tableHistoryManager.getEntriesForDebug();
+    return entries[entries.length - 1];
+  }
+
+  function attached2x2(): HTMLElement {
+    const table = document.createElement("div");
+    table.className = "bloom-table";
+    table.setAttribute("data-column-widths", "100px,100px");
+    table.setAttribute("data-row-heights", "50px,50px");
+    table.innerHTML =
+      '<div class="bloom-cell"></div><div class="bloom-cell"></div>' +
+      '<div class="bloom-cell"></div><div class="bloom-cell"></div>';
+    document.body.appendChild(table);
+    attachTable(table);
+    return table;
+  }
+
+  it("says where an added row went", () => {
+    const table = attached2x2();
+    addRowAt(table, 1);
+    expect(lastEntry()).toMatchObject({ label: "Add Row", detail: "above row 2" });
+  });
+
+  it("calls an append what it is", () => {
+    const table = attached2x2();
+    addRowAt(table);
+    expect(lastEntry()).toMatchObject({ label: "Add Row", detail: "at the bottom edge" });
+    addColumnAt(table);
+    expect(lastEntry()).toMatchObject({ label: "Add Column", detail: "at the right edge" });
+  });
+
+  it("names the column a removal took out", () => {
+    const table = attached2x2();
+    removeColumnAt(table, 1);
+    expect(lastEntry()).toMatchObject({ label: "Remove Column", detail: "column 2" });
+  });
+});

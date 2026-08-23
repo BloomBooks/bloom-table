@@ -59,6 +59,12 @@ function columnWidths(table: HTMLElement): string[] {
   return (table.getAttribute("data-column-widths") || "").split(",");
 }
 
+// The detail of the newest history entry: which line was resized, and to what.
+function lastHistoryDetail(): string | undefined {
+  const entries = tableHistoryManager.getEntriesForDebug();
+  return entries[entries.length - 1]?.detail;
+}
+
 describe("drag to resize", () => {
   beforeEach(() => {
     tableHistoryManager.reset();
@@ -180,7 +186,9 @@ describe("drag to resize", () => {
     document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
     expect(parseFloat(columnWidths(table)[0])).toBeCloseTo(140, 1);
-    expect(tableHistoryManager.getLastOperationLabel()).toMatch(/^Resize Column 1/);
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Resize Column");
+    // The width the drag settled on lives in the entry's detail.
+    expect(lastHistoryDetail()).toMatch(/^column 1 to 1[34][0-9](\.[0-9])?px$/);
 
     expect(tableHistoryManager.undo(table)).toBe(true);
     expect(columnWidths(table)[0]).toBe("100px");
@@ -232,7 +240,8 @@ describe("drag to resize", () => {
     // Rows are stored in mm: 30px + 20px = 50px ≈ 13.2mm.
     expect(heights[1]).toMatch(/^[0-9]+(\.[0-9])?mm$/);
     expect(parseFloat(heights[1])).toBeCloseTo(50 * (25.4 / 96), 1);
-    expect(tableHistoryManager.getLastOperationLabel()).toMatch(/^Resize Row 2/);
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Resize Row");
+    expect(lastHistoryDetail()).toMatch(/^row 2 to [0-9]+(\.[0-9])?mm$/);
 
     expect(tableHistoryManager.undo(table)).toBe(true);
     expect((table.getAttribute("data-row-heights") || "").split(",")[1]).toBe("30px");
@@ -250,7 +259,8 @@ describe("drag to resize", () => {
     );
 
     expect((table.getAttribute("data-row-heights") || "").split(",")[0]).toBe("hug");
-    expect(tableHistoryManager.getLastOperationLabel()).toBe("Auto-size Row 1");
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Auto-size Row");
+    expect(lastHistoryDetail()).toBe("row 1 to hug its contents");
 
     expect(tableHistoryManager.undo(table)).toBe(true);
     expect((table.getAttribute("data-row-heights") || "").split(",")[0]).toBe("40px");
@@ -268,7 +278,8 @@ describe("drag to resize", () => {
     );
 
     expect(columnWidths(table)[0]).toBe("hug");
-    expect(tableHistoryManager.getLastOperationLabel()).toBe("Auto-size Column 1");
+    expect(tableHistoryManager.getLastOperationLabel()).toBe("Auto-size Column");
+    expect(lastHistoryDetail()).toBe("column 1 to hug its contents");
 
     expect(tableHistoryManager.undo(table)).toBe(true);
     expect(columnWidths(table)[0]).toBe("120px");

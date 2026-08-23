@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Header from "./components/Header";
 import ExampleBar, { Example } from "./components/ExampleBar";
 import MainContent from "./components/MainContent";
@@ -7,6 +7,13 @@ import Toolbar from "./Toolbar";
 import ReactDOM from "react-dom/client";
 import { registerCellContentType, defaultCellContentsForEachType } from "../src/cell-contents";
 import { copyDebugInfo } from "./utils/debugInfo";
+import {
+  describeHistoryEvent,
+  journalStorageKey,
+  readJournal,
+  recordAction,
+  startOverJournal,
+} from "./utils/actionJournal";
 
 // In the demo, image cells use a local placeholder instead of the library's
 // default remote (Wikipedia) image. Reuse the built-in image type's icon and
@@ -24,12 +31,41 @@ const Demo: React.FC = () => {
   const [examplePngPath, setExamplePngPath] = useState<string | undefined>();
   const [attemptHtmlContent, setAttemptHtmlContent] = useState<string>("");
   const [currentExample, setCurrentExample] = useState<Example | null>(null);
-  const [debugCopied, setDebugCopied] = useState(false);
+  // null while nothing has been copied; otherwise whether the copy carried the
+  // screenshot.
+  const [debugCopied, setDebugCopied] = useState<null | "with-screenshot" | "text-only">(null);
+  // The same fact as debugCopied, but it stays after the label goes back to
+  // "Copy Debug Info", so a test has something to wait for that does not
+  // vanish on a timer.
+  const [lastDebugCopy, setLastDebugCopy] = useState("");
+  // Bumped by "Start Over" to force the attempt area to be rebuilt.
+  const [attemptGeneration, setAttemptGeneration] = useState(0);
 
   const attemptStorageKey = useMemo(() => {
     if (!currentExample) return null;
     return `bloom-table.attempt:${currentExample.group}/${currentExample.htmlFile}`;
   }, [currentExample]);
+
+  // The action journal is keyed per example, exactly as the attempt is, and
+  // survives a reload for the same reason.
+  const journalKey = useMemo(() => {
+    if (!currentExample) return null;
+    return journalStorageKey(`${currentExample.group}/${currentExample.htmlFile}`);
+  }, [currentExample]);
+
+  // src/history.ts dispatches "tableHistoryUpdated" for every recorded
+  // operation, undo and redo. The event carries the history entry's own label
+  // (operation) and its detail (operationDetail), which is what the journal
+  // keeps. That is the whole hook the journal needs.
+  useEffect(() => {
+    if (!journalKey) return;
+    const onHistoryUpdated = (event: Event) => {
+      const action = describeHistoryEvent((event as CustomEvent).detail);
+      if (action) recordAction(localStorage, journalKey, action, Date.now());
+    };
+    document.addEventListener("tableHistoryUpdated", onHistoryUpdated);
+    return () => document.removeEventListener("tableHistoryUpdated", onHistoryUpdated);
+  }, [journalKey]);
 
   const default2x2Grid = useMemo(() => {
     return `
@@ -180,6 +216,12 @@ const Demo: React.FC = () => {
             </h3>
           </div>
           <MainContent
+            // Remount on "Start Over" so the blank table is injected even when
+            // the edits since the last load have not reached React state yet.
+            // MainContent only re-injects when `content` changes, and onChange
+            // is debounced by 300ms, so a Start Over inside that window used to
+            // set `content` to the value it already held and do nothing.
+            key={`attempt-${attemptGeneration}`}
             id="attempt-container"
             className="compact"
             content={attemptHtmlContent || default2x2Grid}
@@ -198,11 +240,15 @@ const Demo: React.FC = () => {
               onClick={() => {
                 const html = default2x2Grid;
                 setAttemptHtmlContent(html);
+                setAttemptGeneration((n) => n + 1);
                 if (attemptStorageKey) {
                   try {
                     localStorage.removeItem(attemptStorageKey);
                   } catch {}
                 }
+                // The journal restarts with the work it describes, and opens
+                // with a marker so a later snapshot says where that happened.
+                startOverJournal(localStorage, journalKey, Date.now());
               }}
               className="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded"
               title="Clear your work and start over with an empty 2x2 table"
@@ -211,17 +257,27 @@ const Demo: React.FC = () => {
             </button>
             <button
               onClick={async () => {
-                await copyDebugInfo(
-                  currentExample ? `${currentExample.group}/${currentExample.htmlFile}` : undefined,
-                  attemptStorageKey,
-                );
-                setDebugCopied(true);
-                window.setTimeout(() => setDebugCopied(false), 1500);
+                const result = await copyDebugInfo({
+                  exampleId: currentExample
+                    ? `${currentExample.group}/${currentExample.htmlFile}`
+                    : undefined,
+                  storageKey: attemptStorageKey,
+                  journal: readJournal(localStorage, journalKey),
+                });
+                const kind = result.screenshotIncluded ? "with-screenshot" : "text-only";
+                setDebugCopied(kind);
+                setLastDebugCopy(kind);
+                window.setTimeout(() => setDebugCopied(null), 4000);
               }}
+              data-last-copy={lastDebugCopy}
               className="bg-gray-600 hover:bg-gray-700 text-white text-sm px-3 py-1 rounded"
-              title="Copy a diagnostic snapshot (table HTML, selection/overlay state, saved attempt) for pasting into a bug report or AI chat"
+              title="Copy a diagnostic snapshot (a screenshot of the table, everything you have done this session, the table HTML, selection/overlay state, and the saved attempt) for pasting into a bug report or AI chat"
             >
-              {debugCopied ? "Copied!" : "Copy Debug Info"}
+              {debugCopied === "with-screenshot"
+                ? "Copied, with screenshot!"
+                : debugCopied === "text-only"
+                  ? "Copied as text only"
+                  : "Copy Debug Info"}
             </button>
           </div>
         </div>

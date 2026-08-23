@@ -24,6 +24,7 @@ import {
 import { tableHistoryManager } from "./history";
 import { render } from "./table-renderer";
 import { getCell } from "./structure";
+import { describeCellPosition } from "./operation-detail";
 import { attachTable } from "./attach";
 import { ownEditable, ownSelectedCell } from "./current-table";
 
@@ -316,7 +317,11 @@ export class BloomTable {
       widths[index] = value;
       setColumnWidths(this.table, widths);
     };
-    tableHistoryManager.addHistoryEntry(this.table, `Set Column ${index} Width`, perform);
+    tableHistoryManager.addHistoryEntry(
+      this.table,
+      { label: "Set Column Width", detail: `column ${index + 1} to ${value}` },
+      perform,
+    );
     render(this.table);
   }
 
@@ -327,7 +332,11 @@ export class BloomTable {
       heights[index] = value;
       setRowHeights(this.table, heights);
     };
-    tableHistoryManager.addHistoryEntry(this.table, `Set Row ${index} Height`, perform);
+    tableHistoryManager.addHistoryEntry(
+      this.table,
+      { label: "Set Row Height", detail: `row ${index + 1} to ${value}` },
+      perform,
+    );
     render(this.table);
   }
 
@@ -350,7 +359,11 @@ export class BloomTable {
 
   setTableCorners(radiusPx: number): void {
     const perform = () => setTableCorners(this.table, { radius: radiusPx });
-    tableHistoryManager.addHistoryEntry(this.table, "Set Table Corners", perform);
+    tableHistoryManager.addHistoryEntry(
+      this.table,
+      { label: "Set Table Corners", detail: `radius ${radiusPx}` },
+      perform,
+    );
     render(this.table);
   }
 
@@ -381,7 +394,14 @@ export class BloomTable {
   // would make it a no-op and leave stale bloom-skip classes behind.
   setSpan(cell: HTMLElement, x: number, y: number): void {
     const perform = () => structSetCellSpan(cell, x, y);
-    tableHistoryManager.addHistoryEntry(this.table, `Set Cell Span ${x}x${y}`, perform);
+    tableHistoryManager.addHistoryEntry(
+      this.table,
+      {
+        label: "Set Cell Span",
+        detail: `${describeCellPosition(this.table, cell) ?? "cell"} to ${x}x${y}`,
+      },
+      perform,
+    );
     render(this.table);
   }
 }

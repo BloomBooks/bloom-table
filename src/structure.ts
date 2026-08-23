@@ -78,6 +78,7 @@ import {
 } from "./table-model";
 import { buildGrid, type GridView, type SpanCover } from "./grid";
 import { isNestedTable } from "./current-table";
+import { describeCellPosition } from "./operation-detail";
 
 // SpanCover lives in grid.ts now (built by buildGrid's one-pass cover matrix);
 // re-exported here so existing importers keep working.
@@ -519,7 +520,9 @@ export const getTargetTable = (): HTMLElement | null => {
 export const addRow = (table: HTMLElement, skipHistory = false, sourceIndex?: number): void => {
   assert(table.classList.contains("bloom-table"), "table parameter must have 'table' class");
 
-  const description = "Add Row";
+  // Label and detail: the label names the operation for menus and tooltips,
+  // the detail says where the row went. See HistoryEntry.detail.
+  const description = { label: "Add Row", detail: "at the bottom edge" };
   const performOperation = () => {
     const info = getTableInfo(table);
     const src = resolveSourceIndex(sourceIndex, info.rowCount);
@@ -544,7 +547,7 @@ export const removeLastRow = (table: HTMLElement): void => {
     return;
   }
 
-  const description = "Remove Last Row";
+  const description = { label: "Remove Last Row", detail: `row ${info.rowCount}` };
   const performOperation = () => removeLineAt(table, "row", getTableInfo(table).rowCount - 1);
 
   tableHistoryManager.addHistoryEntry(table, description, performOperation);
@@ -553,7 +556,7 @@ export const removeLastRow = (table: HTMLElement): void => {
 export const addColumn = (table: HTMLElement, skipHistory = false, sourceIndex?: number): void => {
   if (!table) return;
 
-  const description = "Add Column";
+  const description = { label: "Add Column", detail: "at the right edge" };
   const performOperation = () => {
     const info = getTableInfo(table);
     if (info.rowCount === 0) {
@@ -599,7 +602,10 @@ export function removeLastColumn(table: HTMLElement) {
     return;
   }
 
-  const description = "Remove Last Column";
+  const description = {
+    label: "Remove Last Column",
+    detail: `column ${info.columnCount}`,
+  };
   // Same core as removeColumnAt, so spans, edges and gaps stay maintained.
   const performOperation = () =>
     removeLineAt(table, "column", getTableInfo(table).columnCount - 1);
@@ -660,9 +666,10 @@ export function changeCellSpan(cell: HTMLElement, xChange: number, yChange: numb
     return;
   }
 
-  const description = `Change Cell Span (${
-    xChange > 0 ? "+" : ""
-  }${xChange}x, ${yChange > 0 ? "+" : ""}${yChange}y)`;
+  const description = {
+    label: "Change Cell Span",
+    detail: `${describeCellPosition(table, cell) ?? "cell"}, from ${currentSpanX}x${currentSpanY} to ${newHorizontalSpan}x${newVerticalSpan}`,
+  };
   const performOperation = () => {
     setCellSpan(cell, newHorizontalSpan, newVerticalSpan);
   };
@@ -826,7 +833,13 @@ export const addColumnAt = (
     actualIndex >= 0 && actualIndex <= tableInfo.columnCount,
     `Column index ${actualIndex} is out of bounds`,
   );
-  const description = `Add Column at ${actualIndex}`;
+  const description = {
+    label: "Add Column",
+    detail:
+      actualIndex >= tableInfo.columnCount
+        ? "at the right edge"
+        : `left of column ${actualIndex + 1}`,
+  };
   const performOperation = () => {
     const src = resolveSourceIndex(sourceIndex, tableInfo.columnCount);
     insertLineAt(table, "column", actualIndex, src, src != null ? "skeleton" : "blank");
@@ -860,7 +873,11 @@ export const addRowAt = (
     actualIndex >= 0 && actualIndex <= tableInfo.rowCount,
     `Row index ${actualIndex} is out of bounds`,
   );
-  const description = `Add Row at ${actualIndex}`;
+  const description = {
+    label: "Add Row",
+    detail:
+      actualIndex >= tableInfo.rowCount ? "at the bottom edge" : `above row ${actualIndex + 1}`,
+  };
   const performOperation = () => {
     const src = resolveSourceIndex(sourceIndex, tableInfo.rowCount);
     insertLineAt(table, "row", actualIndex, src, src != null ? "skeleton" : "blank");
@@ -1305,7 +1322,10 @@ export const duplicateRowAt = (table: HTMLElement, sourceRow: number, skipHistor
     sourceRow >= 0 && sourceRow < tableInfo.rowCount,
     `Row index ${sourceRow} is out of bounds`,
   );
-  const description = `Duplicate Row ${sourceRow}`;
+  const description = {
+    label: "Duplicate Row",
+    detail: `row ${sourceRow + 1} into a new row ${sourceRow + 2}`,
+  };
   const performOperation = () => insertLineAt(table, "row", sourceRow + 1, sourceRow, "clone");
 
   if (skipHistory) {
@@ -1334,7 +1354,10 @@ export const duplicateColumnAt = (
     sourceColumn >= 0 && sourceColumn < tableInfo.columnCount,
     `Column index ${sourceColumn} is out of bounds`,
   );
-  const description = `Duplicate Column ${sourceColumn}`;
+  const description = {
+    label: "Duplicate Column",
+    detail: `column ${sourceColumn + 1} into a new column ${sourceColumn + 2}`,
+  };
   const performOperation = () =>
     insertLineAt(table, "column", sourceColumn + 1, sourceColumn, "clone");
 
@@ -1358,7 +1381,7 @@ export const removeColumnAt = (table: HTMLElement, index: number, skipHistory = 
 
   assert(tableInfo.columnCount > 1, "Cannot remove the only column");
   assert(index >= 0 && index < tableInfo.columnCount, `Column index ${index} is out of bounds`);
-  const description = `Remove Column at ${index}`;
+  const description = { label: "Remove Column", detail: `column ${index + 1}` };
   const performOperation = () => removeLineAt(table, "column", index);
 
   if (skipHistory) {
@@ -1381,7 +1404,7 @@ export const removeRowAt = (table: HTMLElement, index: number, skipHistory = fal
 
   assert(tableInfo.rowCount > 1, "Cannot remove the only row");
   assert(index >= 0 && index < tableInfo.rowCount, `Row index ${index} is out of bounds`);
-  const description = `Remove Row at ${index}`;
+  const description = { label: "Remove Row", detail: `row ${index + 1}` };
   const performOperation = () => removeLineAt(table, "row", index);
 
   if (skipHistory) {
@@ -1409,7 +1432,10 @@ export const moveRowAt = (table: HTMLElement, from: number, to: number, skipHist
   assert(from >= 0 && from < R, `Row index ${from} is out of bounds`);
   assert(to >= 0 && to < R, `Row index ${to} is out of bounds`);
 
-  const description = `Move Row ${from} to ${to}`;
+  const description = {
+    label: "Move Row",
+    detail: `row ${from + 1} to position ${to + 1}`,
+  };
   const performOperation = () => moveLineAt(table, "row", from, to);
 
   if (skipHistory) {
@@ -1436,7 +1462,10 @@ export const moveColumnAt = (table: HTMLElement, from: number, to: number, skipH
   assert(from >= 0 && from < C, `Column index ${from} is out of bounds`);
   assert(to >= 0 && to < C, `Column index ${to} is out of bounds`);
 
-  const description = `Move Column ${from} to ${to}`;
+  const description = {
+    label: "Move Column",
+    detail: `column ${from + 1} to position ${to + 1}`,
+  };
   const performOperation = () => moveLineAt(table, "column", from, to);
 
   if (skipHistory) {

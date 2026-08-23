@@ -1,9 +1,12 @@
 // Builds a plain-text diagnostic snapshot for pasting into a bug report or an
 // AI chat: the edit-time selection/overlay state, anchor-name sanity, every
-// table's durable HTML, and the saved attempt from localStorage. Wired to the
-// "Copy Debug Info" button next to "Start Over".
+// action the user has taken this session, every table's durable HTML, and the
+// saved attempt from localStorage. Wired to the "Copy Debug Info" button next
+// to "Start Over", which also puts a PNG of the table on the clipboard.
 import { getRowAndColumn } from "../../src/structure";
 import { tableHistoryManager } from "../../src/history";
+import { ActionJournal, formatJournalSection } from "./actionJournal";
+import { captureElementAsPngDataUrl } from "./captureElementPng";
 
 function describeTable(t: HTMLElement | null): string {
   if (!t) return "(no table)";
@@ -64,7 +67,11 @@ function pushRealizedLayout(table: HTMLElement, push: (s?: string) => void): voi
   });
 }
 
-export function buildDebugInfo(exampleId?: string, storageKey?: string | null): string {
+export function buildDebugInfo(
+  exampleId?: string,
+  storageKey?: string | null,
+  journal?: ActionJournal | null,
+): string {
   const lines: string[] = [];
   const push = (s = "") => lines.push(s);
 
@@ -134,6 +141,14 @@ export function buildDebugInfo(exampleId?: string, storageKey?: string | null): 
   }
   push();
 
+  // Everything the user did, in order. The undo stack below is capped, drops
+  // entries whose table has left the DOM, and loses an entry when it is undone,
+  // so it cannot answer "what did the user do?".
+  if (journal) {
+    formatJournalSection(journal).forEach((line) => push(line));
+    push();
+  }
+
   const undoEntries = tableHistoryManager.getEntriesForDebug();
   push(`## Undo stack (${undoEntries.length} entries, newest first)`);
   if (undoEntries.length === 0) push("(empty)");
@@ -142,7 +157,8 @@ export function buildDebugInfo(exampleId?: string, storageKey?: string | null): 
     .reverse()
     .forEach((e, i) => {
       const t = new Date(e.timestamp).toISOString().slice(11, 23);
-      push(`${i + 1}. ${e.label} — ${t}${e.tableInDom ? "" : " (!) table no longer in DOM"}`);
+      const what = e.detail ? `${e.label} — ${e.detail}` : e.label;
+      push(`${i + 1}. ${what} — ${t}${e.tableInDom ? "" : " (!) table no longer in DOM"}`);
     });
   push();
 
@@ -193,8 +209,37 @@ export function buildDebugInfo(exampleId?: string, storageKey?: string | null): 
   return lines.join("\n");
 }
 
-export async function copyDebugInfo(exampleId?: string, storageKey?: string | null): Promise<void> {
-  const text = buildDebugInfo(exampleId, storageKey);
+export interface CopyDebugInfoOptions {
+  exampleId?: string;
+  storageKey?: string | null;
+  journal?: ActionJournal | null;
+  // What to photograph. Defaults to the printable page inside the attempt area.
+  captureTarget?: HTMLElement | null;
+}
+
+export interface CopyDebugInfoResult {
+  screenshotIncluded: boolean;
+  // Present when the screenshot could not be included; also appended to the
+  // copied text so the reader of a bug report knows why there is no picture.
+  failureReason?: string;
+}
+
+// The element that visually holds the table(s): the printable page inside the
+// user's attempt, or the attempt container itself when the example's HTML has
+// no #page wrapper.
+function defaultCaptureTarget(): HTMLElement | null {
+  const attempt = document.getElementById("attempt-container");
+  if (attempt) return attempt.querySelector<HTMLElement>("#page") ?? attempt;
+  return document.getElementById("page");
+}
+
+const reasonOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+async function writePlainText(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -208,4 +253,56 @@ export async function copyDebugInfo(exampleId?: string, storageKey?: string | nu
     document.execCommand("copy");
     ta.remove();
   }
+}
+
+// Puts the snapshot on the clipboard in two flavours: text/plain for a code
+// editor or an AI chat, and text/html carrying the same text plus a PNG of the
+// table for a rich target such as an email or a document. Any failure of the
+// picture half falls back to the plain text, so the button always copies
+// something.
+export async function copyDebugInfo(
+  options: CopyDebugInfoOptions = {},
+): Promise<CopyDebugInfoResult> {
+  const text = buildDebugInfo(options.exampleId, options.storageKey, options.journal);
+
+  let failureReason: string | undefined;
+  let pngDataUrl: string | null = null;
+
+  const target = options.captureTarget ?? defaultCaptureTarget();
+  if (!target) {
+    failureReason = "no table area was found on the page";
+  } else if (
+    typeof ClipboardItem === "undefined" ||
+    typeof navigator.clipboard?.write !== "function"
+  ) {
+    failureReason = "this browser cannot put an image on the clipboard";
+  } else {
+    try {
+      pngDataUrl = await captureElementAsPngDataUrl(target);
+    } catch (error) {
+      failureReason = reasonOf(error);
+    }
+  }
+
+  if (pngDataUrl) {
+    const html =
+      `<div><p><strong>bloom-table debug snapshot</strong></p>` +
+      `<img src="${pngDataUrl}" alt="the table at the time of the snapshot" />` +
+      `<pre>${escapeHtml(text)}</pre></div>`;
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+      return { screenshotIncluded: true };
+    } catch (error) {
+      failureReason = reasonOf(error);
+    }
+  }
+
+  const reason = failureReason ?? "unknown reason";
+  await writePlainText(`${text}\n(screenshot capture failed: ${reason})\n`);
+  return { screenshotIncluded: false, failureReason: reason };
 }
