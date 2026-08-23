@@ -21,6 +21,14 @@ import recipe95 from "../samples/95.recipe";
 // Playwright runs from the repo root.
 const OUT_DIR = join(process.cwd(), "tests", "samples", "output", "ui");
 
+// These tests build a whole sample by clicking real toolbar buttons, and the
+// interpreter waits 25ms after every command for the table to settle. Sample 95
+// is the full composite as one nested table: about 220 commands, which takes a
+// little over 30 seconds and so exceeded Playwright's default per-test timeout.
+// The limit is raised for this file only, because a global raise would let a
+// genuinely hung test in another spec sit for two minutes.
+test.describe.configure({ timeout: 120_000 });
+
 const SAMPLES: { name: string; recipe: Command[] }[] = [
   { name: "01", recipe: recipe01 },
   { name: "02", recipe: recipe02 },
