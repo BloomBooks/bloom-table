@@ -394,6 +394,95 @@ describe("table-renderer", () => {
     expect(m.cellBorders[1].left).toBeNull();
   });
 
+  describe("corner radius makes both cells paint a shared edge", () => {
+    const solid = { weight: 1, style: "solid", color: "#000" };
+
+    function make2x2(): { table: HTMLElement; cells: HTMLElement[] } {
+      const g = makeTable();
+      g.setAttribute("data-column-widths", "100px,100px");
+      g.setAttribute("data-row-heights", "30px,30px");
+      const cells = [addCell(g), addCell(g), addCell(g), addCell(g)];
+      return { table: g, cells };
+    }
+
+    it("gives each rounded bottom cell all four of its own borders", () => {
+      const { table, cells } = make2x2();
+      cells[2].setAttribute("data-corners", JSON.stringify({ radius: 8 }));
+      cells[3].setAttribute("data-corners", JSON.stringify({ radius: 8 }));
+      const m = buildRenderModel(table);
+      // Both bottom cells form a complete rounded rectangle.
+      expect(m.cellBorders[2]).toEqual({
+        top: solid,
+        right: solid,
+        bottom: solid,
+        left: solid,
+      });
+      expect(m.cellBorders[3]).toEqual({
+        top: solid,
+        right: solid,
+        bottom: solid,
+        left: solid,
+      });
+      // The square top cells keep the straight bottom border they had before
+      // the radius was applied.
+      expect(m.cellBorders[0].bottom).toEqual(solid);
+      expect(m.cellBorders[1].bottom).toEqual(solid);
+      // The vertical edge between the two rounded cells is painted by both,
+      // because each needs its own curve.
+      expect(m.cellBorders[2].right).toEqual(solid);
+      expect(m.cellBorders[3].left).toEqual(solid);
+      // The row with no radius keeps single ownership.
+      expect(m.cellBorders[0].right).toEqual(solid);
+      expect(m.cellBorders[1].left).toBeNull();
+    });
+
+    it("makes both cells of a rounded/square pair paint the shared edge", () => {
+      const { table, cells } = make2x2();
+      cells[1].setAttribute("data-corners", JSON.stringify({ radius: 6 }));
+      const m = buildRenderModel(table);
+      // r0c1 is rounded, so it paints a closed outline.
+      expect(m.cellBorders[1]).toEqual({
+        top: solid,
+        right: solid,
+        bottom: solid,
+        left: solid,
+      });
+      // Its square neighbors keep their own facing sides.
+      expect(m.cellBorders[0].right).toEqual(solid);
+      expect(m.cellBorders[3].top).toEqual(solid);
+      // A boundary away from the radius is unaffected.
+      expect(m.cellBorders[0].bottom).toEqual(solid);
+      expect(m.cellBorders[2].top).toBeNull();
+    });
+
+    it("paints nothing on a side the rounded cell explicitly declines", () => {
+      const { table, cells } = make2x2();
+      cells[3].setAttribute("data-corners", JSON.stringify({ radius: 8 }));
+      const none = { weight: 0, style: "none", color: "#000" };
+      // The boundary between r0c1 and r1c1: the rounded cell declines its top.
+      table.setAttribute(
+        "data-edges-h",
+        JSON.stringify([
+          [null, null],
+          [null, { north: solid, south: none }],
+          [null, null],
+        ]),
+      );
+      const m = buildRenderModel(table);
+      expect(m.cellBorders[3].top).toEqual(none);
+      expect(m.cellBorders[1].bottom).toEqual(solid);
+    });
+
+    it("keeps single ownership when no cell is rounded", () => {
+      const { table } = make2x2();
+      const m = buildRenderModel(table);
+      expect(m.cellBorders[0].bottom).toEqual(solid);
+      expect(m.cellBorders[2].top).toBeNull();
+      expect(m.cellBorders[0].right).toEqual(solid);
+      expect(m.cellBorders[1].left).toBeNull();
+    });
+  });
+
   it("builds template strings from data attributes", () => {
     const g = makeTable();
     g.setAttribute("data-column-widths", "hug,100px,fill");

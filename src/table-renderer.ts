@@ -289,6 +289,30 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
     return !!spec && spec.style !== "none" && spec.weight > 0;
   }
 
+  // The corner radius of the cell that paints at grid position `pos`, or 0.
+  // A border that curves at a corner must belong to the same element as the
+  // sides it curves into: a rounded cell that does not paint one of its own
+  // sides shows two side borders that arc away from a line drawn by the
+  // neighbor and connect to nothing. So when either cell across a zero-gap
+  // boundary has a radius, both cells paint their own side of it (see the
+  // interior passes below): the rounded cell gets its closed curved outline and
+  // the square cell keeps the straight full-length line it had before.
+  //
+  // A merged cell meets one boundary in several segments, and a cell paints one
+  // border per side, not per segment. The both-paint decision is made per
+  // segment, so a radius anywhere along a merged cell's boundary makes that
+  // whole side paint, while writeHSide/writeVSide still let only the anchor's
+  // own row/column decide the spec it draws. Segments that disagree along the
+  // same side of a merged cell therefore render as the anchor segment's spec,
+  // which is what the renderer already did before radius entered the tie-break.
+  function radiusAt(pos: number): number {
+    const cell = cells[coverOf[pos]];
+    if (!cell) return 0;
+    const cc = getCellCorners(cell);
+    const r = cc && Number.isFinite(cc.radius) ? cc.radius : 0;
+    return r > 0 ? r : 0;
+  }
+
   // Whether cell (r,c) shows a visible stroke on its top/bottom side, resolved
   // the same way the passes below resolve it. Used by the zero-gap tie-break.
   function hSidePainted(r: number, c: number, which: "top" | "bottom"): boolean {
@@ -342,6 +366,16 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
         // otherwise curls into a floating bracket beside the neighbor).
         const a = west || null;
         const b = east || null;
+        if (radiusAt(iLeft) > 0 || radiusAt(iRight) > 0) {
+          // A radius on either cell makes both cells paint their own side, the
+          // one case where a zero-gap edge carries two strokes. A rounded cell
+          // needs its own curve, and a square neighbor keeps the straight
+          // full-length line it drew before. The stacked strokes read as one
+          // slightly thicker line, which is what a positive gap draws here too.
+          writeVSide(iLeft, "right", (west ?? edgeDefault) || null);
+          writeVSide(iRight, "left", (east ?? edgeDefault) || null);
+          continue;
+        }
         const scoreLeft =
           (hSidePainted(r, c, "top") ? 1 : 0) + (hSidePainted(r, c, "bottom") ? 1 : 0);
         const scoreRight =
@@ -391,6 +425,13 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
       } else {
         const a = north || null;
         const b = south || null;
+        if (radiusAt(iTop) > 0 || radiusAt(iBottom) > 0) {
+          // A radius on either cell makes both paint their own side, as a
+          // positive gap does (see the vertical pass above).
+          writeHSide(iTop, "bottom", (north ?? edgeDefault) || null);
+          writeHSide(iBottom, "top", (south ?? edgeDefault) || null);
+          continue;
+        }
         const scoreTop =
           (vSidePainted(r, c, "left") ? 1 : 0) + (vSidePainted(r, c, "right") ? 1 : 0);
         const scoreBottom =
