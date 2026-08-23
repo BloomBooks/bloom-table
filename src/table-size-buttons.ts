@@ -1159,7 +1159,9 @@ function openMenu(
     border: "1px solid rgba(0,0,0,0.15)",
     borderRadius: "8px",
     boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-    padding: "4px 0",
+    // Top padding is provided by the drag handle strip, which must sit flush
+    // with the popup's top edge to stick correctly while the menu scrolls.
+    padding: "0 0 4px",
     fontSize: "13px",
     fontFamily: "system-ui, sans-serif",
     userSelect: "none",
@@ -1175,6 +1177,7 @@ function openMenu(
     boxSizing: "border-box",
   } as CSSStyleDeclaration);
 
+  popup.appendChild(makeMenuDragHandle(popup));
   sections.forEach((name, i) => {
     if (i > 0) popup.appendChild(makeDivider());
     for (const el of sectionBuilders[name](ctx)) popup.appendChild(el);
@@ -1188,6 +1191,67 @@ function openMenu(
 
   document.addEventListener("mousedown", onDocMouseDownForMenu, true);
   document.addEventListener("keydown", onKeyDownForMenu, true);
+}
+
+// The menu often opens on top of the very cells its commands affect. The grip
+// strip at the popup's top edge lets the user drag the whole popup aside; it
+// then stays where it was dropped until it closes (outside click or Escape,
+// unchanged). The strip is sticky so it stays reachable while a tall menu
+// scrolls inside itself.
+function makeMenuDragHandle(popup: HTMLDivElement): HTMLDivElement {
+  const handle = document.createElement("div");
+  handle.setAttribute("data-btable-menu-handle", "");
+  handle.setAttribute("aria-hidden", "true");
+  Object.assign(handle.style, {
+    position: "sticky",
+    top: "0",
+    zIndex: "1",
+    height: "14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "grab",
+    background: "#fff",
+    borderRadius: "8px 8px 0 0",
+    touchAction: "none",
+  } as CSSStyleDeclaration);
+  const grip = document.createElement("div");
+  Object.assign(grip.style, {
+    width: "32px",
+    height: "4px",
+    borderRadius: "2px",
+    background: "rgba(0,0,0,0.2)",
+  } as CSSStyleDeclaration);
+  handle.appendChild(grip);
+
+  handle.addEventListener("pointerdown", (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    // No focus steal and no text-selection start; the outside-click closer
+    // ignores this mousedown anyway because the handle is inside the popup.
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const r = popup.getBoundingClientRect();
+    handle.setPointerCapture(e.pointerId);
+    handle.style.cursor = "grabbing";
+    const onMove = (ev: PointerEvent) => {
+      const left = r.left + ev.clientX - startX;
+      const top = r.top + ev.clientY - startY;
+      // The same 4px window clamp the open-time positioning uses.
+      popup.style.left = `${Math.max(4, Math.min(left, window.innerWidth - popup.offsetWidth - 4))}px`;
+      popup.style.top = `${Math.max(4, Math.min(top, window.innerHeight - popup.offsetHeight - 4))}px`;
+    };
+    const onUp = () => {
+      handle.style.cursor = "grab";
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  });
+  return handle;
 }
 
 function positionMenuAtPill(popup: HTMLDivElement, pill: HTMLButtonElement, kind: MenuKind): void {
