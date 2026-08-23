@@ -14,6 +14,30 @@ workflow journal): the merged-cell perimeter READ bug no longer reproduces after
 cover-map fix, and one table-size-buttons scenario proved unreachable. The four approved
 refactors and the test-gap list below remain open for a later cycle.
 
+## Open, waiting for a decision (from the Devin review of 2026-08-23)
+
+### Nested-table perimeter border vanishes when set to the default
+
+`src/edge-utils.ts:317` (the `keepUnset` guard) and `src/table-renderer.ts:465` (`fallback = null`
+when nested).
+
+On a nested table, giving a perimeter cell a border whose value equals the table's current
+default leaves that border invisible. The `keepUnset` guard deliberately leaves a never-set entry
+unset when the written value already renders like the default, so the cell keeps following later
+default edits. But the renderer gives a nested table's perimeter `fallback = null`, so an unset
+perimeter entry on a nested table paints nothing, and there is no default to fall back to.
+
+`applyOuterBorders` already handles this with `canInherit = !isNestedTable(table)`
+(`src/edge-utils.ts:171`). `applyCellPerimeter` has no such exception on any of its four
+perimeter branches. Devin's suggested fix is to gate those four checks the same way.
+
+Verified live on `master` at `07a6e6d`, not only at the reviewed commit. Nested tables became
+reachable in `4cdf256` and `6c9e01b`.
+
+**Status: deliberately not fixed yet.** The developer wants a decider with fuller context and
+diagrams before choosing. The review thread stays open as the record:
+https://github.com/BloomBooks/bloom-table/pull/3#discussion_r3839787644
+
 ## Confirmed bugs (49)
 
 Grouped by severity. Each was confirmed by an independent verifier tracing the actual code.

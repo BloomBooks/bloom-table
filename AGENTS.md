@@ -28,6 +28,22 @@ Most of this project's history landed straight on `master` with no pull request,
 reviews a pull request. So a review here means building a pull request whose diff is the code we
 want read, even when that code is already merged.
 
+### Devin needs a manual trigger here
+
+This repo has no `pr-automation.yml`, so nothing triggers Devin when you push. A review starts
+only when someone loads the review page. Load it through the `chrome-devtools` CLI in an
+unauthenticated isolated context, which consumes no credits:
+
+```
+chrome-devtools start &
+chrome-devtools new_page "https://app.devin.ai/review/BloomBooks/bloom-table/pull/<n>" \
+  --isolatedContext "devin-noauth" &
+```
+
+Then close the tab. Reading the state needs no browser at all: both
+`https://app.devin.ai/api/pr-review/jobs` and `.../job-result/<job>/<version>` answer plain
+`curl --compressed`. A review of a 3000-line slice took about 8 minutes.
+
 ### The `reviewed` marker branch
 
 The branch `reviewed` on `origin` is a marker, not a line of development. It points at the last
