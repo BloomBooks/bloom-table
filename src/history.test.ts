@@ -323,6 +323,54 @@ describe("tableHistoryManager eager pruning on detach", () => {
     expect(tableHistoryManager.getRedoEntriesForDebug()).toEqual([]);
   });
 
+  it("names the table on every event, so one listener can tell two tables apart", () => {
+    // A page with two tables gets one event stream for both. A host that logs
+    // only one table's actions needs to know which table each event came from.
+    const a = makeTable("a", "<div class='bloom-cell'>A</div>");
+    const b = makeTable("b", "<div class='bloom-cell'>B</div>");
+
+    const tables: (HTMLElement | undefined)[] = [];
+    const listener = (e: Event) => tables.push((e as CustomEvent).detail.table);
+    document.addEventListener("tableHistoryUpdated", listener);
+    try {
+      tableHistoryManager.addHistoryEntry(a, "Format A", () => {
+        a.setAttribute("data-formatted", "true");
+      });
+      tableHistoryManager.addHistoryEntry(b, "Format B", () => {
+        b.setAttribute("data-formatted", "true");
+      });
+      tableHistoryManager.undo(b);
+      tableHistoryManager.redo(b);
+      tableHistoryManager.detachTable(a);
+
+      expect(tables).toEqual([a, b, b, b, a]);
+    } finally {
+      document.removeEventListener("tableHistoryUpdated", listener);
+    }
+  });
+
+  it("names the TOP-LEVEL table when the operation acted on a nested one", () => {
+    // A host holds a reference to the table it attached, which is the outer
+    // one, so that is the element the event has to name.
+    const outer = makeTable(
+      "outer",
+      "<div class='bloom-cell'><div class='bloom-table' id='inner'><div class='bloom-cell'>I</div></div></div>",
+    );
+    const inner = outer.querySelector("#inner") as HTMLElement;
+
+    const tables: (HTMLElement | undefined)[] = [];
+    const listener = (e: Event) => tables.push((e as CustomEvent).detail.table);
+    document.addEventListener("tableHistoryUpdated", listener);
+    try {
+      tableHistoryManager.addHistoryEntry(inner, "Format Inner", () => {
+        inner.setAttribute("data-formatted", "true");
+      });
+      expect(tables).toEqual([outer]);
+    } finally {
+      document.removeEventListener("tableHistoryUpdated", listener);
+    }
+  });
+
   it("dispatches tableHistoryUpdated only when something was removed", () => {
     const a = makeTable("a", "<div class='bloom-cell'>A</div>");
     tableHistoryManager.addHistoryEntry(a, "Format A", () => {

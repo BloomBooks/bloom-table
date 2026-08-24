@@ -241,6 +241,15 @@ class TableHistoryManager {
           detail: {
             operation: label,
             operationDetail: detail,
+            // The top-level table this operation belongs to. A page with more
+            // than one table gets one event stream for all of them, so a host
+            // that cares about only one of them (a diagnostics log recording a
+            // single table's actions, say) has no way to tell them apart
+            // without this. Always the top-level table, even when the operation
+            // acted on a nested one, because that is the element a host holds a
+            // reference to. Absent on "Clear History", which belongs to no
+            // table.
+            table: topLevelTable,
             canUndo: this.canUndo(),
             canRedo: this.canRedo(),
           },
@@ -319,6 +328,7 @@ class TableHistoryManager {
         detail: {
           operation: `Undo ${entry.label}`,
           operationDetail: entry.detail,
+          table: entry.table ?? topLevelTable,
           undoSuccess: undoSuccess,
           canUndo: this.canUndo(),
           canRedo: this.canRedo(),
@@ -401,6 +411,7 @@ class TableHistoryManager {
         detail: {
           operation: `Redo ${entry.label}`,
           operationDetail: entry.detail,
+          table: entry.table ?? topLevelTable,
           redoSuccess: redoSuccess,
           canUndo: this.canUndo(),
           canRedo: this.canRedo(),
@@ -467,7 +478,12 @@ class TableHistoryManager {
     this.redoStack = this.redoStack.filter((e) => e.table !== table);
     if (this.history.length + this.redoStack.length < before) {
       const event = new CustomEvent("tableHistoryUpdated", {
-        detail: { operation: "Detach Table", canUndo: this.canUndo(), canRedo: this.canRedo() },
+        detail: {
+          operation: "Detach Table",
+          table,
+          canUndo: this.canUndo(),
+          canRedo: this.canRedo(),
+        },
       });
       document.dispatchEvent(event);
     }

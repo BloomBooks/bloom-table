@@ -55,12 +55,24 @@ const Demo: React.FC = () => {
 
   // src/history.ts dispatches "tableHistoryUpdated" for every recorded
   // operation, undo and redo. The event carries the history entry's own label
-  // (operation) and its detail (operationDetail), which is what the journal
-  // keeps. That is the whole hook the journal needs.
+  // (operation), its detail (operationDetail), and the top-level table it
+  // belongs to (table).
+  //
+  // The table is what makes the journal trustworthy. On an exercise the Worked
+  // Example beside the attempt is editable too and fires the same events, and
+  // this listener is on the document, so without the check an edit over there
+  // is recorded as an attempt action. "Copy Debug Info" then reports actions
+  // against a screenshot that never shows them, which is worse than reporting
+  // nothing. An event whose table is missing (Clear History) or outside the
+  // attempt is not ours.
   useEffect(() => {
     if (!journalKey) return;
     const onHistoryUpdated = (event: Event) => {
-      const action = describeHistoryEvent((event as CustomEvent).detail);
+      const detail = (event as CustomEvent).detail;
+      const table = detail?.table as HTMLElement | undefined;
+      const attempt = document.getElementById("attempt-container");
+      if (!table || !attempt || !attempt.contains(table)) return;
+      const action = describeHistoryEvent(detail);
       if (action) recordAction(localStorage, journalKey, action, Date.now());
     };
     document.addEventListener("tableHistoryUpdated", onHistoryUpdated);
