@@ -268,6 +268,9 @@ export function setDefaultBorder(
 // explicit 'none' for this cell's side (NOT the same as never-set — see the
 // tri-state contract above), while writing a value a never-set entry already
 // renders via the table default leaves that entry unset.
+// Exception, for a NESTED table (one whose parent is a cell): its perimeter
+// takes the same treatment applyOuterBorders gives it, for the same reason.
+// See `keepUnsetOuter` below.
 export function applyCellPerimeter(
   table: HTMLElement,
   cell: HTMLElement,
@@ -316,6 +319,17 @@ export function applyCellPerimeter(
   const currentDefault = resolveEdgeDefault(table);
   const keepUnset = (entry: unknown, spec: BorderSpec | null): boolean =>
     isUnsetEntry(entry) && specMatchesDefault(spec, currentDefault);
+  // The guard above assumes an unset entry inherits the table default. On a
+  // NESTED table's perimeter it inherits nothing: the renderer never applies the
+  // table default there (see table-renderer.ts, "Nested tables honor explicit
+  // perimeters only"), so an entry left unset renders as no border at all. Ask
+  // for a nested table's outer border in the value the default already carries
+  // and the guard would keep the entry unset, so the border a user just asked
+  // for would not appear. applyOuterBorders makes the same exception with its
+  // `canInherit` flag; the four perimeter branches below use this one.
+  const perimeterCanInherit = !isNestedTable(table);
+  const keepUnsetOuter = (entry: unknown, spec: BorderSpec | null): boolean =>
+    perimeterCanInherit && keepUnset(entry, spec);
 
   // Left
   if (map.left !== undefined) {
@@ -325,7 +339,7 @@ export function applyCellPerimeter(
     // of an interior left boundary, so it owns that boundary's `east` side.
     for (let rr = r; rr < Math.min(r + sy, v.length); rr++) {
       if (c === 0) {
-        if (!keepUnset(v[rr][0], outerSpec)) v[rr][0] = outerSpec;
+        if (!keepUnsetOuter(v[rr][0], outerSpec)) v[rr][0] = outerSpec;
       } else if (hasPositiveGap(gapX, c - 1)) {
         v[rr][c] = { west: splitV(v[rr][c]).west, east: innerSpec };
       } else if (isRemoval(innerSpec)) {
@@ -344,7 +358,7 @@ export function applyCellPerimeter(
     // This cell sits west of an interior right boundary, so it owns `west`.
     for (let rr = r; rr < Math.min(r + sy, v.length); rr++) {
       if (rc === cols - 1) {
-        if (!keepUnset(v[rr][cols], outerSpec)) v[rr][cols] = outerSpec;
+        if (!keepUnsetOuter(v[rr][cols], outerSpec)) v[rr][cols] = outerSpec;
       } else if (hasPositiveGap(gapX, rc)) {
         v[rr][rc + 1] = { west: innerSpec, east: splitV(v[rr][rc + 1]).east };
       } else if (isRemoval(innerSpec)) {
@@ -364,7 +378,7 @@ export function applyCellPerimeter(
     const boundaryRow = r === 0 ? 0 : r;
     for (let cc = c; cc < Math.min(c + sx, h[boundaryRow]?.length ?? 0); cc++) {
       if (r === 0) {
-        if (!keepUnset(h[0][cc], outerSpec)) h[0][cc] = outerSpec;
+        if (!keepUnsetOuter(h[0][cc], outerSpec)) h[0][cc] = outerSpec;
       } else if (hasPositiveGap(gapY, r - 1)) {
         h[boundaryRow][cc] = { north: splitH(h[boundaryRow][cc]).north, south: innerSpec };
       } else if (isRemoval(innerSpec)) {
@@ -384,7 +398,7 @@ export function applyCellPerimeter(
     // This cell sits north of an interior bottom boundary, so it owns `north`.
     for (let cc = c; cc < Math.min(c + sx, h[boundaryRow]?.length ?? 0); cc++) {
       if (rrBottom === rows - 1) {
-        if (!keepUnset(h[boundaryRow][cc], outerSpec)) h[boundaryRow][cc] = outerSpec;
+        if (!keepUnsetOuter(h[boundaryRow][cc], outerSpec)) h[boundaryRow][cc] = outerSpec;
       } else if (hasPositiveGap(gapY, rrBottom)) {
         h[boundaryRow][cc] = { north: innerSpec, south: splitH(h[boundaryRow][cc]).south };
       } else if (isRemoval(innerSpec)) {

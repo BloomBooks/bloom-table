@@ -14,7 +14,7 @@ workflow journal): the merged-cell perimeter READ bug no longer reproduces after
 cover-map fix, and one table-size-buttons scenario proved unreachable. The four approved
 refactors and the test-gap list below remain open for a later cycle.
 
-## Open, waiting for a decision (from the Devin review of 2026-08-23)
+## Closed (from the Devin review of 2026-08-23)
 
 ### Nested-table perimeter border vanishes when set to the default
 
@@ -34,9 +34,24 @@ perimeter branches. Devin's suggested fix is to gate those four checks the same 
 Verified live on `master` at `07a6e6d`, not only at the reviewed commit. Nested tables became
 reachable in `4cdf256` and `6c9e01b`.
 
-**Status: deliberately not fixed yet.** The developer wants a decider with fuller context and
-diagrams before choosing. The review thread stays open as the record:
-https://github.com/BloomBooks/bloom-table/pull/3#discussion_r3839787644
+**Status: fixed.** The decider was written and it came out short: reading both write paths side by
+side left one option, which is to give `applyCellPerimeter` the exception `applyOuterBorders`
+already has. The renderer rule is untouched, because that rule is right: a nested table must not
+gain a perimeter nobody asked for.
+
+`applyCellPerimeter` now derives `perimeterCanInherit` from `isNestedTable`, and its four perimeter
+branches call `keepUnsetOuter` instead of `keepUnset`. The four interior branches keep `keepUnset`,
+because a nested table's interior edges do still inherit the default; only the perimeter does not.
+
+Three tests in `src/edge-utils.test.ts` hold it: the nested perimeter is written, a top-level
+perimeter still stays unset so it follows later default edits, and a nested table's interior
+boundary still stays unset. The first fails without the fix.
+
+Also checked in the browser on the `nested-tables` fixture, both ways. Without the fix the stored
+entries stay `{}` and the cell paints `0px none`. With it they hold the spec and the cell paints
+`1px solid rgb(0, 0, 0)`.
+
+Review thread: https://github.com/BloomBooks/bloom-table/pull/3#discussion_r3839787644
 
 ## Confirmed bugs (49)
 

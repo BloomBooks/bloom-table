@@ -7,6 +7,7 @@ import {
   ensureEdgesArrays,
   setDefaultBorder,
 } from "./edge-utils";
+import type { UIBorder } from "./edge-utils";
 import { getEdgesH, getEdgesV, setEdgesH, setEdgesV } from "./table-model";
 import { getTableOuterBorderValueMap } from "./border-state";
 import type { BorderSpec } from "./table-model";
@@ -281,6 +282,47 @@ describe("edge-utils: applyCellPerimeter picks the gap token for each boundary",
     expect(sided.west?.weight).toBe(2);
     expect(sided.west?.color).toBe("blue");
     expect(sided.east ?? null).toBe(null);
+  });
+
+  // The renderer never applies the table default to a NESTED table's perimeter,
+  // so an entry left unset there renders as no border at all. These three hold
+  // the exception that follows from that, and its two limits.
+  const defaultSpec: UIBorder = { weight: 1, style: "solid", color: "#000" };
+
+  it("a nested table's perimeter is written even when the spec matches the default", () => {
+    const host = makeTable(2, 2);
+    const nested = makeTable(2, 2);
+    (host.children[0] as HTMLElement).appendChild(nested);
+    const topLeft = nested.children[0] as HTMLElement;
+
+    applyCellPerimeter(nested, topLeft, { top: defaultSpec, left: defaultSpec });
+
+    // Without the exception both of these stay unset, and the border the user
+    // just asked for never appears.
+    expect(asSpec(getEdgesH(nested)![0][0]).weight).toBe(1);
+    expect(asSpec(getEdgesV(nested)![0][0]).weight).toBe(1);
+  });
+
+  it("a top-level table's perimeter still stays unset, so it follows later default edits", () => {
+    const g = makeTable(2, 2);
+    const topLeft = g.children[0] as HTMLElement;
+
+    applyCellPerimeter(g, topLeft, { top: defaultSpec, left: defaultSpec });
+
+    expect(isUnset(getEdgesH(g)![0][0])).toBe(true);
+    expect(isUnset(getEdgesV(g)![0][0])).toBe(true);
+  });
+
+  it("a nested table's INTERIOR boundary still stays unset, because it does inherit", () => {
+    const host = makeTable(2, 2);
+    const nested = makeTable(2, 2);
+    (host.children[0] as HTMLElement).appendChild(nested);
+    // Top-right cell: its left boundary is interior, not perimeter.
+    const topRight = nested.children[1] as HTMLElement;
+
+    applyCellPerimeter(nested, topRight, { left: defaultSpec });
+
+    expect(isUnset(getEdgesV(nested)![0][1])).toBe(true);
   });
 });
 
