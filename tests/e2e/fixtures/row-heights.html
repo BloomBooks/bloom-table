@@ -1,0 +1,23 @@
+<!-- e2e fixture: a 2x2 table whose first row has a fixed height and whose
+     first column has a fixed width, so a test can watch those sizes travel
+     (or not) with Paint format. Loaded into the UI harness via
+     /demo/ui-harness.html?fixture=row-heights -->
+<div
+  id="main-table"
+  class="bloom-table"
+  data-column-widths="30mm,hug"
+  data-row-heights="30mm,hug"
+>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">r0c0</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">r0c1</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">r1c0</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">r1c1</div>
+  </div>
+</div>
