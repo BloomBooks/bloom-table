@@ -61,6 +61,22 @@ function clickIsInOwnEditor(target: HTMLElement, cell: HTMLElement): boolean {
   return !!editor && editor.closest(".bloom-cell") === cell;
 }
 
+// True when the click landed on content the host made focusable on purpose
+// (tabindex >= 0) — e.g. a styleable label inside a cell. The browser's own
+// focus is the right answer there, and cell selection still follows because
+// onFocusIn maps any focus inside a cell to that cell. The focusable element
+// must live in the selected cell itself: one inside a NESTED table must not
+// keep a click that fell through the host cell.
+function clickIsOnFocusableContent(target: HTMLElement, cell: HTMLElement): boolean {
+  const focusable = target.closest<HTMLElement>("[tabindex]");
+  return (
+    !!focusable &&
+    focusable !== cell &&
+    focusable.tabIndex >= 0 &&
+    focusable.closest(".bloom-cell") === cell
+  );
+}
+
 function onMouseDown(event: MouseEvent): void {
   // Only the primary button drives cell selection. A right-click must keep
   // its native focus/caret behavior before the context menu opens, and a
@@ -68,11 +84,17 @@ function onMouseDown(event: MouseEvent): void {
   if (event.button !== 0) return;
   const target = event.target as HTMLElement | null;
   if (!target) return;
+  // Transient editing UI overlaid on a cell (e.g. Bloom's format gear, marked
+  // bloom-ui) handles its own clicks and must not move selection or focus:
+  // stealing the focus can tear down the very control being clicked.
+  if (target.closest(".bloom-ui")) return;
   const cell = clickTargetCell(target);
   if (!cell) return;
   // Leave native caret placement alone when the click is already in this cell's
   // own editable.
   if (clickIsInOwnEditor(target, cell)) return;
+  // Leave deliberately-focusable content alone too, so it can take the focus.
+  if (clickIsOnFocusableContent(target, cell)) return;
   // We manage focus/caret ourselves, so suppress the default (which would do
   // nothing useful when clicking the cell's empty padding area, and would put
   // the caret in a NESTED table's text when the click fell through a host
