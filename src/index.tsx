@@ -32,6 +32,26 @@ export {
   kTableCellContentChangedEvent,
 } from "./cell-contents";
 
+// Structural chrome: let the host withhold the row, column and table chrome
+// from a table whose rows and columns it fixes itself.
+export { setStructuralChromeGate } from "./structural-chrome";
+
+// Cell menu: let the host say, item by item, what a cell's menu offers; open that
+// menu from the host's own button; and answer the right-click itself.
+export {
+  setCellMenuItemFilter,
+  cellMenuItemIds,
+  setCellMenuOpenHandler,
+} from "./cell-menu-host";
+export type { CellMenuItemId } from "./cell-menu-host";
+export { openCellMenu } from "./table-size-buttons";
+// The Cell menu's items as a React component, for a host that has to show them
+// beside items of its own. It is the same component the library's own popup mounts,
+// so there is one renderer of these items and the two menus cannot come to differ.
+// It renders MUI menu rows, so a host drops it into its own MUI Menu.
+export { CellMenuItems } from "./components/CellMenuItems";
+export type { CellMenuItemsProps } from "./components/CellMenuItems";
+
 // Prepare-for-save: strip transient edit-time artifacts before persisting HTML.
 export { removeTableEditingArtifacts } from "./prepare-for-save";
 

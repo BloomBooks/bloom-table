@@ -33,6 +33,15 @@ import {
   selectCell,
 } from "./current-table";
 import { tableHistoryManager } from "./history";
+import { structuralChromeAllowed } from "./structural-chrome";
+import { cellMenuOffersItem, cellMenuOpenedByHost } from "./cell-menu-host";
+import { setCellMenuItemsSource } from "./cell-menu-items-source";
+import { mountCellMenuItems } from "./components/CellMenuItems";
+import type {
+  CellMenuChoice,
+  CellMenuChoiceOption,
+  CellMenuItem,
+} from "./cell-menu-model";
 import { tableMarkupForClipboard } from "./prepare-for-save";
 import {
   getCellAlign,
@@ -216,6 +225,22 @@ function onFocusInForOverlays(event: Event): void {
   showEdgeOverlays(table);
 }
 
+/**
+ * Open the Cell menu for `cell` at the given viewport point. This is the one
+ * Cell menu: a right-click uses it, and so does a host that puts the menu on a
+ * button of its own. It returns false, and opens nothing, while Paint Format
+ * mode runs, because a menu on top of that mode would let the user re-enter it
+ * with a different pattern.
+ */
+export function openCellMenu(cell: HTMLElement, position: { x: number; y: number }): boolean {
+  const table = ownerTable(cell);
+  if (!table) return false;
+  if (isPaintFormatModeActive()) return false;
+  showEdgeOverlays(table);
+  openMenu(["cell"], position, "context", cell);
+  return true;
+}
+
 // Right-click on a cell opens the Cell menu. Like a left click, it acts at the
 // current table's level: a right-click inside a nested table the user has not
 // entered targets the HOST cell, not a nested one.
@@ -227,17 +252,14 @@ function onContextMenuForOverlays(event: Event): void {
   const table = ownerTable(cell);
   if (!table) return;
   event.preventDefault();
-  // Paint Format owns every click on a cell while it runs. Opening the Cell
-  // menu here would put a menu on top of the active mode, and picking "Paint
-  // format" in it would silently re-enter with a different pattern.
-  if (isPaintFormatModeActive()) return;
-  showEdgeOverlays(table);
-  openMenu(
-    ["cell"],
-    { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY },
-    "context",
-    cell,
-  );
+  const position = {
+    x: (event as MouseEvent).clientX,
+    y: (event as MouseEvent).clientY,
+  };
+  // The host gets first refusal: it may need this cell's menu to carry items of
+  // its own. See setCellMenuOpenHandler in cell-menu-host.ts.
+  if (cellMenuOpenedByHost(cell, table, position)) return;
+  openCellMenu(cell, position);
 }
 
 // Scroll must be capture-phase: scroll events do not bubble, so a non-capture
@@ -307,6 +329,9 @@ let proxTablePillTL: ProximityDiv | null = null;
 let menuPopup: HTMLDivElement | null = null;
 let menuOpenId: string | null = null;
 let menuTargetCell: HTMLElement | null = null;
+// Set while a popup shows the Cell section, whose items are a mounted React
+// component; closing the popup takes the component down with it.
+let unmountCellSection: (() => void) | null = null;
 
 let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
@@ -737,26 +762,79 @@ function scopeCells(ctx: MenuCtx, scope: FormattingScope) {
   return { table, cells, seed: cells()[0], common };
 }
 
+// Does this menu offer the item? A host can refuse any of them for the cell the
+// menu acts on; see cell-menu-host.ts. Every builder below asks before it
+// makes a row, so a refused row is never built and a section left with no rows
+// returns nothing, taking its divider and header with it.
+function menuOffers(ctx: MenuCtx, itemId: string): boolean {
+  return cellMenuOffersItem(itemId, ctx.cell, ctx.table);
+}
+
+// The Content Type chooser as data: one option per registered type the host
+// allows, applied to every cell in the scope. All four menus and every host get
+// their Content Type row from this, so they cannot differ about which types a
+// cell offers or which one it is on.
+function contentTypeChoice(ctx: MenuCtx, scope: FormattingScope): CellMenuChoice | undefined {
+  const { table, cells, seed, common } = scopeCells(ctx, scope);
+  if (!table || !seed) return undefined;
+  if (!menuOffers(ctx, "contentType")) return undefined;
+  const chosenId = common((c) => getCurrentContentTypeId(c));
+  const options: CellMenuChoiceOption[] = contentTypeOptions()
+    .filter((opt) => menuOffers(ctx, `contentType:${opt.id}`))
+    .map((opt) => ({
+      id: opt.id,
+      label: opt.englishName,
+      icon: opt.icon,
+      // Mixed content across the scope leaves every option unchosen.
+      chosen: !!chosenId && chosenId === opt.id,
+      choose: () => applyContentType(table, scope, cells(), opt.id),
+    }));
+  if (!options.length) return undefined;
+  return {
+    kind: "choice",
+    id: "contentType",
+    group: "contentType",
+    label: "Content Type",
+    presentation: "iconToggleRow",
+    options,
+  };
+}
+
+// A choice row for the popup, drawn as the item's `presentation` asks: the label
+// on one line and one toggle button per option below it, the chosen one pressed.
+// An option with no icon gets a text toggle, so what the row shows is the model's
+// own icon field. Choosing one applies it and then asks the model again which
+// option the cell is on, so the toggles show the cell's state rather than a guess
+// about what the command did.
+function renderChoiceRow(
+  ctx: MenuCtx,
+  scope: FormattingScope,
+  item: CellMenuChoice,
+): HTMLElement {
+  const buttons: HTMLButtonElement[] = [];
+  const refresh = () => {
+    const chosen = contentTypeChoice(ctx, scope)?.options.find((o) => o.chosen)?.id;
+    buttons.forEach((b) => setToggleActive(b, !!chosen && b.dataset.ctId === chosen));
+  };
+  for (const opt of item.options) {
+    const choose = () => {
+      opt.choose();
+      refresh();
+    };
+    const b = opt.icon
+      ? makeIconToggle(opt.icon, opt.label, opt.chosen, choose)
+      : makeTextToggle(opt.label, opt.label, opt.chosen, choose);
+    b.dataset.ctId = opt.id;
+    buttons.push(b);
+  }
+  return makeControlRow(item.label, buttons);
+}
+
 // The Content Type chooser: an icon toggle per registered type, applied to
 // every cell in the scope. Its own section in all four menus.
 function buildContentTypeControls(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
-  const { table, cells, seed, common } = scopeCells(ctx, scope);
-  if (!table || !seed) return [];
-  const ctButtons: HTMLButtonElement[] = [];
-  const refreshContent = () => {
-    const cur = common((c) => getCurrentContentTypeId(c));
-    ctButtons.forEach((b) => setToggleActive(b, !!cur && b.dataset.ctId === cur));
-  };
-  for (const opt of contentTypeOptions()) {
-    const b = makeIconToggle(opt.icon, opt.englishName, false, () => {
-      applyContentType(table, scope, cells(), opt.id);
-      refreshContent();
-    });
-    b.dataset.ctId = opt.id;
-    ctButtons.push(b);
-  }
-  refreshContent();
-  return [makeControlRow("Content Type", ctButtons)];
+  const choice = contentTypeChoice(ctx, scope);
+  return choice ? [renderChoiceRow(ctx, scope, choice)] : [];
 }
 
 // The Content Type chooser as its own divider-separated section.
@@ -794,12 +872,15 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     b.dataset.align = a.id;
     alignButtons.push(b);
   }
-  els.push(makeControlRow("Alignment", alignButtons));
-  refreshAlign();
+  if (menuOffers(ctx, "alignment")) {
+    els.push(makeControlRow("Alignment", alignButtons));
+    refreshAlign();
+  }
 
   // Padding. Seeds from the scope's common value, or the first cell when mixed.
-  els.push(
-    makeSliderRow(
+  if (menuOffers(ctx, "padding"))
+    els.push(
+      makeSliderRow(
       "Padding between border and text",
       0,
       40,
@@ -817,20 +898,21 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     common((c) => getCellBackground(c)) ??
     (scope === "table" ? getTableBackground(table) : null) ??
     "";
-  els.push(
-    makeColorPairRow([
-      {
-        label: "Fill",
-        value: fillValue,
-        onInput: (color) => applyFill(table, scope, cells(), color || null),
-      },
-      {
-        label: "Border color",
-        value: representativeBorderColorHex(seed),
-        onInput: (color) => applyBorderColor(table, scope, cells(), color),
-      },
-    ]),
-  );
+  if (menuOffers(ctx, "fill"))
+    els.push(
+      makeColorPairRow([
+        {
+          label: "Fill",
+          value: fillValue,
+          onInput: (color) => applyFill(table, scope, cells(), color || null),
+        },
+        {
+          label: "Border color",
+          value: representativeBorderColorHex(seed),
+          onInput: (color) => applyBorderColor(table, scope, cells(), color),
+        },
+      ]),
+    );
 
   // Border style and weight, mirroring the sidebar's choices. The shown value
   // is the one every perimeter edge of every cell in the scope agrees on.
@@ -866,7 +948,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     });
     styleButtons.push(b);
   }
-  els.push(makeControlRow("Border Style", styleButtons));
+  if (menuOffers(ctx, "borderStyle")) els.push(makeControlRow("Border Style", styleButtons));
   for (const weight of [0, 1, 2, 4] as BorderWeight[]) {
     const b = makeBorderWeightToggle(weight, () => {
       applyBorderWeight(table, scope, cells(), weight);
@@ -874,7 +956,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     });
     weightButtons.push(b);
   }
-  els.push(makeControlRow("Border Weight", weightButtons));
+  if (menuOffers(ctx, "borderWeight")) els.push(makeControlRow("Border Weight", weightButtons));
   refreshBorderToggles();
 
   // Corners: corner radius (0/4/8/16) applied per cell.
@@ -891,8 +973,10 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     b.dataset.radius = String(radius);
     cornerButtons.push(b);
   }
-  els.push(makeControlRow("Corners", cornerButtons));
-  refreshCorners();
+  if (menuOffers(ctx, "corners")) {
+    els.push(makeControlRow("Corners", cornerButtons));
+    refreshCorners();
+  }
 
   return els;
 }
@@ -914,18 +998,24 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
   const { table, cells, seed } = scopeCells(ctx, scope);
   if (!table || !seed) return [];
   if (scope === "table") {
-    return [
-      makeDivider(),
-      makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
-      makeMenuItem(
-        "Paste properties",
-        () => pasteProperties(table, scope, cells()),
-        undefined,
-        !hasCopiedProperties(),
-        kPasteIconSvg,
-      ),
-    ];
+    const items: HTMLElement[] = [];
+    if (menuOffers(ctx, "copyProperties"))
+      items.push(
+        makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
+      );
+    if (menuOffers(ctx, "pasteProperties"))
+      items.push(
+        makeMenuItem(
+          "Paste properties",
+          () => pasteProperties(table, scope, cells()),
+          undefined,
+          !hasCopiedProperties(),
+          kPasteIconSvg,
+        ),
+      );
+    return items.length ? [makeDivider(), ...items] : [];
   }
+  if (!menuOffers(ctx, "paintFormat")) return [];
   return [
     makeDivider(),
     makeMenuItem(
@@ -942,29 +1032,97 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
 // importers (attach.ts, tests) keep working.
 export { enterPaintFormatMode, exitPaintFormatMode, isPaintFormatModeActive } from "./paint-format";
 
-function buildCellSection(ctx: MenuCtx): HTMLElement[] {
-  const els: HTMLElement[] = [makeMenuHeader("Cell")];
+// The rows of the Format section, by the ids the host filters them under. The
+// model does not describe these rows one by one yet, so it says the section is
+// there when the host allows any of them; see CellMenuFormatControls.
+const kFormatRowIds = ["alignment", "padding", "fill", "borderStyle", "borderWeight", "corners"];
+
+/**
+ * The Cell menu for `cell`, as data.
+ *
+ * These are the items the library's own Cell menu shows, in its order, already
+ * filtered by setCellMenuItemFilter. A host renders them in a menu of its own
+ * when the cell needs items the library knows nothing about beside them; see
+ * setCellMenuOpenHandler in cell-menu-host.ts. The library's popup is built from
+ * this same list, so the two menus offer the same things.
+ *
+ * Every item's `invoke` and `choose` acts on the cell this was asked about, so a
+ * host may hold the list across a click of its own menu.
+ */
+export function getCellMenuItems(cell: HTMLElement | null): CellMenuItem[] {
+  return cellMenuItems(buildMenuCtx(cell));
+}
+
+// The CellMenuItems component reads the items through this, rather than importing
+// this module, which mounts the component.
+setCellMenuItemsSource(getCellMenuItems);
+
+function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
+  const items: CellMenuItem[] = [];
+  const { table, cells, seed } = scopeCells(ctx, "cell");
   const cell = ctx.cell;
+  if (!table || !seed || !cell) return items;
 
-  // Content Type is its own section, then the shared Format section.
-  els.push(...buildContentTypeControls(ctx, "cell"));
-  els.push(...buildFormattingSection(ctx, "cell"));
+  const choice = contentTypeChoice(ctx, "cell");
+  if (choice) items.push(choice);
 
-  els.push(...buildCopyPasteSection(ctx, "cell"));
+  if (kFormatRowIds.some((id) => menuOffers(ctx, id)))
+    items.push({ kind: "formatControls", id: "format", group: "format", label: "Format" });
 
-  // Divider, then the span commands.
-  els.push(makeDivider());
+  if (menuOffers(ctx, "paintFormat"))
+    items.push({
+      kind: "command",
+      id: "paintFormat",
+      group: "transfer",
+      label: "Paint format",
+      icon: kPaintIconSvg,
+      enabled: true,
+      invoke: () => enterPaintFormatMode(table, "cell", cells()),
+    });
 
-  // Merge / Split (cell span). Merge needs a column to the right to absorb;
-  // Split needs an existing horizontal span to reduce.
-  const spanX = cell ? getSpan(cell).x || 1 : 1;
-  const canMerge = !!cell && ctx.col + spanX < ctx.colCount;
-  const canSplit = spanX > 1;
-  els.push(
-    makeMenuItem("Merge with cell to the right", () => menuMergeCell(), undefined, !canMerge, cellMergeIcon),
-  );
-  els.push(makeMenuItem("Split", () => menuSplitCell(), undefined, !canSplit, cellSplitIcon));
-  return els;
+  // Merge needs a column to the right to absorb; Split needs an existing
+  // horizontal span to reduce.
+  const spanX = getSpan(cell).x || 1;
+  if (menuOffers(ctx, "merge"))
+    items.push({
+      kind: "command",
+      id: "merge",
+      group: "span",
+      label: "Merge with cell to the right",
+      icon: cellMergeIcon,
+      enabled: ctx.col + spanX < ctx.colCount,
+      invoke: () => menuMergeCell(cell),
+    });
+  if (menuOffers(ctx, "split"))
+    items.push({
+      kind: "command",
+      id: "split",
+      group: "span",
+      label: "Split",
+      icon: cellSplitIcon,
+      enabled: spanX > 1,
+      invoke: () => menuSplitCell(cell),
+    });
+
+  return items;
+}
+
+// The popup's Cell menu. The items are drawn by the CellMenuItems component, the
+// same one a host puts in its own menu, so the popup and the host's menu cannot
+// come to differ; this only mounts it and tells it how to reach the Format rows,
+// which are still the widget's own DOM sliders and colour pickers.
+function buildCellSection(ctx: MenuCtx): HTMLElement[] {
+  const host = document.createElement("div");
+  unmountCellSection = mountCellMenuItems(host, {
+    cell: ctx.cell,
+    closeMenu: closeMenuPopup,
+    renderFormatControls: (container) => {
+      for (const el of buildFormattingControls(ctx, "cell")) container.appendChild(el);
+    },
+  });
+  // The component draws this section's heading itself, so there is no makeMenuHeader
+  // here and every host shows the same heading.
+  return [host];
 }
 
 function buildRowSection(ctx: MenuCtx): HTMLElement[] {
@@ -1108,6 +1266,10 @@ function onKeyDownForMenu(e: KeyboardEvent): void {
 }
 
 function closeMenuPopup(): void {
+  if (unmountCellSection) {
+    unmountCellSection();
+    unmountCellSection = null;
+  }
   if (menuPopup) {
     menuPopup.remove();
     menuPopup = null;
@@ -1360,9 +1522,12 @@ function menuDuplicateColumn(): void {
   } catch {}
 }
 
-function menuMergeCell(): void {
-  const cell = getMenuCell();
-  const table = getMenuTable();
+// The span commands take the cell they act on, because the Cell menu's model
+// hands them the cell it was built for; a host may invoke them from a menu of its
+// own, long after the popup that would have held the target has gone.
+function menuMergeCell(cellToActOn?: HTMLElement): void {
+  const cell = cellToActOn ?? getMenuCell();
+  const table = (cell ? ownerTable(cell) : null) ?? getMenuTable();
   if (!table || !cell) return;
   try {
     const controller = new BloomTable(table);
@@ -1372,9 +1537,9 @@ function menuMergeCell(): void {
   } catch {}
 }
 
-function menuSplitCell(): void {
-  const cell = getMenuCell();
-  const table = getMenuTable();
+function menuSplitCell(cellToActOn?: HTMLElement): void {
+  const cell = cellToActOn ?? getMenuCell();
+  const table = (cell ? ownerTable(cell) : null) ?? getMenuTable();
   if (!table || !cell) return;
   try {
     const controller = new BloomTable(table);
@@ -1478,17 +1643,21 @@ function showEdgeOverlays(table: HTMLElement) {
   table.classList.add(kPointerNearClass);
   overlayTable = table;
   ensureEdgeOverlays();
+  // A table whose rows and columns the host fixes gets none of this chrome; the
+  // pointer-near class above is still wanted, because that is what shows the
+  // selected cell and the table's outline while the user works in it.
+  const structural = structuralChromeAllowed(table);
   // The clusters target the current row/column, so they only make sense when
   // one of THIS table's own cells is selected (a nested table's selection
   // doesn't count — its own overlays handle it).
-  const hasSelection = !!ownSelectedCell(table);
+  const hasSelection = structural && !!ownSelectedCell(table);
   if (colCluster) colCluster.style.display = hasSelection ? "flex" : "none";
   if (rowCluster) rowCluster.style.display = hasSelection ? "flex" : "none";
   // Table pills and the "+" add buttons are table-level, so they show whenever
   // the table is active (regardless of whether a cell is selected).
-  if (tablePillTL) tablePillTL.style.display = "flex";
-  if (colAddBtn) colAddBtn.style.display = "flex";
-  if (rowAddBtn) rowAddBtn.style.display = "flex";
+  if (tablePillTL) tablePillTL.style.display = structural ? "flex" : "none";
+  if (colAddBtn) colAddBtn.style.display = structural ? "flex" : "none";
+  if (rowAddBtn) rowAddBtn.style.display = structural ? "flex" : "none";
   // Apply anchor-based positioning
   applyAnchorPositioning(table);
 }
@@ -1734,6 +1903,9 @@ function applyAnchorPositioning(table: HTMLElement) {
     hideEdgeOverlays();
     return;
   }
+  // A reposition re-decides visibility, so the host's answer for this table has
+  // to be asked here as well as in showEdgeOverlays.
+  const structural = structuralChromeAllowed(table);
   const gap = 8; // px
   let rows = 0,
     cols = 0;
@@ -1794,8 +1966,8 @@ function applyAnchorPositioning(table: HTMLElement) {
   // operation that clears the selection or removes the anchored cell must hide
   // the "..." pill, otherwise anchorTo() early-returns and leaves it stranded
   // mid-table (the "phantom" affordance).
-  if (colCluster) colCluster.style.display = colAnchorCell ? "flex" : "none";
-  if (rowCluster) rowCluster.style.display = rowAnchorCell ? "flex" : "none";
+  if (colCluster) colCluster.style.display = structural && colAnchorCell ? "flex" : "none";
+  if (rowCluster) rowCluster.style.display = structural && rowAnchorCell ? "flex" : "none";
   anchorTo(proxColCluster, colAnchorCell, "top");
   anchorTo(proxRowCluster, rowAnchorCell, "left");
 
@@ -1821,9 +1993,10 @@ function applyAnchorPositioning(table: HTMLElement) {
   // The table-level affordances (corner pills, "+" buttons) are
   // only meaningful when the table has rendered cells. Hide them when bounds are
   // degenerate so they don't strand mid-viewport during a transient relayout.
-  if (tablePillTL) tablePillTL.style.display = haveBounds ? "flex" : "none";
-  if (colAddBtn) colAddBtn.style.display = haveBounds ? "flex" : "none";
-  if (rowAddBtn) rowAddBtn.style.display = haveBounds ? "flex" : "none";
+  const showTableLevel = structural && haveBounds;
+  if (tablePillTL) tablePillTL.style.display = showTableLevel ? "flex" : "none";
+  if (colAddBtn) colAddBtn.style.display = showTableLevel ? "flex" : "none";
+  if (rowAddBtn) rowAddBtn.style.display = showTableLevel ? "flex" : "none";
   if (b) {
     const { minL, minT, maxR, maxB } = b;
     // "+" add buttons hug the table edges, centered on the table's content box.
