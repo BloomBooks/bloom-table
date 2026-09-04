@@ -102,7 +102,17 @@ Slice 4 ends at the current `master`, so review it with a full `/preflight` on a
 - Package manager: **pnpm**. Node 22.12 or later.
 - Typecheck: `pnpm typecheck` (`tsc --noEmit`).
 - Unit tests, non-watch: `pnpm test` (`vp test run`). Never run `vp test` without `run`.
+  Add a path to run one file: `pnpm test src/history.test.ts`.
+- **Never run `npx vitest`.** It resolves a vitest from the npx cache instead of the
+  workspace one, and that copy cannot find `happy-dom`, so every worker dies with
+  `Error: Cannot find package 'happy-dom'`. Nothing in the message says the wrong vitest is
+  running, so it reads as a broken dev-dependency install.
 - End-to-end tests: `pnpm e2e` (Playwright). Never run `pnpm e2e:ui`; it does not exit.
+- An e2e spec must take library objects from `window.bloomTableTestHooks`, which
+  `demo/ui-harness.tsx` publishes, and never import library source through
+  `page.addScriptTag`. A dev server that has been running across source edits serves the
+  harness an HMR-versioned copy of a module and the injected script the plain one, so a
+  singleton becomes two objects and the spec fails as if the feature were broken.
 - Build: `pnpm build` (`vp pack`). Never run `build:watch` in a session.
 - **There is no lint script.** A skill that expects one records "no lint step in this project"
   and moves on.

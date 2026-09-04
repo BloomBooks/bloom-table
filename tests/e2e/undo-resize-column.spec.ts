@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { waitForTestHooks } from "./utils/test-hooks";
 
 /**
  * Regression test for: "Undo: Resize Column" made no visual change.
@@ -16,16 +17,9 @@ test.describe("Undo resize column", () => {
     await page.goto("/demo/ui-harness.html?fixture=basic-table");
     await page.waitForSelector(".bloom-table");
 
-    // Expose the history manager singleton so we can trigger undo exactly as
-    // the demo's Undo button does (tableHistoryManager.undo(table)).
-    await page.addScriptTag({
-      type: "module",
-      content: `
-        import { tableHistoryManager } from "/src/history.ts";
-        window.__gridHistory = tableHistoryManager;
-      `,
-    });
-    await page.waitForTimeout(100);
+    // The harness publishes the history manager it uses itself, so undo runs on
+    // the same singleton as the demo's Undo button (tableHistoryManager.undo).
+    await waitForTestHooks(page);
 
     const table = page.locator("#main-table");
     await expect(table).toBeVisible();
@@ -60,12 +54,16 @@ test.describe("Undo resize column", () => {
     expect(afterDrag.templateColumns).not.toBe(initial.templateColumns);
 
     // A resize-column entry should be on the history stack.
-    const lastOp = await page.evaluate(() => window.__gridHistory.getLastOperationLabel());
+    const lastOp = await page.evaluate(() =>
+      window.bloomTableTestHooks!.tableHistoryManager.getLastOperationLabel(),
+    );
     console.log("Last operation:", lastOp);
     expect(lastOp).toMatch(/Resize Column/i);
 
     // Trigger undo exactly like the demo's Undo button.
-    const undoResult = await table.evaluate((el) => window.__gridHistory.undo(el));
+    const undoResult = await table.evaluate((el) =>
+      window.bloomTableTestHooks!.tableHistoryManager.undo(el as HTMLElement),
+    );
     expect(undoResult).toBe(true);
     await page.waitForTimeout(50);
 
@@ -79,10 +77,3 @@ test.describe("Undo resize column", () => {
     expect(afterUndo.templateColumns).toBe(initial.templateColumns);
   });
 });
-
-declare global {
-  interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    __gridHistory: any;
-  }
-}

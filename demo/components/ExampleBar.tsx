@@ -19,6 +19,14 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
   const [activeId, setActiveId] = useState<string>("");
   const LOCAL_STORAGE_KEY = "bloom-table.activeExamplePath"; // e.g. tests/table-border.html
 
+  // The list is fetched from an effect, and React StrictMode runs that effect
+  // twice in development. Each run used to end with a call to onExampleSelect,
+  // so the second one re-selected the saved example and threw away a click that
+  // landed between the two. These two guards make the automatic selection happen
+  // once, and never after the person has chosen an example.
+  const didSelectAutomatically = React.useRef(false);
+  const personChoseAnExample = React.useRef(false);
+
   // Function to fetch available example files from the API
   const fetchExampleFiles = async (): Promise<void> => {
     try {
@@ -29,16 +37,18 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
         setTests(data.tests || []);
 
         const all = [...(data.tests || []), ...(data.exercises || [])];
-        if (all.length > 0) {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          const selected = saved
-            ? all.find((f) => `${f.group}/${f.htmlFile}` === saved) || all[0]
-            : all[0];
-          setActiveId(`${selected.group}/${selected.htmlFile}`);
-          onExampleSelect(selected);
-        } else {
+        if (all.length === 0) {
           setActiveId("");
+          return;
         }
+        if (didSelectAutomatically.current || personChoseAnExample.current) return;
+        didSelectAutomatically.current = true;
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const selected = saved
+          ? all.find((f) => `${f.group}/${f.htmlFile}` === saved) || all[0]
+          : all[0];
+        setActiveId(`${selected.group}/${selected.htmlFile}`);
+        onExampleSelect(selected);
       } else {
         console.error("Failed to fetch example files from API, status:", response.status);
         setexercises([]);
@@ -56,6 +66,7 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
   }, []);
 
   const handleExampleSelect = (example: Example) => {
+    personChoseAnExample.current = true;
     const id = `${example.group}/${example.htmlFile}`;
     setActiveId(id);
     try {

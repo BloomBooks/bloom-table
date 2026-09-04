@@ -10,6 +10,7 @@ import {
 import { setStructuralChromeGate } from "./structural-chrome";
 import { setCellMenuItemFilter, setCellMenuOpenHandler } from "./cell-menu-host";
 import { getCurrentContentTypeId } from "./cell-contents";
+import { withClipboardStub } from "./test-support/clipboard-stub";
 import type { CellMenuChoice, CellMenuCommand } from "./cell-menu-model";
 
 // happy-dom gives every element a zero rect, so the overlay code needs the
@@ -453,27 +454,12 @@ describe("Delete Table is one undoable operation", () => {
 describe("Copy Table and Cut Table put the SAVE form on the clipboard", () => {
   // The clipboard text of the table menu's Copy Table command.
   function copyTableText(table: HTMLElement): string {
-    let written = "";
-    // navigator.clipboard is a getter-only property in happy-dom.
-    const previous = Object.getOwnPropertyDescriptor(Navigator.prototype, "clipboard");
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: (text: string) => {
-          written = text;
-          return Promise.resolve();
-        },
-      },
-    });
-    try {
+    const written = withClipboardStub(() => {
       click(pill("table"));
       click(menuItem("Copy Table")!);
-    } finally {
-      delete (navigator as any).clipboard;
-      if (previous) Object.defineProperty(Navigator.prototype, "clipboard", previous);
-    }
+    });
     void table;
-    return written;
+    return written[written.length - 1] ?? "";
   }
 
   it("carries none of the edit-time classes of a selected, current, pointer-near table", () => {
