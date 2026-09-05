@@ -145,10 +145,7 @@ describe("the Column section of the panel", () => {
       expect(button("Delete Column").disabled).toBe(true);
     });
 
-    // DEFECT: the panel never disables Delete Column, so on a one-column table
-    // the click reaches removeColumnAt, which throws "Cannot remove the only
-    // column".
-    it.fails("disables Delete Column on a table that has only one column", () => {
+    it("disables Delete Column on a table that has only one column", () => {
       const { cells } = makeAttachedTable("hug", ["A", "C"]);
       mount(cells[0], recordingApi());
 

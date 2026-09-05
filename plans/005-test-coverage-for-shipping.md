@@ -61,10 +61,10 @@ After Phase 3, with 1028 unit tests in 54 files:
 
 | Metric | After Phase 3 | Threshold in `vite.config.ts` |
 | --- | --- | --- |
-| Statements | 89.71% (4780/5328) | 88 |
-| Branches | 78.76% (2816/3575) | 77 |
+| Statements | 89.71% (4782/5330) | 88 |
+| Branches | 78.84% (2828/3587) | 77 |
 | Functions | 91.22% (852/934) | 90 |
-| Lines | 92.87% (4325/4657) | 91 |
+| Lines | 92.87% (4327/4659) | 91 |
 
 ### Unit coverage by module
 
@@ -315,11 +315,6 @@ in a cell above and below Pro, language tag and format gear below Pro, and ePUB 
 belong to Bloom's `src/BloomE2E` suite and are not part of this repository's work.
 
 ## 5. Open debt
-
-The React panel never disables Delete Row on a one-row table, or Delete Column on a
-one-column table. The click reaches `removeRowAt` / `removeColumnAt`, which throw
-"Cannot remove the only row" and "Cannot remove the only column". The pill menu guards
-both. `RowSection.test.tsx` and `ColumnSection.test.tsx` hold one `it.fails` each.
 
 Linux screenshot baselines are still to be captured. Every file in a `*-snapshots/` directory
 is `-chromium-win32`, and this machine cannot render the Linux equivalents, so

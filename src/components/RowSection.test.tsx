@@ -145,9 +145,7 @@ describe("the Row section of the panel", () => {
       expect(button("Delete Row").disabled).toBe(true);
     });
 
-    // DEFECT: the panel never disables Delete Row, so on a one-row table the
-    // click reaches removeRowAt, which throws "Cannot remove the only row".
-    it.fails("disables Delete Row on a table that has only one row", () => {
+    it("disables Delete Row on a table that has only one row", () => {
       const { cells } = makeAttachedTable("hug", ["A", "B"]);
       mount(cells[0], recordingApi());
 
