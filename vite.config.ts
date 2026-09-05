@@ -89,6 +89,21 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
+      // Only the library counts. `include` names src/ rather than excluding
+      // "demo/**" and "tests/**": an exclude pattern is matched against the
+      // absolute path, and this repo is checked out in directories whose own
+      // name ends in "tests", so "tests/**" excludes the whole tree and the
+      // report comes back 0/0.
+      include: ["src/**"],
+      exclude: ["**/*.test.*", "src/test-support/**", "**/*.d.ts"],
+      // Baseline at the Phase 0 commit, minus one point each. The gate can
+      // only move up; raise it at the end of every phase.
+      thresholds: {
+        statements: 82,
+        branches: 71,
+        functions: 80,
+        lines: 85,
+      },
     },
   },
 });

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 test.describe("Table Border Visual Validation", () => {
   test("validates border rendering in real browser", async ({ page }) => {
@@ -7,34 +7,6 @@ test.describe("Table Border Visual Validation", () => {
 
     // Wait for the fixture to mount
     await page.waitForSelector(".bloom-table");
-
-    // Debug: Log the edge data for the first table
-    const gridEdgeData = await page.evaluate(() => {
-      const table = document.querySelector("#table-with-red-cross");
-      return {
-        edgesH: table?.getAttribute("data-edges-h"),
-        edgesV: table?.getAttribute("data-edges-v"),
-        columnWidths: table?.getAttribute("data-column-widths"),
-        rowHeights: table?.getAttribute("data-row-heights"),
-      };
-    });
-    console.log("Table edge data:", gridEdgeData);
-
-    // Debug: Log what borders are actually applied to each cell
-    const cellBorderDebug = await page.evaluate(() => {
-      const cells = Array.from(document.querySelectorAll("#table-with-red-cross .bloom-cell"));
-      return cells.map((cell, index) => {
-        const computed = getComputedStyle(cell);
-        return {
-          cellIndex: index,
-          borderTop: `${computed.borderTopStyle} ${computed.borderTopWidth} ${computed.borderTopColor}`,
-          borderRight: `${computed.borderRightStyle} ${computed.borderRightWidth} ${computed.borderRightColor}`,
-          borderBottom: `${computed.borderBottomStyle} ${computed.borderBottomWidth} ${computed.borderBottomColor}`,
-          borderLeft: `${computed.borderLeftStyle} ${computed.borderLeftWidth} ${computed.borderLeftColor}`,
-        };
-      });
-    });
-    console.log("Actual cell borders:", cellBorderDebug);
 
     // === Table 1: Red Cross Pattern (should apply per-side borders) ===
     const grid1 = page.locator("#table-with-red-cross");
@@ -66,7 +38,6 @@ test.describe("Table Border Visual Validation", () => {
       };
     });
 
-    console.log("r1c1 actual computed styles:", JSON.stringify(r1c1Styles, null, 2));
 
     // Verify r1c1 has solid red borders on all sides per the cross pattern
     expect(r1c1Styles.borderTopStyle).toBe("solid");

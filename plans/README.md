@@ -16,6 +16,7 @@ aren't re-audited from scratch next time.
 | 001  | Publish a React/MUI-free core bundle; fix dependency placement   | P1       | M      | —          | TODO   |
 | 002  | Make attach/detach symmetric and leak-free, with lifecycle tests | P2       | M      | —          | TODO   |
 | 003  | Lock in undoable row/column resize with tests; un-skip the e2e   | P2       | M      | —          | TODO   |
+| 005  | Test coverage that replaces manual testing (CI, gaps, e2e flows) | P1       | L      | 004 for two e2e specs | TODO   |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 

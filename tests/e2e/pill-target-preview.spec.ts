@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page } from "./utils/strict-page";
 
 // Hovering a "..." pill outlines what its menu will act on: the selected cell's
 // column (full table height), its row (full table width), or the whole current

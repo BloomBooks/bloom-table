@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page } from "./utils/strict-page";
 
 // Paint format carries a row's height and a column's width, not only the
 // per-cell formatting, and it outlines the region the next click would stamp.

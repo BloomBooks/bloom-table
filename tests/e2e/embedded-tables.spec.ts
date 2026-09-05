@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 test.describe("Embedded Grids", () => {
   test("validates embedded table rendering and layout", async ({ page }) => {

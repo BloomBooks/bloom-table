@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 import { waitForTestHooks } from "./utils/test-hooks";
 
 /**
@@ -31,7 +31,6 @@ test.describe("Undo resize column", () => {
       }));
 
     const initial = await readState();
-    console.log("Initial:", initial);
 
     // Drag the right edge of the first cell to widen column 0.
     const firstCell = table.locator(".bloom-cell").first();
@@ -47,7 +46,6 @@ test.describe("Undo resize column", () => {
     await page.mouse.up();
 
     const afterDrag = await readState();
-    console.log("After drag:", afterDrag);
 
     // Sanity: the drag actually changed the column width (data + visual).
     expect(afterDrag.dataColumnWidths).not.toBe(initial.dataColumnWidths);
@@ -57,7 +55,6 @@ test.describe("Undo resize column", () => {
     const lastOp = await page.evaluate(() =>
       window.bloomTableTestHooks!.tableHistoryManager.getLastOperationLabel(),
     );
-    console.log("Last operation:", lastOp);
     expect(lastOp).toMatch(/Resize Column/i);
 
     // Trigger undo exactly like the demo's Undo button.
@@ -65,15 +62,14 @@ test.describe("Undo resize column", () => {
       window.bloomTableTestHooks!.tableHistoryManager.undo(el as HTMLElement),
     );
     expect(undoResult).toBe(true);
-    await page.waitForTimeout(50);
-
-    const afterUndo = await readState();
-    console.log("After undo:", afterUndo);
 
     // Data attribute reverts (this already worked before the fix).
-    expect(afterUndo.dataColumnWidths).toBe(initial.dataColumnWidths);
+    await expect
+      .poll(() => table.getAttribute("data-column-widths"))
+      .toBe(initial.dataColumnWidths);
 
     // The actual visual layout reverts too (THIS is what was broken).
+    const afterUndo = await readState();
     expect(afterUndo.templateColumns).toBe(initial.templateColumns);
   });
 });

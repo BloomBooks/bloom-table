@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 // The full user journey for creating and growing a nested table, exactly as a
 // user does it — no fixture pre-builds the nested table:

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 import { waitForTestHooks } from "./utils/test-hooks";
 
 // Helper to focus a specific cell by index (focuses its contenteditable child)

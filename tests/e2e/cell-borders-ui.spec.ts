@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 test.describe("Cell BorderControl shows current perimeter state", () => {
   test("first cell shows 1px solid; second none; last solid", async ({ page }) => {
