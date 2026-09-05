@@ -68,6 +68,9 @@ const tablePillsVisible = () => tablePills().some((p) => p.style.display !== "no
 const rowAddButton = () =>
   document.querySelector<HTMLElement>('button[aria-label="Add row at the bottom edge"]');
 
+const columnAddButton = () =>
+  document.querySelector<HTMLElement>('button[aria-label="Add column at the right edge"]');
+
 const addPreview = () =>
   document.querySelector<HTMLElement>('[data-table-overlay="add-preview"]');
 
@@ -381,6 +384,145 @@ describe("the '+' hover preview matches where the button actually inserts", () =
     expect(() => rowAddButton()!.dispatchEvent(new MouseEvent("mouseenter"))).not.toThrow();
     // The bar is measured against the active table, not the selected cell's.
     expect(addPreview()!.style.left).toBe("400px");
+  });
+
+  it("draws the whole row bar across the table's bottom boundary", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+
+    rowAddButton()!.dispatchEvent(new MouseEvent("mouseenter"));
+
+    // The cells fill [100,200] on both axes, so the new row lands on y=200.
+    const preview = addPreview()!;
+    expect([
+      preview.style.left,
+      preview.style.top,
+      preview.style.width,
+      preview.style.height,
+    ]).toEqual(["100px", "195px", "100px", "10px"]);
+  });
+
+  it("draws the whole column bar down the table's right boundary", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+
+    columnAddButton()!.dispatchEvent(new MouseEvent("mouseenter"));
+
+    const preview = addPreview()!;
+    expect([
+      preview.style.left,
+      preview.style.top,
+      preview.style.width,
+      preview.style.height,
+    ]).toEqual(["195px", "100px", "10px", "100px"]);
+  });
+
+  it("takes the bar away again when the pointer leaves the button", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    rowAddButton()!.dispatchEvent(new MouseEvent("mouseenter"));
+
+    rowAddButton()!.dispatchEvent(new MouseEvent("mouseleave"));
+
+    expect(addPreview()!.style.display).toBe("none");
+  });
+});
+
+describe("where the affordances sit", () => {
+  // Each affordance is placed by its ProximityDiv wrapper, which is the
+  // element's own parent.
+  const wrapperOf = (el: HTMLElement) => el.parentElement!;
+
+  it("centers the '+' buttons on the cells' own bounds, 8px outside them", () => {
+    const { cells } = makeTable();
+
+    focusCell(cells[0]);
+
+    // The cells fill [100,200] on both axes: midpoint 150, far edges 200.
+    const rowAdd = wrapperOf(rowAddButton()!);
+    expect([rowAdd.style.left, rowAdd.style.top]).toEqual(["150px", "208px"]);
+    const columnAdd = wrapperOf(columnAddButton()!);
+    expect([columnAdd.style.left, columnAdd.style.top]).toEqual(["208px", "150px"]);
+  });
+
+  it("moves them when the cells move", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+
+    stubGrid(table, 300, 400);
+    window.dispatchEvent(new Event("resize"));
+
+    const rowAdd = wrapperOf(rowAddButton()!);
+    expect([rowAdd.style.left, rowAdd.style.top]).toEqual(["350px", "508px"]);
+  });
+
+  it("slides the table pill clear of the row '+' it shares the band with", () => {
+    const { cells } = makeTable();
+
+    focusCell(cells[0]);
+
+    // Both sit below the table; the pill goes to the left of center.
+    const tablePill = wrapperOf(pill("table"));
+    expect([tablePill.style.left, tablePill.style.top]).toEqual(["102px", "208px"]);
+  });
+
+  it("anchors the row and column pills to the selected cell's own row and column", () => {
+    const { cells } = makeTable();
+
+    focusCell(cells[3]); // row 1, column 1
+
+    // The row pill anchors to the first cell of row 1, the column pill to the
+    // top cell of column 1. The other two cells are never anchors here.
+    expect(cells[2].dataset.btableAnchorName).toBeTruthy();
+    expect(cells[1].dataset.btableAnchorName).toBeTruthy();
+    expect(cells[0].dataset.btableAnchorName).toBe(undefined);
+    expect(cells[3].dataset.btableAnchorName).toBe(undefined);
+    const rowCluster = wrapperOf(pill("row").parentElement!);
+    expect(rowCluster.style.getPropertyValue("position-anchor")).toBe(
+      cells[2].dataset.btableAnchorName,
+    );
+    const columnCluster = wrapperOf(pill("column").parentElement!);
+    expect(columnCluster.style.getPropertyValue("position-anchor")).toBe(
+      cells[1].dataset.btableAnchorName,
+    );
+  });
+});
+
+describe("a menu opened at a point", () => {
+  it("opens where it was asked to when there is room", () => {
+    const { cells } = makeTable();
+
+    openCellMenu(cells[0], { x: 120, y: 140 });
+
+    expect([menuPopup()!.style.left, menuPopup()!.style.top]).toEqual(["120px", "140px"]);
+  });
+
+  it("moves left and up to stay inside the window", () => {
+    const { cells } = makeTable();
+
+    openCellMenu(cells[0], { x: window.innerWidth + 100, y: window.innerHeight + 100 });
+
+    // happy-dom lays nothing out, so the popup measures zero and the code falls
+    // back to the 200px minimum width it declares.
+    expect(menuPopup()!.style.left).toBe(`${window.innerWidth - 204}px`);
+    expect(menuPopup()!.style.top).toBe(`${window.innerHeight - 4}px`);
+  });
+
+  it("never leaves less than 4px between the menu and the window edge", () => {
+    const { cells } = makeTable();
+
+    openCellMenu(cells[0], { x: -500, y: -500 });
+
+    expect([menuPopup()!.style.left, menuPopup()!.style.top]).toEqual(["4px", "4px"]);
+  });
+
+  it("caps its height at the window, so a tall menu scrolls inside itself", () => {
+    const { cells } = makeTable();
+
+    openCellMenu(cells[0], { x: 10, y: 10 });
+
+    expect(menuPopup()!.style.maxHeight).toBe(`${window.innerHeight - 8}px`);
+    expect(menuPopup()!.style.overflowY).toBe("auto");
   });
 });
 

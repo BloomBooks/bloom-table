@@ -48,6 +48,15 @@ After Phase 1, with 744 unit tests in 49 files:
 | Functions | 83.51% (775/928) | 82 |
 | Lines | 87.32% (4051/4639) | 86 |
 
+After Phase 2, with 955 unit tests in 50 files:
+
+| Metric | After Phase 2 | Threshold in `vite.config.ts` |
+| --- | --- | --- |
+| Statements | 87.23% (4628/5305) | 86 |
+| Branches | 75.51% (2692/3565) | 74 |
+| Functions | 87.71% (814/928) | 86 |
+| Lines | 90.36% (4192/4639) | 89 |
+
 ### Unit coverage by module
 
 Well covered (behaviour tests with clear names, edge cases, undo):
@@ -303,3 +312,10 @@ is `-chromium-win32`, and this machine cannot render the Linux equivalents, so
 `playwright.config.ts` sets `ignoreSnapshots` when `CI` is set and the CI run compares no
 screenshots at all. Take the images from a CI run's `playwright-report` artifact, commit them
 as `-chromium-linux`, and delete `ignoreSnapshots`.
+
+The two spacing sliders in the Table menu write `data-gap-x` and `data-gap-y` straight into
+the table and open no history entry, so Ctrl+Z after moving one reverts an earlier operation
+and leaves the new spacing in place. Every other item of the three pill menus is one undoable
+step. `src/table-size-buttons.menu-items.test.ts` holds the two `it.fails` tests that state
+what the sliders should do; make `setGapX` and `setGapY` go through
+`tableHistoryManager.addHistoryEntry` and turn them back into ordinary tests.
