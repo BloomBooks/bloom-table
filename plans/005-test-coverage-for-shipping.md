@@ -39,6 +39,15 @@ against the absolute path, and a checkout directory whose own name ends in `test
 | Functions | 81.89% (760/928) | 80 |
 | Lines | 86.52% (4014/4639) | 85 |
 
+After Phase 1, with 744 unit tests in 49 files:
+
+| Metric | After Phase 1 | Threshold in `vite.config.ts` |
+| --- | --- | --- |
+| Statements | 84.42% (4479/5305) | 83 |
+| Branches | 73.54% (2622/3565) | 72 |
+| Functions | 83.51% (775/928) | 82 |
+| Lines | 87.32% (4051/4639) | 86 |
+
 ### Unit coverage by module
 
 Well covered (behaviour tests with clear names, edge cases, undo):

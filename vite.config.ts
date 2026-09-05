@@ -96,13 +96,13 @@ export default defineConfig({
       // report comes back 0/0.
       include: ["src/**"],
       exclude: ["**/*.test.*", "src/test-support/**", "**/*.d.ts"],
-      // Baseline at the Phase 0 commit, minus one point each. The gate can
-      // only move up; raise it at the end of every phase.
+      // The measured coverage at the end of the last phase, minus one point
+      // each. The gate can only move up; raise it at the end of every phase.
       thresholds: {
-        statements: 82,
-        branches: 71,
-        functions: 80,
-        lines: 85,
+        statements: 83,
+        branches: 72,
+        functions: 82,
+        lines: 86,
       },
     },
   },
