@@ -99,10 +99,10 @@ export default defineConfig({
       // The measured coverage at the end of the last phase, minus one point
       // each. The gate can only move up; raise it at the end of every phase.
       thresholds: {
-        statements: 86,
-        branches: 74,
-        functions: 86,
-        lines: 89,
+        statements: 88,
+        branches: 77,
+        functions: 90,
+        lines: 91,
       },
     },
   },
