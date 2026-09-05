@@ -5,6 +5,20 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import MainContent from "./components/MainContent";
 import Toolbar from "./Toolbar";
+import { BloomTable, tableHistoryManager } from "../src/index";
+
+// The e2e specs need the same module instances the harness itself loaded. When a
+// spec imported them again with page.addScriptTag, a dev server that had been
+// running across source edits served the app one HMR-versioned copy of the module
+// and the spec another, so a singleton such as tableHistoryManager was two
+// objects. The spec then saw an empty history and read as a broken feature. The
+// harness publishes the instances instead, and no spec imports library source.
+// tests/e2e/utils/test-hooks.ts owns the type of this property, so the write
+// goes through a cast rather than a second global declaration.
+(window as unknown as { bloomTableTestHooks?: unknown }).bloomTableTestHooks = {
+  BloomTable,
+  tableHistoryManager,
+};
 
 const BLANK_2x2 = `
   <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">

@@ -6,7 +6,11 @@
 // Formatting a cell and then its row overwrites that cell along with the rest
 // of the row; formatting the row and then one cell changes only that cell.
 
-import { snapshotCellSettings, applyCellSettings, type CellSettings } from "./structure";
+import {
+  snapshotCellSettings,
+  applyCellSettings,
+  type CellSettings,
+} from "./structure";
 import { buildGrid } from "./grid";
 import { describeTarget, kWholeTableTarget } from "./operation-detail";
 import { render } from "./table-renderer";
@@ -17,7 +21,11 @@ import {
   getExistingContentTypeId,
 } from "./cell-contents";
 import {
+  getColumnWidths,
+  getRowHeights,
   getSpan,
+  setColumnWidths,
+  setRowHeights,
   setCellAlign,
   setCellPadding,
   setCellBackground,
@@ -32,7 +40,10 @@ import {
   getTableOuterBorderValueMap,
 } from "./border-state";
 import { representativeBorderColorHex } from "./color-utils";
-import type { BorderStyle, BorderWeight } from "./components/BorderControl/logic/types";
+import type {
+  BorderStyle,
+  BorderWeight,
+} from "./components/BorderControl/logic/types";
 import { normalizeEdgeChange } from "./components/BorderControl/logic/normalize";
 import {
   applyCellPerimeter,
@@ -94,7 +105,8 @@ export function getCellsInScope(
     const span = getSpan(c);
     return scope === "row"
       ? target.row >= pos.row && target.row < pos.row + Math.max(1, span.y)
-      : target.column >= pos.column && target.column < pos.column + Math.max(1, span.x);
+      : target.column >= pos.column &&
+          target.column < pos.column + Math.max(1, span.x);
   });
 }
 
@@ -112,17 +124,26 @@ export function applyContentType(
   // cell has no existing type, so setupContentsOfCell rebuilds it even when the
   // type being applied is the default one — and the host has to hear about the
   // contenteditable that rebuild just created.
-  const wasDifferent = cells.filter((c) => getExistingContentTypeId(c) !== contentTypeId);
+  const wasDifferent = cells.filter(
+    (c) => getExistingContentTypeId(c) !== contentTypeId,
+  );
   const target = describeTarget(table, scope, cells);
-  withHistory(table, "Change Content Type", `${contentTypeId}, ${target}`, () => {
-    for (const c of cells) setupContentsOfCell(c, contentTypeId, false, false);
-    render(table);
-  });
+  withHistory(
+    table,
+    "Change Content Type",
+    `${contentTypeId}, ${target}`,
+    () => {
+      for (const c of cells)
+        setupContentsOfCell(c, contentTypeId, false, false);
+      render(table);
+    },
+  );
   for (const c of wasDifferent) {
     // Notify only for cells that actually changed (none did if the history
     // manager refused the operation, e.g. on a detached table). A rebuild
     // always writes the data attribute, so that is what says it happened.
-    if (c.dataset.contentType === contentTypeId) dispatchCellContentChanged(c, contentTypeId);
+    if (c.dataset.contentType === contentTypeId)
+      dispatchCellContentChanged(c, contentTypeId);
   }
 }
 
@@ -132,10 +153,15 @@ export function applyAlignment(
   cells: HTMLElement[],
   align: CellAlign,
 ): void {
-  withHistory(table, "Set Alignment", `${align}, ${describeTarget(table, scope, cells)}`, () => {
-    for (const c of cells) setCellAlign(c, align);
-    render(table);
-  });
+  withHistory(
+    table,
+    "Set Alignment",
+    `${align}, ${describeTarget(table, scope, cells)}`,
+    () => {
+      for (const c of cells) setCellAlign(c, align);
+      render(table);
+    },
+  );
 }
 
 export function applyPadding(
@@ -144,10 +170,15 @@ export function applyPadding(
   cells: HTMLElement[],
   px: number,
 ): void {
-  withHistory(table, "Set Padding", `${px}px, ${describeTarget(table, scope, cells)}`, () => {
-    for (const c of cells) setCellPadding(c, `${px}px`);
-    render(table);
-  });
+  withHistory(
+    table,
+    "Set Padding",
+    `${px}px, ${describeTarget(table, scope, cells)}`,
+    () => {
+      for (const c of cells) setCellPadding(c, `${px}px`);
+      render(table);
+    },
+  );
 }
 
 export function applyCorners(
@@ -245,13 +276,17 @@ export function applyBorderProps(
     // No cell count here: the table scope writes the outer, inner and default
     // borders rather than each cell's perimeter, so a count of cells would
     // describe something the command does not do.
-    const detail = changed ? `${changed}, ${kWholeTableTarget}` : kWholeTableTarget;
+    const detail = changed
+      ? `${changed}, ${kWholeTableTarget}`
+      : kWholeTableTarget;
     withHistory(table, "Change Border", detail, () => {
       const base = getTableOuterBorderValueMap(table);
       const firstCell = cells[0] ?? tableCells(table)[0];
       const color =
-        props.color ?? (firstCell ? representativeBorderColorHex(firstCell) : "#000000");
-      const side = (s: { weight: number; style: BorderStyle }) => resolveEdge(s, props, color);
+        props.color ??
+        (firstCell ? representativeBorderColorHex(firstCell) : "#000000");
+      const side = (s: { weight: number; style: BorderStyle }) =>
+        resolveEdge(s, props, color);
       // The default goes first: the writers below leave a never-set entry unset
       // when the value they are asked to write renders like the CURRENT
       // default, so changing the default afterwards would move it out from
@@ -275,28 +310,34 @@ export function applyBorderProps(
     return;
   }
   const target = describeTarget(table, scope, cells);
-  withHistory(table, "Change Border", changed ? `${changed}, ${target}` : target, () => {
-    // Snapshot every perimeter before writing: cells share edges, so a write
-    // for one cell must not feed into the map read for the next. Colors are
-    // kept per edge so a style/weight change doesn't flatten a multi-colored
-    // perimeter to one color.
-    const snapshots = cells.map((c) => ({
-      map: getCellPerimeterValueMap(c),
-      colors: getCellPerimeterColors(c),
-      fallback: props.color ?? representativeBorderColorHex(c),
-    }));
-    cells.forEach((c, i) => {
-      const { map, colors, fallback } = snapshots[i];
-      const edgeColor = (current: string | null) => props.color ?? current ?? fallback;
-      applyCellPerimeter(table, c, {
-        top: resolveEdge(map.top, props, edgeColor(colors.top)),
-        right: resolveEdge(map.right, props, edgeColor(colors.right)),
-        bottom: resolveEdge(map.bottom, props, edgeColor(colors.bottom)),
-        left: resolveEdge(map.left, props, edgeColor(colors.left)),
+  withHistory(
+    table,
+    "Change Border",
+    changed ? `${changed}, ${target}` : target,
+    () => {
+      // Snapshot every perimeter before writing: cells share edges, so a write
+      // for one cell must not feed into the map read for the next. Colors are
+      // kept per edge so a style/weight change doesn't flatten a multi-colored
+      // perimeter to one color.
+      const snapshots = cells.map((c) => ({
+        map: getCellPerimeterValueMap(c),
+        colors: getCellPerimeterColors(c),
+        fallback: props.color ?? representativeBorderColorHex(c),
+      }));
+      cells.forEach((c, i) => {
+        const { map, colors, fallback } = snapshots[i];
+        const edgeColor = (current: string | null) =>
+          props.color ?? current ?? fallback;
+        applyCellPerimeter(table, c, {
+          top: resolveEdge(map.top, props, edgeColor(colors.top)),
+          right: resolveEdge(map.right, props, edgeColor(colors.right)),
+          bottom: resolveEdge(map.bottom, props, edgeColor(colors.bottom)),
+          left: resolveEdge(map.left, props, edgeColor(colors.left)),
+        });
       });
-    });
-    render(table);
-  });
+      render(table);
+    },
+  );
 }
 
 export function applyBorderColor(
@@ -315,6 +356,9 @@ export function applyBorderColor(
 // clipboard can't reference another table's edge arrays. Copy snapshots the
 // first cell of the source scope; paste stamps the snapshot onto every cell of
 // the target scope — the same last-command-wins model as the other commands.
+//
+// A row or column scope carries one more thing that no cell owns: the line's
+// own size (the row's height, the column's width). See CopiedLineSize.
 
 type CopiedEdge = { weight: number; style: BorderStyle; color: string };
 
@@ -328,6 +372,49 @@ export type CopiedCellProperties = {
   };
 };
 
+// The size of the line a row-scope or column-scope snapshot was taken from:
+// the source row's height, or the source column's width. It is a property of
+// the table's size list, not of any cell, so it travels beside the per-cell
+// pattern rather than inside it. Cell and table scopes have no line size.
+export type CopiedLineSize = { axis: "row" | "column"; size: string };
+
+/** The size of the line `cell` sits in, for a row or column scope. Null for
+ *  the cell and table scopes, and when the size list is too short to name the
+ *  line (a table may declare fewer sizes than it has lines). */
+export function snapshotLineSize(
+  table: HTMLElement,
+  scope: FormattingScope,
+  cell: HTMLElement | null,
+): CopiedLineSize | null {
+  if (!cell || (scope !== "row" && scope !== "column")) return null;
+  const pos = buildGrid(table).posOf.get(cell);
+  if (!pos) return null;
+  const sizes = scope === "row" ? getRowHeights(table) : getColumnWidths(table);
+  const index = scope === "row" ? pos.row : pos.column;
+  if (index < 0 || index >= sizes.length) return null;
+  return { axis: scope, size: sizes[index] };
+}
+
+/** Write a line size onto the line that `cell` sits in. The caller runs this
+ *  inside its own history entry, and renders afterwards. */
+function applyLineSize(
+  table: HTMLElement,
+  cell: HTMLElement,
+  line: CopiedLineSize,
+): void {
+  const pos = buildGrid(table).posOf.get(cell);
+  if (!pos) return;
+  const sizes =
+    line.axis === "row" ? getRowHeights(table) : getColumnWidths(table);
+  const index = line.axis === "row" ? pos.row : pos.column;
+  // Same bounds rule as BloomTable.setRowHeight: a line the size list does not
+  // declare is left alone rather than invented.
+  if (index < 0 || index >= sizes.length) return;
+  sizes[index] = line.size;
+  if (line.axis === "row") setRowHeights(table, sizes);
+  else setColumnWidths(table, sizes);
+}
+
 let copiedProperties: CopiedCellProperties | null = null;
 
 export function hasCopiedProperties(): boolean {
@@ -338,7 +425,9 @@ export function hasCopiedProperties(): boolean {
  *  plus its OWN painted perimeter (no borrowing of neighbor-owned strokes —
  *  copying a borderless cell that sits next to bordered neighbors must paste
  *  as borderless, not smuggle the neighbors' lines along). */
-export function snapshotCellProperties(cell: HTMLElement): CopiedCellProperties {
+export function snapshotCellProperties(
+  cell: HTMLElement,
+): CopiedCellProperties {
   const own = getCellOwnPerimeter(cell);
   const fallback = representativeBorderColorHex(cell);
   const edge = (e: {
@@ -363,7 +452,9 @@ export function snapshotCellProperties(cell: HTMLElement): CopiedCellProperties 
 
 /** Snapshot the properties of the scope's first cell. Returns the snapshot
  *  (also kept as the active clipboard), or null when the scope is empty. */
-export function copyProperties(cells: HTMLElement[]): CopiedCellProperties | null {
+export function copyProperties(
+  cells: HTMLElement[],
+): CopiedCellProperties | null {
   const seed = cells[0];
   if (!seed) return null;
   copiedProperties = snapshotCellProperties(seed);
@@ -381,6 +472,7 @@ function stampProperties(
   cells: HTMLElement[],
   propsFor: (index: number) => CopiedCellProperties,
   label: string,
+  lineSize?: CopiedLineSize | null,
 ): void {
   if (!cells.length) return;
   const wasDifferent: Array<[HTMLElement, string]> = [];
@@ -403,6 +495,9 @@ function stampProperties(
         left: { ...p.border.left },
       });
     });
+    // The line size belongs to the whole target line, so it is written once,
+    // from any cell of that line, inside the same history entry as the cells.
+    if (lineSize) applyLineSize(table, cells[0], lineSize);
     render(table);
   });
   for (const [c, t] of wasDifferent) {
@@ -431,9 +526,17 @@ export function paintProperties(
   scope: FormattingScope,
   cells: HTMLElement[],
   pattern: CopiedCellProperties[],
+  lineSize?: CopiedLineSize | null,
 ): void {
   if (!pattern.length) return;
-  stampProperties(table, scope, cells, (i) => pattern[i % pattern.length], "Paint Format");
+  stampProperties(
+    table,
+    scope,
+    cells,
+    (i) => pattern[i % pattern.length],
+    "Paint Format",
+    lineSize,
+  );
 }
 
 export function applyBorderStyle(

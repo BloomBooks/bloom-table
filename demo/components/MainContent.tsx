@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { detachTable } from "../../src";
 import { attachTablesAfterContentLoad } from "../utils/tableAttachment";
 
 interface MainContentProps {
@@ -9,9 +10,32 @@ interface MainContentProps {
   id?: string;
   // Optional class name(s) for the outer wrapper to adjust spacing/styles
   className?: string;
+  // Show the content, but do not let the user change it. The tables are still
+  // attached once, because that is what lays out borders, spans and sizes, and
+  // are detached again straight after.
+  readOnly?: boolean;
 }
 
-const MainContent: React.FC<MainContentProps> = ({ content, onChange, id, className }) => {
+// Turn an attached, editable table into a picture of itself: no caret, no
+// history, no drag-to-resize. The container also has pointer-events: none in
+// demo.css, which is what keeps the selection outline and the menu pills away;
+// those are installed on the document, so they answer clicks in ANY table.
+const makeReadOnly = (container: HTMLElement) => {
+  container
+    .querySelectorAll<HTMLElement>("[contenteditable]")
+    .forEach((e) => e.setAttribute("contenteditable", "false"));
+  container
+    .querySelectorAll<HTMLElement>(".bloom-table")
+    .forEach((t) => detachTable(t));
+};
+
+const MainContent: React.FC<MainContentProps> = ({
+  content,
+  onChange,
+  id,
+  className,
+  readOnly,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isSettingRef = useRef(false);
   const debounceTimerRef = useRef<number | null>(null);
@@ -28,12 +52,13 @@ const MainContent: React.FC<MainContentProps> = ({ content, onChange, id, classN
       isSettingRef.current = true;
       containerRef.current.innerHTML = content;
       attachTablesAfterContentLoad(containerRef.current);
+      if (readOnly) makeReadOnly(containerRef.current);
       // allow mutations from initial set to flush before enabling notifications
       setTimeout(() => {
         isSettingRef.current = false;
       }, 0);
     }
-  }, [content]);
+  }, [content, readOnly]);
 
   // Observe content changes and notify caller (debounced)
   useEffect(() => {

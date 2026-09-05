@@ -14,6 +14,10 @@ body {
   display: flex;
   justify-content: center;
   padding: 40px;
+  /* The pages are sized in mm (A5 portrait is 148mm x 210mm), so the padding
+     has to come out of that size rather than add to it. Otherwise a page with
+     a margin is no longer the paper size it says it is. */
+  box-sizing: border-box;
 }
 
 .demo-layout {
@@ -46,6 +50,20 @@ body {
 /* Compact variant removes extra padding/margins */
 .main-content.compact {
   padding: 0;
+}
+
+/* An A5 portrait page is 148mm wide, about 560px, which does not fit the
+   500px column the worked example sits in. Scale it down rather than widen the
+   column, because the attempt beside it needs a full-size page. `zoom` is used
+   in place of `transform: scale`, because it scales layout and hit-testing
+   together, so the worked example stays editable. */
+#worked-example-container {
+  zoom: 0.78;
+  /* The worked example is there to be read, not edited. The selection outline
+     and the menu pills are installed on the document and answer clicks in any
+     table, so taking the pane out of hit-testing is what keeps them away.
+     MainContent's readOnly prop does the rest (no caret, no history). */
+  pointer-events: none;
 }
 
 /* Reduce top margin directly under section labels */

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { waitForTestHooks } from "./utils/test-hooks";
 
 // Helper to focus a specific cell by index (focuses its contenteditable child)
 async function focusCell(page, gridSelector: string, index: number) {
@@ -15,16 +16,10 @@ function nthCellIndex(row: number, col: number, cols: number) {
 test.describe("Focus after delete", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/demo/ui-harness.html?fixture=basic-table");
-    // The harness attaches table behavior itself; just wait for the table,
-    // then expose the controller class for the evaluate() calls below.
+    // The harness attaches table behavior itself, and publishes the controller
+    // class the evaluate() calls below need.
     await expect(page.locator("#main-table")).toBeVisible();
-    await page.addScriptTag({
-      type: "module",
-      content: `
-        import { BloomTable } from '/src/index.tsx';
-        window.__BG = { BloomTable };
-      `,
-    });
+    await waitForTestHooks(page);
   });
 
   test("Delete row focuses same column in neighbor row", async ({ page }) => {
@@ -34,7 +29,7 @@ test.describe("Focus after delete", () => {
 
     // Delete current row (row 0)
     await page.evaluate(() => {
-      const { BloomTable } = (window as any).__BG;
+      const { BloomTable } = window.bloomTableTestHooks!;
       const table = document.querySelector("#main-table") as HTMLElement;
       const controller = new BloomTable(table);
       controller.removeRowAt(0);
@@ -53,7 +48,7 @@ test.describe("Focus after delete", () => {
 
     // Delete current column (column 1)
     await page.evaluate(() => {
-      const { BloomTable } = (window as any).__BG;
+      const { BloomTable } = window.bloomTableTestHooks!;
       const table = document.querySelector("#main-table") as HTMLElement;
       const controller = new BloomTable(table);
       controller.removeColumnAt(1);

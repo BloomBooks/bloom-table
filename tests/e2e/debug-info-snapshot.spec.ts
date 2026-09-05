@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { readClipboard } from "./utils/clipboard";
 
 // "Copy Debug Info" on the demo page (/demo/index.html, not the ui-harness the
 // rest of the suite uses, because the button lives next to the user's attempt).
@@ -16,25 +17,10 @@ interface Clipboard {
   label: string;
 }
 
-// Both flavours of what the button just wrote.
-async function readClipboard(page: Page): Promise<Omit<Clipboard, "label" | "outcome">> {
-  return page.evaluate(async () => {
-    const items = await navigator.clipboard.read();
-    let text = "";
-    let html = "";
-    for (const item of items) {
-      if (item.types.includes("text/plain")) text = await (await item.getType("text/plain")).text();
-      if (item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
-    }
-    return { text, html };
-  });
-}
-
 // The lines of the "## Actions since start" section, without their timestamps.
 function journalActions(text: string): string[] {
-  // Reading text/plain back off the Windows clipboard turns every newline into
-  // a carriage return and a newline.
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  // readClipboard normalises the line endings, so a plain split is safe here.
+  const lines = text.split("\n");
   const start = lines.findIndex((l) => l.startsWith("## Actions since start"));
   expect(start, "the snapshot has an 'Actions since start' section").toBeGreaterThanOrEqual(0);
   const actions: string[] = [];
