@@ -312,10 +312,3 @@ is `-chromium-win32`, and this machine cannot render the Linux equivalents, so
 `playwright.config.ts` sets `ignoreSnapshots` when `CI` is set and the CI run compares no
 screenshots at all. Take the images from a CI run's `playwright-report` artifact, commit them
 as `-chromium-linux`, and delete `ignoreSnapshots`.
-
-The two spacing sliders in the Table menu write `data-gap-x` and `data-gap-y` straight into
-the table and open no history entry, so Ctrl+Z after moving one reverts an earlier operation
-and leaves the new spacing in place. Every other item of the three pill menus is one undoable
-step. `src/table-size-buttons.menu-items.test.ts` holds the two `it.fails` tests that state
-what the sliders should do; make `setGapX` and `setGapY` go through
-`tableHistoryManager.addHistoryEntry` and turn them back into ordinary tests.

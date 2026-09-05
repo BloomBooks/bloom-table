@@ -10,6 +10,7 @@ import {
 import { setStructuralChromeGate } from "./structural-chrome";
 import { setCellMenuItemFilter, setCellMenuOpenHandler } from "./cell-menu-host";
 import { getCurrentContentTypeId } from "./cell-contents";
+import { setGapX } from "./table-model";
 import { withClipboardStub } from "./test-support/clipboard-stub";
 import type { CellMenuChoice, CellMenuCommand } from "./cell-menu-model";
 
@@ -425,6 +426,66 @@ describe("the '+' hover preview matches where the button actually inserts", () =
     rowAddButton()!.dispatchEvent(new MouseEvent("mouseleave"));
 
     expect(addPreview()!.style.display).toBe("none");
+  });
+});
+
+describe("the spacing sliders in the Table menu", () => {
+  const slider = (label: string) =>
+    menuPopup()!.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+
+  const drag = (input: HTMLInputElement, steps: number[]) => {
+    for (const v of steps) {
+      input.value = String(v);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  it("records one undo entry for a whole drag, not one per step", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("table"));
+
+    drag(slider("Horizontal space between cells"), [4, 8, 12, 16, 20]);
+
+    expect(table.getAttribute("data-gap-x")).toBe("20px");
+    expect(tableHistoryManager.getEntriesForDebug().length).toBe(1);
+  });
+
+  it("puts the table back to the spacing it had before the drag", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("table"));
+
+    drag(slider("Vertical space between cells"), [6, 12]);
+    expect(tableHistoryManager.undoLast()).toBe(true);
+
+    // The table had no spacing of its own, so undo must leave none behind.
+    expect(table.getAttribute("data-gap-y")).toBe(null);
+  });
+
+  it("keeps the spacing it started from when the drag ends where it began", () => {
+    const { table, cells } = makeTable();
+    setGapX(table, "8px");
+    focusCell(cells[0]);
+    click(pill("table"));
+
+    drag(slider("Horizontal space between cells"), [20, 8]);
+
+    expect(table.getAttribute("data-gap-x")).toBe("8px");
+    expect(tableHistoryManager.getEntriesForDebug().length).toBe(0);
+  });
+
+  it("moves the table while the thumb moves, before the drag ends", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("table"));
+    const input = slider("Horizontal space between cells");
+
+    input.value = "16";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(table.getAttribute("data-gap-x")).toBe("16px");
   });
 });
 

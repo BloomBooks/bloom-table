@@ -165,9 +165,11 @@ const focusCell = (cell: HTMLElement) =>
     new FocusEvent("focusin", { bubbles: true }),
   );
 
+// One complete gesture: the thumb moves, then the pointer is released.
 const setSlider = (el: HTMLElement, value: number) => {
   (el as HTMLInputElement).value = String(value);
   el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
 };
 
 const setColor = (el: HTMLElement, value: string) => {
@@ -610,10 +612,6 @@ const tableCases: MenuItemCase[] = [
 
 const cases: MenuItemCase[] = [...rowCases, ...columnCases, ...tableCases];
 
-// The two gap sliders write the model without opening a history entry, so they
-// cannot be undone. See the it.fails tests below.
-const kNotUndoable = new Set(["Horizontal space between cells", "Vertical space between cells"]);
-
 // ----- the runner -----
 
 function runCase(c: MenuItemCase, fixture: Fixture): void {
@@ -687,28 +685,13 @@ describe("Paste properties before anything has been copied", () => {
 });
 
 describe("every item of the Row, Column and Table menus, on a top-level table", () => {
-  it.each(cases.filter((c) => !kNotUndoable.has(c.label)))(
-    "$menu menu: $label changes the model, in one undoable step",
-    (c) => runCase(c, plainTable()),
+  it.each(cases)("$menu menu: $label changes the model, in one undoable step", (c) =>
+    runCase(c, plainTable()),
   );
-
-  it.fails("the Horizontal space slider adds an undo entry, like every other item", () => {
-    runCase(
-      cases.find((c) => c.label === "Horizontal space between cells")!,
-      plainTable(),
-    );
-  });
-
-  it.fails("the Vertical space slider adds an undo entry, like every other item", () => {
-    runCase(
-      cases.find((c) => c.label === "Vertical space between cells")!,
-      plainTable(),
-    );
-  });
 });
 
 describe("every item of the Row, Column and Table menus, on a nested table", () => {
-  it.each(cases.filter((c) => !kNotUndoable.has(c.label)))(
+  it.each(cases)(
     "$menu menu: $label changes the nested table and leaves the outer one alone",
     (c) => runCase(c, nestedTable()),
   );

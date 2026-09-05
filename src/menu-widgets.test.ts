@@ -462,6 +462,27 @@ describe("makeSliderRow", () => {
     expect(sliderOf(row).getAttribute("aria-label")).toBe("Row gap");
     expect((row.children[0] as HTMLElement).textContent).toBe("Row gap");
   });
+
+  it("says once that the gesture is over, however many steps it took", () => {
+    const onCommit = vi.fn();
+    const row = makeSliderRow("Gap", 0, 20, 6, "mm", () => {}, onCommit);
+    const slider = sliderOf(row);
+
+    typeInto(slider, "9");
+    typeInto(slider, "11");
+    slider.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith(11);
+  });
+
+  it("says nothing about the end of a gesture when the caller wants no such word", () => {
+    const row = makeSliderRow("Gap", 0, 20, 6, "mm", () => {});
+
+    expect(() =>
+      sliderOf(row).dispatchEvent(new Event("change", { bubbles: true })),
+    ).not.toThrow();
+  });
 });
 
 describe("makeColorInput", () => {
