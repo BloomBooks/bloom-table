@@ -7,12 +7,10 @@ import MainContent from "./components/MainContent";
 import Toolbar from "./Toolbar";
 import { BloomTable, tableHistoryManager } from "../src/index";
 
-// The e2e specs need the same module instances the harness itself loaded. When a
-// spec imported them again with page.addScriptTag, a dev server that had been
-// running across source edits served the app one HMR-versioned copy of the module
-// and the spec another, so a singleton such as tableHistoryManager was two
-// objects. The spec then saw an empty history and read as a broken feature. The
-// harness publishes the instances instead, and no spec imports library source.
+// The e2e specs take these instances from here. A spec that imports library
+// source itself gets a second copy: a dev server running across source edits
+// serves the harness an HMR-versioned copy of a module and the injected script
+// the plain one, so a singleton such as tableHistoryManager becomes two objects.
 // tests/e2e/utils/test-hooks.ts owns the type of this property, so the write
 // goes through a cast rather than a second global declaration.
 (window as unknown as { bloomTableTestHooks?: unknown }).bloomTableTestHooks = {

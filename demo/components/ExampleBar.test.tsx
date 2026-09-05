@@ -3,11 +3,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import ExampleBar, { Example } from "./ExampleBar";
 
-// The demo's example picker used to select an example twice, because React
-// StrictMode runs an effect twice in development and each run ended with a call
-// to onExampleSelect. The second call re-selected the saved example, which threw
-// away a click that landed between the two fetches. These tests hold the fix
-// down: one automatic selection, and none after a person clicks.
+// React StrictMode runs the picker's effect twice in development, so the list of
+// examples arrives twice. The picker must select an example once, and must not
+// select at all after a person clicks one.
 
 const exercises: Example[] = [
   { name: "Alphabet", htmlFile: "alphabet.html", group: "exercises" },

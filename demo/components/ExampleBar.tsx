@@ -19,11 +19,9 @@ const ExampleBar: React.FC<ExampleBarProps> = ({ onExampleSelect }) => {
   const [activeId, setActiveId] = useState<string>("");
   const LOCAL_STORAGE_KEY = "bloom-table.activeExamplePath"; // e.g. tests/table-border.html
 
-  // The list is fetched from an effect, and React StrictMode runs that effect
-  // twice in development. Each run used to end with a call to onExampleSelect,
-  // so the second one re-selected the saved example and threw away a click that
-  // landed between the two. These two guards make the automatic selection happen
-  // once, and never after the person has chosen an example.
+  // React StrictMode runs the effect below twice in development, so the list
+  // arrives twice. These two guards keep the automatic selection to one, and
+  // stop a late answer from overruling the example a person has clicked.
   const didSelectAutomatically = React.useRef(false);
   const personChoseAnExample = React.useRef(false);
 
