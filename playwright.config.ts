@@ -4,7 +4,9 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 1,
+  // No local retry: a missing screenshot baseline fails once, writes itself,
+  // and would pass on a retry, so an unreviewed baseline would land green.
+  retries: process.env.CI ? 2 : 0,
   // The screenshot baselines in *-snapshots/ are all "-chromium-win32". Linux
   // renders different fonts, and no Linux baseline exists yet, so a CI run
   // compares nothing rather than failing on every snapshot.
