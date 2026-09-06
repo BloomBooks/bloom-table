@@ -1228,6 +1228,9 @@ function makeGapSliderRow(
       dragging = false;
       const after = table.getAttribute(attribute);
       restore();
+      // The snapshot the entry keeps is the rendered table, so the inline gap
+      // the drag painted must go back too, not only the attribute.
+      render(table);
       if (after === before) return;
       tableHistoryManager.addHistoryEntry(table, { label: "Set Spacing", detail: `${label} to ${v}px` }, () => {
         write(v);

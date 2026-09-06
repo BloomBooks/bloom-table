@@ -460,8 +460,10 @@ describe("the spacing sliders in the Table menu", () => {
     drag(slider("Vertical space between cells"), [6, 12]);
     expect(tableHistoryManager.undoLast()).toBe(true);
 
-    // The table had no spacing of its own, so undo must leave none behind.
+    // The table had no spacing of its own, so undo must leave none behind,
+    // in the attribute and in the style the renderer painted from it.
     expect(table.getAttribute("data-gap-y")).toBe(null);
+    expect(table.style.rowGap).toBe("");
   });
 
   it("keeps the spacing it started from when the drag ends where it began", () => {

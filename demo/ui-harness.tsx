@@ -61,6 +61,9 @@ const StubColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, label })
 
 const Harness: React.FC = () => {
   const [content, setContent] = React.useState<string | null>(fixtureName ? null : BLANK_2x2);
+  // Bumped by the setContent hook so MainContent remounts even when the new
+  // markup equals the old.
+  const [generation, setGeneration] = React.useState(0);
 
   // The e2e specs need the same module instances the harness itself loaded. When a
   // spec imported them again with page.addScriptTag, a dev server that had been
@@ -76,10 +79,10 @@ const Harness: React.FC = () => {
       tableHistoryManager,
       removeTableEditingArtifacts,
       // Mount arbitrary markup, so a spec can feed saved HTML back in and read
-      // the model it produces. Passing "" first clears the container, because
-      // MainContent skips content that matches what it already holds.
+      // the model it produces. The key changes with the generation, so React
+      // mounts a fresh MainContent instead of comparing the markup.
       setContent: (html: string) => {
-        setContent("");
+        setGeneration((g) => g + 1);
         setContent(html);
       },
       stubApiCalls,
@@ -101,7 +104,9 @@ const Harness: React.FC = () => {
     <div>
       {/* The editable table the interpreter builds into. Plain white, black text, natural width. */}
       <div id="editor">
-        {content !== null && <MainContent id="attempt-container" content={content} />}
+        {content !== null && (
+          <MainContent key={generation} id="attempt-container" content={content} />
+        )}
       </div>
       {/* The real toolbar; appears/targets whichever .cell has focus. */}
       <div id="controls-panel">

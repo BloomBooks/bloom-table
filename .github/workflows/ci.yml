@@ -24,7 +24,8 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
+      # With coverage, so the thresholds in vite.config.ts gate the run.
+      - run: pnpm test:coverage
 
       # The dist smoke test imports the built bundle, so the build runs first.
       - run: pnpm build
