@@ -7,6 +7,7 @@ import IconButton from "./IconButton";
 import rowGrowIcon from "./icons/row-grow.svg";
 import rowHugIcon from "./icons/row-hug.svg";
 import RadioGroup, { RadioOption } from "./RadioGroup";
+import { getRowHeights } from "../table-model";
 import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
 // import Slider from "./Slider"; // disabled: rows are sized by dragging dividers
@@ -64,6 +65,11 @@ export const RowSection: React.FC<Props> = ({
     }
   } catch {}
 
+  // A table must keep one row, so on a one-row table Delete Row is disabled
+  // rather than silently refused: removeRowAt asserts, and the assertion throws
+  // out of the click handler.
+  const canDelete = !!table && getRowHeights(table).length > 1;
+
   const sizeOptions: RadioOption[] = [
     { id: "grow", icon: rowGrowIcon, label: "Grow" },
     { id: "hug", icon: rowHugIcon, label: "Hug" },
@@ -110,7 +116,13 @@ export const RowSection: React.FC<Props> = ({
             disabled={disabled}
           />
         </div>
-        <IconButton icon={deleteRowIcon} alt="Delete Row" onClick={onDelete} disabled={disabled} />
+        <IconButton
+          icon={deleteRowIcon}
+          alt="Delete Row"
+          title={canDelete ? "Delete Row" : "Cannot remove the only row"}
+          onClick={onDelete}
+          disabled={disabled || !canDelete}
+        />
       </div>{" "}
       <div className={subTitleStyle}>Size</div>
       <RadioGroup

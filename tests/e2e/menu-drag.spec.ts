@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 // The popup menu often opens on top of the very cells its commands affect.
 // The grip strip at its top edge lets the user drag the whole popup aside;

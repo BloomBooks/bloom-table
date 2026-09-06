@@ -2,8 +2,14 @@ import React, { useState, useEffect } from "react";
 import TableMenu from "../src/components/TableMenu";
 import { tableHistoryManager } from "../src";
 import DemoColorPicker from "./components/DemoColorPicker";
+import type { ColorPickerComponent, TableApi } from "../src/index";
 
-const Toolbar: React.FC<{}> = () => {
+// The harness passes a host's own api and color picker when it is asked to
+// stand in for one (?stubs=1); the demo passes neither and keeps its own.
+const Toolbar: React.FC<{ tableApi?: TableApi; colorPicker?: ColorPickerComponent }> = ({
+  tableApi,
+  colorPicker,
+}) => {
   const [currentCell, setCurrentCell] = useState<HTMLDivElement | null>(null);
   const [canUndo, setCanUndo] = useState(tableHistoryManager.canUndo());
   const [lastOperation, setLastOperation] = useState(tableHistoryManager.getLastOperationLabel());
@@ -38,7 +44,11 @@ const Toolbar: React.FC<{}> = () => {
 
   return (
     <>
-      <TableMenu currentCell={currentCell} colorPicker={DemoColorPicker} />
+      <TableMenu
+        currentCell={currentCell}
+        tableApi={tableApi}
+        colorPicker={colorPicker ?? DemoColorPicker}
+      />
       <div style={{ display: "flex", gap: "10px" }}>
         <button
           disabled={!isUndoable}

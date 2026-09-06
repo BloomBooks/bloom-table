@@ -99,7 +99,7 @@ Slice 4 ends at the current `master`, so review it with a full `/preflight` on a
 
 ## Toolchain
 
-- Package manager: **pnpm**. Node 22.12 or later.
+- Package manager: **pnpm**. Node 22.13 or later (pnpm 11 needs it).
 - Typecheck: `pnpm typecheck` (`tsc --noEmit`).
 - Unit tests, non-watch: `pnpm test` (`vp test run`). Never run `vp test` without `run`.
   Add a path to run one file: `pnpm test src/history.test.ts`.

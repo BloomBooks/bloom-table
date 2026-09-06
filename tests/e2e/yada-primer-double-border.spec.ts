@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 // Assumes dev server is already running on :5173 (per request)
 

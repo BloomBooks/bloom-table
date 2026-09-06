@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # No version here: the action reads "packageManager" in package.json.
+      - uses: pnpm/action-setup@v4
+
+      # pnpm 11 needs Node 22.13 or later, so this takes the latest 22.x.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      # With coverage, so the thresholds in vite.config.ts gate the run.
+      - run: pnpm test:coverage
+
+      # The dist smoke test imports the built bundle, so the build runs first.
+      - run: pnpm build
+
+      - run: pnpm test:package
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: pnpm e2e
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

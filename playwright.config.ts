@@ -4,12 +4,18 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  // No local retry: a missing screenshot baseline fails once, writes itself,
+  // and would pass on a retry, so an unreviewed baseline would land green.
   retries: process.env.CI ? 2 : 0,
+  // The screenshot baselines in *-snapshots/ are all "-chromium-win32". Linux
+  // renders different fonts, and no Linux baseline exists yet, so a CI run
+  // compares nothing rather than failing on every snapshot.
+  ignoreSnapshots: !!process.env.CI,
   workers: process.env.CI ? 1 : undefined,
   // Use html reporter but never auto-open UI to avoid hanging
   reporter: [["html", { open: "never" }]],
   use: {
-    baseURL: process.env.BASE_URL || "http://localhost:5173",
+    baseURL: process.env.BASE_URL || "http://127.0.0.1:5173",
     trace: "on-first-retry",
   },
 
@@ -31,9 +37,12 @@ export default defineConfig({
   //    counts a 404 as not-ready.
   //  - --host: a plain `vp dev` binds ::1 only, so the probe's 127.0.0.1 is
   //    refused while a browser is served perfectly well.
+  //  - the url and baseURL name 127.0.0.1, not localhost: localhost resolves to
+  //    ::1 first, and another checkout's dev server bound to ::1 answers 404
+  //    there while this repo's server holds the IPv4 address.
   webServer: {
     command: "pnpm dev --host",
-    url: "http://localhost:5173/demo/ui-harness.html",
+    url: "http://127.0.0.1:5173/demo/ui-harness.html",
     reuseExistingServer: true,
   },
 });

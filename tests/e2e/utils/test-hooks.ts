@@ -11,6 +11,14 @@ export interface BloomTableTestHooks {
   BloomTable: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tableHistoryManager: any;
+  // Strips the edit-time markup a save must not keep.
+  removeTableEditingArtifacts: (root?: ParentNode) => void;
+  // Mounts arbitrary markup in the editor container, so a spec can feed saved
+  // HTML back in and read the model it produces.
+  setContent: (html: string) => void;
+  // The api members the panel asked for, in call order, and only when the
+  // harness was loaded with ?stubs=1.
+  stubApiCalls: string[];
 }
 
 declare global {

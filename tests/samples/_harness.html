@@ -41,7 +41,10 @@
           page.textContent = "Missing ?name= query parameter.";
           return;
         }
-        const res = await fetch(`/tests/samples/${name}.html`);
+        // ?from=fixtures renders an e2e fixture through this same read-state
+        // harness, so the visual suite has one baseline shape for both sets.
+        const from = params.get("from") === "fixtures" ? "e2e/fixtures" : "samples";
+        const res = await fetch(`/tests/${from}/${name}.html`);
         if (!res.ok) {
           page.textContent = `Could not load ${name}.html (${res.status}).`;
           return;

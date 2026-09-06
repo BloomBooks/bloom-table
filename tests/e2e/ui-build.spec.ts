@@ -4,7 +4,7 @@
 // extract the built table's canonical model, and assert it deep-equals the model of the
 // validated tests/samples/NN.html. A screenshot of the built table is saved to
 // tests/samples/output/ui/NN.png for human review.
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 import { mkdirSync } from "fs";
 import { join } from "path";
 import { UiInterpreter } from "../samples/ui/interpreter";

@@ -56,11 +56,26 @@ describe("TableMenu panel", () => {
     return el;
   };
 
+  // Undo, Redo and Select Parent Cell carry their names as text, not as labels.
+  const textButton = (name: string): HTMLButtonElement => {
+    const el = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === name,
+    );
+    if (!el) throw new Error(`No button reading "${name}"`);
+    return el;
+  };
+
   const click = (el: HTMLElement) => {
     act(() => {
       el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
   };
+
+  const rowCount = (table: HTMLElement): number =>
+    table.getAttribute("data-row-heights")!.split(",").length;
+
+  const firstCell = (table: HTMLElement): HTMLElement =>
+    table.querySelector<HTMLElement>(".bloom-cell")!;
 
   it("renders visibly disabled with a hint when there is no selected cell", () => {
     mount(null);
@@ -158,5 +173,113 @@ describe("TableMenu panel", () => {
     click(undoButton());
     expect(table.getAttribute("data-row-heights")!.split(",").length).toBe(2);
     expect(table.querySelectorAll(".bloom-cell").length).toBe(4);
+  });
+
+  describe("as the focus moves", () => {
+    it("drops the hint and enables the controls once a cell takes the focus", () => {
+      const { cells } = makeAttachedTable();
+
+      mount(null);
+      expect(container.textContent).toContain("Click in a table cell to edit it.");
+
+      mount(cells[0]);
+
+      expect(container.textContent).not.toContain("Click in a table cell to edit it.");
+      expect(button("Insert Row Below").disabled).toBe(false);
+    });
+
+    it("shows the hint again and disables the controls when the focus leaves the table", () => {
+      const { cells } = makeAttachedTable();
+
+      mount(cells[0]);
+      mount(null);
+
+      expect(container.textContent).toContain("Click in a table cell to edit it.");
+      expect(button("Insert Row Below").disabled).toBe(true);
+    });
+
+    it("takes the disabled sections out of the tab order, not just out of the mouse's reach", () => {
+      const { cells } = makeAttachedTable();
+      const wrapper = () => container.querySelector<HTMLElement>('[aria-disabled="true"]');
+
+      mount(null);
+      expect((wrapper() as HTMLElement & { inert?: boolean }).inert).toBe(true);
+
+      mount(cells[0]);
+      expect(wrapper()).toBe(null);
+    });
+
+    it("acts on the table the newly focused cell belongs to", () => {
+      const first = makeAttachedTable();
+      const second = makeAttachedTable();
+
+      mount(first.cells[0]);
+      click(button("Insert Row Below"));
+      mount(second.cells[0]);
+      click(button("Insert Row Below"));
+
+      expect(rowCount(first.table)).toBe(3);
+      expect(rowCount(second.table)).toBe(3);
+    });
+  });
+
+  describe("the Undo and Redo buttons with two tables on the page", () => {
+    it("offers Undo for the table that has history, and not for the other one", () => {
+      const first = makeAttachedTable();
+      const second = makeAttachedTable();
+
+      mount(first.cells[0]);
+      click(button("Insert Row Below"));
+      expect(textButton("Undo").disabled).toBe(false);
+
+      // The newest entry in the manager belongs to the first table, so an
+      // answer that ignored the selection would offer Undo here too.
+      mount(second.cells[0]);
+      expect(textButton("Undo").disabled).toBe(true);
+
+      mount(first.cells[0]);
+      expect(textButton("Undo").disabled).toBe(false);
+    });
+
+    it("offers Redo for the table whose operation was undone, and not for the other one", () => {
+      const first = makeAttachedTable();
+      const second = makeAttachedTable();
+
+      mount(first.cells[0]);
+      click(button("Insert Row Below"));
+      click(textButton("Undo"));
+      // Undo replaces every cell element, so the host reports the cell that
+      // took the selection's place; the panel is given it as any host would.
+      mount(firstCell(first.table));
+      expect(textButton("Redo").disabled).toBe(false);
+
+      mount(second.cells[0]);
+      expect(textButton("Redo").disabled).toBe(true);
+    });
+
+    it("redoes the undone operation on the selected table", () => {
+      const { table, cells } = makeAttachedTable();
+
+      mount(cells[0]);
+      click(button("Insert Row Below"));
+      click(textButton("Undo"));
+      expect(rowCount(table)).toBe(2);
+      mount(firstCell(table));
+
+      click(textButton("Redo"));
+
+      expect(rowCount(table)).toBe(3);
+    });
+
+    it("offers neither button while no cell is selected", () => {
+      const { cells } = makeAttachedTable();
+
+      mount(cells[0]);
+      click(button("Insert Row Below"));
+      mount(null);
+
+      expect(textButton("Undo").disabled).toBe(true);
+      expect(textButton("Redo").disabled).toBe(true);
+    });
   });
 });

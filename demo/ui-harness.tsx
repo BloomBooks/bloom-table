@@ -5,20 +5,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import MainContent from "./components/MainContent";
 import Toolbar from "./Toolbar";
-import { BloomTable, tableHistoryManager } from "../src/index";
-
-// The e2e specs need the same module instances the harness itself loaded. When a
-// spec imported them again with page.addScriptTag, a dev server that had been
-// running across source edits served the app one HMR-versioned copy of the module
-// and the spec another, so a singleton such as tableHistoryManager was two
-// objects. The spec then saw an empty history and read as a broken feature. The
-// harness publishes the instances instead, and no spec imports library source.
-// tests/e2e/utils/test-hooks.ts owns the type of this property, so the write
-// goes through a cast rather than a second global declaration.
-(window as unknown as { bloomTableTestHooks?: unknown }).bloomTableTestHooks = {
+import type { ColorPickerProps, TableApi } from "../src/index";
+import {
   BloomTable,
+  defaultTableApi,
+  removeTableEditingArtifacts,
   tableHistoryManager,
-};
+} from "../src/index";
 
 const BLANK_2x2 = `
   <div class="bloom-table" data-column-widths="hug,hug" data-row-heights="hug,hug">
@@ -32,12 +25,70 @@ const BLANK_2x2 = `
 // fixture fragment: /demo/ui-harness.html?fixture=basic-table loads
 // /tests/e2e/fixtures/basic-table.html. The name is restricted to a bare word so the
 // harness can't be pointed at arbitrary URLs.
-const fixtureName = new URLSearchParams(window.location.search).get("fixture");
+const params = new URLSearchParams(window.location.search);
+const fixtureName = params.get("fixture");
+// ?stubs=1 mounts the panel the way a host such as Bloom mounts it: with its own
+// table api and its own color picker, instead of the library's defaults.
+const useStubs = params.get("stubs") === "1";
+
+// Names of the api members the stub api has been asked for, in call order, so a
+// spec can prove the panel went through the host's object and not the library's.
+const stubApiCalls: string[] = [];
+const stubApi: TableApi = (() => {
+  const wrapped = { ...defaultTableApi } as unknown as Record<string, unknown>;
+  for (const [name, member] of Object.entries(defaultTableApi)) {
+    if (name === "BloomTable" || typeof member !== "function") continue;
+    wrapped[name] = (...args: unknown[]) => {
+      stubApiCalls.push(name);
+      return (member as (...a: unknown[]) => unknown)(...args);
+    };
+  }
+  return wrapped as unknown as TableApi;
+})();
+
+// A picker that looks nothing like the built-in one, so a spec can tell them
+// apart by markup alone.
+const StubColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, label }) => (
+  <button
+    type="button"
+    data-stub-color-picker={label ?? ""}
+    onMouseDown={(e) => e.preventDefault()}
+    onClick={() => onChange("#abcdef")}
+  >
+    {value || "none"}
+  </button>
+);
 
 const Harness: React.FC = () => {
-  const [content, setContent] = React.useState<string | null>(
-    fixtureName ? null : BLANK_2x2,
-  );
+  const [content, setContent] = React.useState<string | null>(fixtureName ? null : BLANK_2x2);
+  // Bumped by the setContent hook so MainContent remounts even when the new
+  // markup equals the old.
+  const [generation, setGeneration] = React.useState(0);
+
+  // The e2e specs need the same module instances the harness itself loaded. When a
+  // spec imported them again with page.addScriptTag, a dev server that had been
+  // running across source edits served the app one HMR-versioned copy of the module
+  // and the spec another, so a singleton such as tableHistoryManager was two
+  // objects. The spec then saw an empty history and read as a broken feature. The
+  // harness publishes the instances instead, and no spec imports library source.
+  // tests/e2e/utils/test-hooks.ts owns the type of this property, so the write
+  // goes through a cast rather than a second global declaration.
+  React.useEffect(() => {
+    (window as unknown as { bloomTableTestHooks?: unknown }).bloomTableTestHooks = {
+      BloomTable,
+      tableHistoryManager,
+      removeTableEditingArtifacts,
+      // Mount arbitrary markup, so a spec can feed saved HTML back in and read
+      // the model it produces. The key changes with the generation, so React
+      // mounts a fresh MainContent instead of comparing the markup.
+      setContent: (html: string) => {
+        setGeneration((g) => g + 1);
+        setContent(html);
+      },
+      stubApiCalls,
+    };
+  }, []);
+
   React.useEffect(() => {
     if (!fixtureName) return;
     if (!/^[\w-]+$/.test(fixtureName)) {
@@ -53,11 +104,16 @@ const Harness: React.FC = () => {
     <div>
       {/* The editable table the interpreter builds into. Plain white, black text, natural width. */}
       <div id="editor">
-        {content !== null && <MainContent id="attempt-container" content={content} />}
+        {content !== null && (
+          <MainContent key={generation} id="attempt-container" content={content} />
+        )}
       </div>
       {/* The real toolbar; appears/targets whichever .cell has focus. */}
       <div id="controls-panel">
-        <Toolbar />
+        <Toolbar
+          tableApi={useStubs ? stubApi : undefined}
+          colorPicker={useStubs ? StubColorPicker : undefined}
+        />
       </div>
     </div>
   );

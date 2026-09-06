@@ -1191,6 +1191,55 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
   ];
 }
 
+// A spacing slider: it writes while the thumb moves, so the table follows the
+// drag, and records ONE history entry when the gesture ends. The entry's
+// snapshot must be the table as it stood before the drag started, so the
+// attribute is put back to its pre-drag value and the whole change is then
+// replayed inside the entry.
+function makeGapSliderRow(
+  table: HTMLElement,
+  label: string,
+  attribute: string,
+  current: number,
+  write: (v: number) => void,
+): HTMLElement {
+  let before: string | null = null;
+  let dragging = false;
+  const restore = () => {
+    if (before === null) table.removeAttribute(attribute);
+    else table.setAttribute(attribute, before);
+  };
+  return makeSliderRow(
+    label,
+    0,
+    40,
+    current,
+    "px",
+    (v) => {
+      if (!dragging) {
+        dragging = true;
+        before = table.getAttribute(attribute);
+      }
+      write(v);
+      render(table);
+    },
+    (v) => {
+      if (!dragging) return;
+      dragging = false;
+      const after = table.getAttribute(attribute);
+      restore();
+      // The snapshot the entry keeps is the rendered table, so the inline gap
+      // the drag painted must go back too, not only the attribute.
+      render(table);
+      if (after === before) return;
+      tableHistoryManager.addHistoryEntry(table, { label: "Set Spacing", detail: `${label} to ${v}px` }, () => {
+        write(v);
+        render(table);
+      });
+    },
+  );
+}
+
 function buildTableSection(ctx: MenuCtx): HTMLElement[] {
   const els: HTMLElement[] = [makeMenuHeader("Table")];
   const table = ctx.table;
@@ -1203,29 +1252,21 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
 
     // Spacing sliders follow the Format section (right after Corners).
     els.push(
-      makeSliderRow(
+      makeGapSliderRow(
+        table,
         "Horizontal space between cells",
-        0,
-        40,
+        "data-gap-x",
         firstPx(getGapX(table)[0]),
-        "px",
-        (v) => {
-          setGapX(table, `${v}px`);
-          render(table);
-        },
+        (v) => setGapX(table, `${v}px`),
       ),
     );
     els.push(
-      makeSliderRow(
+      makeGapSliderRow(
+        table,
         "Vertical space between cells",
-        0,
-        40,
+        "data-gap-y",
         firstPx(getGapY(table)[0]),
-        "px",
-        (v) => {
-          setGapY(table, `${v}px`);
-          render(table);
-        },
+        (v) => setGapY(table, `${v}px`),
       ),
     );
 

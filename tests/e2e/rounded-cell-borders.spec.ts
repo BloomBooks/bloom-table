@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 // A cell with a corner radius must paint all four of its own borders, so its
 // outline is a complete rounded rectangle instead of two side borders that

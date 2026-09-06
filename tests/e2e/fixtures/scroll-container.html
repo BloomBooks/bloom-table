@@ -1,0 +1,36 @@
+<!-- e2e fixture for scrolling: a table inside an overflow:auto box that is
+     smaller than the table, with a tall spacer under it so the window scrolls
+     too. Loaded via /demo/ui-harness.html?fixture=scroll-container -->
+<div
+  id="scroller"
+  style="overflow: auto; width: 360px; height: 220px; border: 1px solid #999"
+>
+  <div style="height: 120px"></div>
+  <div
+    id="main-table"
+    class="bloom-table"
+    data-column-widths="150px,150px"
+    data-row-heights="80px,80px,80px"
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">A1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">A2</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">B1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">B2</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">C1</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">C2</div>
+    </div>
+  </div>
+  <div style="height: 200px"></div>
+</div>
+<div id="page-filler" style="height: 1800px"></div>

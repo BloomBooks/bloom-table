@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./utils/strict-page";
 
 // A window too short for the whole panel: the panel must bound itself against the
 // viewport and scroll its own content, rather than running off the bottom.

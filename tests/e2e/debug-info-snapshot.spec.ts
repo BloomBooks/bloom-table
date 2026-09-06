@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page } from "./utils/strict-page";
 import { readClipboard } from "./utils/clipboard";
 
 // "Copy Debug Info" on the demo page (/demo/index.html, not the ui-harness the

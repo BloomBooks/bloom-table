@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page } from "./utils/strict-page";
 
 // The chrome ("+" buttons, row/column/table pills, menus) serves ONE table at a
 // time: the table that owns the selected cell. These tests drive the gestures

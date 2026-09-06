@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page } from "./utils/strict-page";
 
 test.describe("TableMenu Integration Tests", () => {
   test.beforeEach(async ({ page }) => {
@@ -11,65 +11,46 @@ test.describe("TableMenu Integration Tests", () => {
   });
 
   test("can add column to the left", async ({ page }) => {
-    // Click on a cell to focus it - specifically click on the contenteditable element
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200); // Give time for focus handling
+    await focusFirstCell(page);
 
     // Check that TableMenu is visible and has proper content
     const gridMenu = page.locator(".table-menu");
     await expect(gridMenu).toBeVisible();
     await expect(gridMenu).not.toContainText("Click in a table cell");
 
-    // Get initial table state
     const initialColumnCount = await getColumnCount(page);
     const initialRowCount = await getRowCount(page);
     const initialCellCount = await getCellCount(page);
 
-    // Look for the column section and insert left button using aria-label
     const insertLeftButton = page.locator('#controls-panel button[aria-label="Insert Column Left"]');
     await expect(insertLeftButton).toBeVisible();
     await insertLeftButton.click();
 
-    // Wait for the operation to complete
-    await page.waitForTimeout(200);
-
-    // Verify column was added
-    const newColumnCount = await getColumnCount(page);
-    const newCellCount = await getCellCount(page);
-
-    expect(newColumnCount).toBe(initialColumnCount + 1);
-    expect(newCellCount).toBe(initialCellCount + initialRowCount); // One new cell per row
+    await expect.poll(() => getColumnCount(page)).toBe(initialColumnCount + 1);
+    // One new cell per row
+    expect(await getCellCount(page)).toBe(initialCellCount + initialRowCount);
   });
 
   test("can add column to the right", async ({ page }) => {
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
     const initialColumnCount = await getColumnCount(page);
     const initialRowCount = await getRowCount(page);
     const initialCellCount = await getCellCount(page);
 
-    const insertRightButton = page.locator('#controls-panel button[aria-label="Insert Column Right"]');
+    const insertRightButton = page.locator(
+      '#controls-panel button[aria-label="Insert Column Right"]',
+    );
     await expect(insertRightButton).toBeVisible();
     await insertRightButton.click();
-    await page.waitForTimeout(200);
 
-    const newColumnCount = await getColumnCount(page);
-    const newCellCount = await getCellCount(page);
-
-    expect(newColumnCount).toBe(initialColumnCount + 1);
-    expect(newCellCount).toBe(initialCellCount + initialRowCount); // One new cell per row
+    await expect.poll(() => getColumnCount(page)).toBe(initialColumnCount + 1);
+    // One new cell per row
+    expect(await getCellCount(page)).toBe(initialCellCount + initialRowCount);
   });
 
   test("can add row above", async ({ page }) => {
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
     const initialRowCount = await getRowCount(page);
     const initialColumnCount = await getColumnCount(page);
@@ -78,20 +59,14 @@ test.describe("TableMenu Integration Tests", () => {
     const insertAboveButton = page.locator('#controls-panel button[aria-label="Insert Row Above"]');
     await expect(insertAboveButton).toBeVisible();
     await insertAboveButton.click();
-    await page.waitForTimeout(200);
 
-    const newRowCount = await getRowCount(page);
-    const newCellCount = await getCellCount(page);
-
-    expect(newRowCount).toBe(initialRowCount + 1);
-    expect(newCellCount).toBe(initialCellCount + initialColumnCount); // One new cell per column
+    await expect.poll(() => getRowCount(page)).toBe(initialRowCount + 1);
+    // One new cell per column
+    expect(await getCellCount(page)).toBe(initialCellCount + initialColumnCount);
   });
 
   test("can add row below", async ({ page }) => {
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
     const initialRowCount = await getRowCount(page);
     const initialColumnCount = await getColumnCount(page);
@@ -100,120 +75,85 @@ test.describe("TableMenu Integration Tests", () => {
     const insertBelowButton = page.locator('#controls-panel button[aria-label="Insert Row Below"]');
     await expect(insertBelowButton).toBeVisible();
     await insertBelowButton.click();
-    await page.waitForTimeout(200);
 
-    const newRowCount = await getRowCount(page);
-    const newCellCount = await getCellCount(page);
-
-    expect(newRowCount).toBe(initialRowCount + 1);
-    expect(newCellCount).toBe(initialCellCount + initialColumnCount); // One new cell per column
+    await expect.poll(() => getRowCount(page)).toBe(initialRowCount + 1);
+    // One new cell per column
+    expect(await getCellCount(page)).toBe(initialCellCount + initialColumnCount);
   });
 
   test("can delete column", async ({ page }) => {
-    // First add an extra column so we can safely delete one
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
-    const insertRightButton = page.locator('#controls-panel button[aria-label="Insert Column Right"]');
-    await insertRightButton.click();
-    await page.waitForTimeout(200);
+    // First add an extra column so we can safely delete one
+    const startColumnCount = await getColumnCount(page);
+    await page.locator('#controls-panel button[aria-label="Insert Column Right"]').click();
+    await expect.poll(() => getColumnCount(page)).toBe(startColumnCount + 1);
 
     const beforeDeleteColumnCount = await getColumnCount(page);
     const beforeDeleteRowCount = await getRowCount(page);
     const beforeDeleteCellCount = await getCellCount(page);
 
-    // Now delete a column
     const deleteColumnButton = page.locator('#controls-panel button[aria-label="Delete Column"]');
     await expect(deleteColumnButton).toBeVisible();
     await deleteColumnButton.click();
-    await page.waitForTimeout(200);
 
-    const afterDeleteColumnCount = await getColumnCount(page);
-    const afterDeleteCellCount = await getCellCount(page);
-
-    expect(afterDeleteColumnCount).toBe(beforeDeleteColumnCount - 1);
-    expect(afterDeleteCellCount).toBe(beforeDeleteCellCount - beforeDeleteRowCount); // One cell removed per row
+    await expect.poll(() => getColumnCount(page)).toBe(beforeDeleteColumnCount - 1);
+    // One cell removed per row
+    expect(await getCellCount(page)).toBe(beforeDeleteCellCount - beforeDeleteRowCount);
   });
 
   test("can delete row", async ({ page }) => {
-    // First add an extra row so we can safely delete one
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
-    const insertBelowButton = page.locator('#controls-panel button[aria-label="Insert Row Below"]');
-    await insertBelowButton.click();
-    await page.waitForTimeout(200);
+    // First add an extra row so we can safely delete one
+    const startRowCount = await getRowCount(page);
+    await page.locator('#controls-panel button[aria-label="Insert Row Below"]').click();
+    await expect.poll(() => getRowCount(page)).toBe(startRowCount + 1);
 
     const beforeDeleteRowCount = await getRowCount(page);
     const beforeDeleteColumnCount = await getColumnCount(page);
     const beforeDeleteCellCount = await getCellCount(page);
 
-    // Now delete a row
     const deleteRowButton = page.locator('#controls-panel button[aria-label="Delete Row"]');
     await expect(deleteRowButton).toBeVisible();
     await deleteRowButton.click();
-    await page.waitForTimeout(200);
 
-    const afterDeleteRowCount = await getRowCount(page);
-    const afterDeleteCellCount = await getCellCount(page);
-
-    expect(afterDeleteRowCount).toBe(beforeDeleteRowCount - 1);
-    expect(afterDeleteCellCount).toBe(beforeDeleteCellCount - beforeDeleteColumnCount); // One cell removed per column
+    await expect.poll(() => getRowCount(page)).toBe(beforeDeleteRowCount - 1);
+    // One cell removed per column
+    expect(await getCellCount(page)).toBe(beforeDeleteCellCount - beforeDeleteColumnCount);
   });
 
   test("complex operations: multiple adds and removes", async ({ page }) => {
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
-    // Start with initial state
     const initialColumnCount = await getColumnCount(page);
     const initialRowCount = await getRowCount(page);
 
     // Add 2 columns and 1 row
     await page.locator('#controls-panel button[aria-label="Insert Column Right"]').click();
-    await page.waitForTimeout(100);
+    await expect.poll(() => getColumnCount(page)).toBe(initialColumnCount + 1);
     await page.locator('#controls-panel button[aria-label="Insert Column Right"]').click();
-    await page.waitForTimeout(100);
+    await expect.poll(() => getColumnCount(page)).toBe(initialColumnCount + 2);
     await page.locator('#controls-panel button[aria-label="Insert Row Below"]').click();
-    await page.waitForTimeout(100);
-
-    const afterAddsColumnCount = await getColumnCount(page);
-    const afterAddsRowCount = await getRowCount(page);
-    expect(afterAddsColumnCount).toBe(initialColumnCount + 2);
-    expect(afterAddsRowCount).toBe(initialRowCount + 1);
+    await expect.poll(() => getRowCount(page)).toBe(initialRowCount + 1);
 
     // Remove 1 column and 1 row
     await page.locator('#controls-panel button[aria-label="Delete Column"]').click();
-    await page.waitForTimeout(100);
+    await expect.poll(() => getColumnCount(page)).toBe(initialColumnCount + 1);
 
     // Ensure a cell is still focused after column deletion
-    const cellAfterColumnDelete = page.locator("#attempt-container .bloom-cell").first();
-    await cellAfterColumnDelete.click();
-    await page.waitForTimeout(100);
+    await focusFirstCell(page);
 
-    // Check if Delete Row button exists before clicking
     const deleteRowButton = page.locator('#controls-panel button[aria-label="Delete Row"]');
     await expect(deleteRowButton).toBeVisible({ timeout: 5000 });
     await deleteRowButton.click();
-    await page.waitForTimeout(100);
 
-    const finalColumnCount = await getColumnCount(page);
-    const finalRowCount = await getRowCount(page);
-    expect(finalColumnCount).toBe(initialColumnCount + 1);
-    expect(finalRowCount).toBe(initialRowCount);
+    await expect.poll(() => getRowCount(page)).toBe(initialRowCount);
+    expect(await getColumnCount(page)).toBe(initialColumnCount + 1);
   });
 
   test("undo functionality works", async ({ page }) => {
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
     const initialState = {
       columnCount: await getColumnCount(page),
@@ -221,35 +161,16 @@ test.describe("TableMenu Integration Tests", () => {
       cellCount: await getCellCount(page),
     };
 
-    // Perform an operation
     await page.locator('#controls-panel button[aria-label="Insert Column Right"]').click();
-    await page.waitForTimeout(200);
+    await expect.poll(() => getColumnCount(page)).toBe(initialState.columnCount + 1);
 
-    const afterOperationState = {
-      columnCount: await getColumnCount(page),
-      rowCount: await getRowCount(page),
-      cellCount: await getCellCount(page),
-    };
-
-    // Verify the operation took effect
-    expect(afterOperationState.columnCount).toBe(initialState.columnCount + 1);
-
-    // Undo the operation
     const undoButton = page.locator("#controls-panel button").filter({ hasText: /^Undo/ }).first();
     await expect(undoButton).toBeVisible();
     await undoButton.click();
-    await page.waitForTimeout(200);
 
-    const afterUndoState = {
-      columnCount: await getColumnCount(page),
-      rowCount: await getRowCount(page),
-      cellCount: await getCellCount(page),
-    };
-
-    // Verify we're back to initial state
-    expect(afterUndoState.columnCount).toBe(initialState.columnCount);
-    expect(afterUndoState.rowCount).toBe(initialState.rowCount);
-    expect(afterUndoState.cellCount).toBe(initialState.cellCount);
+    await expect.poll(() => getColumnCount(page)).toBe(initialState.columnCount);
+    expect(await getRowCount(page)).toBe(initialState.rowCount);
+    expect(await getCellCount(page)).toBe(initialState.cellCount);
   });
 
   test("TableMenu appears and disappears when cell focus changes", async ({ page }) => {
@@ -258,30 +179,44 @@ test.describe("TableMenu Integration Tests", () => {
     await expect(gridMenu).toBeVisible();
     await expect(gridMenu).toContainText("Click in a table cell");
 
-    // Click on a cell
-    const firstCell = page.locator("#attempt-container .bloom-cell").first();
-    const firstCellEditor = firstCell.locator("div[contenteditable]");
-    await firstCellEditor.click();
-    await page.waitForTimeout(200);
+    await focusFirstCell(page);
 
     // TableMenu should now show the full menu
     await expect(gridMenu).not.toContainText("Click in a table cell");
-    await expect(page.locator('#controls-panel button[aria-label="Insert Column Left"]')).toBeVisible();
-    await expect(page.locator('#controls-panel button[aria-label="Insert Column Right"]')).toBeVisible();
-    await expect(page.locator('#controls-panel button[aria-label="Insert Row Above"]')).toBeVisible();
-    await expect(page.locator('#controls-panel button[aria-label="Insert Row Below"]')).toBeVisible();
+    await expect(
+      page.locator('#controls-panel button[aria-label="Insert Column Left"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('#controls-panel button[aria-label="Insert Column Right"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('#controls-panel button[aria-label="Insert Row Above"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('#controls-panel button[aria-label="Insert Row Below"]'),
+    ).toBeVisible();
 
     // Click outside the table (on the body)
     await page.locator("body").click({ position: { x: 50, y: 50 } });
-    await page.waitForTimeout(200);
 
-    // TableMenu should still be visible but might change content or become less functional
-    // Instead of expecting a specific message, verify that some key functionality is still present
+    // TableMenu stays on screen. The panel is a fixed part of the harness, so
+    // its content is what changes, not its presence.
     await expect(gridMenu).toBeVisible();
   });
 });
 
 // Helper functions
+
+// Click the first cell's editor and wait until the menu has followed the
+// focus, so the next click lands on a button that is already bound to a cell.
+async function focusFirstCell(page: Page): Promise<void> {
+  const firstCell = page.locator("#attempt-container .bloom-cell").first();
+  await firstCell.locator("div[contenteditable]").click();
+  await expect(
+    page.locator('#controls-panel button[aria-label="Insert Column Left"]'),
+  ).toBeVisible();
+}
+
 async function getColumnCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
     const table = document.querySelector("#attempt-container .bloom-table") as HTMLElement;

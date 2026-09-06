@@ -416,6 +416,10 @@ export function makeSliderRow(
   value: number,
   unit: string,
   onInput: (v: number) => void,
+  // Called once when a gesture ends: the pointer is released, or a keyboard
+  // step commits. A drag emits an input event per step, so a caller that
+  // records history needs this to know the gesture is over.
+  onCommit?: (v: number) => void,
 ): HTMLDivElement {
   const input = document.createElement("input");
   input.type = "range";
@@ -441,6 +445,7 @@ export function makeSliderRow(
     readout.textContent = `${v}${unit}`;
     onInput(v);
   });
+  if (onCommit) input.addEventListener("change", () => onCommit(Number(input.value)));
   return makeControlRow(label, [input, readout]);
 }
 

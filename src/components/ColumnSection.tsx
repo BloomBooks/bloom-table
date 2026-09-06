@@ -7,6 +7,7 @@ import IconButton from "./IconButton";
 import columnGrowIcon from "./icons/column-grow.svg";
 import columnHugIcon from "./icons/column-hug.svg";
 import RadioGroup, { RadioOption } from "./RadioGroup";
+import { getColumnWidths } from "../table-model";
 import { subTitleStyle } from "./sectionStyles";
 import Section from "./Section";
 // import Slider from "./Slider"; // disabled: columns are sized by dragging dividers
@@ -58,6 +59,9 @@ export const ColumnSection: React.FC<Props> = ({
     }
   } catch {}
 
+  // See Delete Row in RowSection: a table must keep one column.
+  const canDelete = !!table && getColumnWidths(table).length > 1;
+
   const sizeOptions: RadioOption[] = [
     { id: "grow", icon: columnGrowIcon, label: "Grow" },
     { id: "hug", icon: columnHugIcon, label: "Hug" },
@@ -107,8 +111,9 @@ export const ColumnSection: React.FC<Props> = ({
         <IconButton
           icon={deleteColumnIcon}
           alt="Delete Column"
+          title={canDelete ? "Delete Column" : "Cannot remove the only column"}
           onClick={onDelete}
-          disabled={disabled}
+          disabled={disabled || !canDelete}
         />
       </div>{" "}
       <div className={subTitleStyle}>Size</div>
