@@ -12,6 +12,7 @@ import {
 } from "./formatting-commands";
 import { setCellCorners, setRowHeights, setColumnWidths, setCellBackground } from "./table-model";
 import { installClipboardStub } from "./test-support/clipboard-stub";
+import { kPillMenuLabels } from "./test-support/menu-item-labels";
 
 // happy-dom gives every element a zero rect, and drag-to-resize reads a press in
 // a zero-sized cell as a grab of its bottom edge. Give each cell a real box.
@@ -730,6 +731,21 @@ describe("the menus offer exactly the items this file describes", () => {
         .map((c) => c.label)
         .sort();
       expect(rendered).toEqual(described);
+    },
+  );
+
+  it.each(["row", "column", "table"] as Menu[])(
+    "the %s menu renders the labels the end-to-end spec clicks",
+    (menu) => {
+      const { target } = plainTable();
+      focusCell(ownCells(target)[0]);
+
+      click(pill(menu));
+
+      const rendered = Array.from(menuPopup()!.querySelectorAll("[aria-label]")).map(
+        (el) => el.getAttribute("aria-label")!,
+      );
+      expect(rendered).toEqual(kPillMenuLabels[menu]);
     },
   );
 });

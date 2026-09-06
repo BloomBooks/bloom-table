@@ -1,0 +1,22 @@
+<!-- e2e fixture for row growth: a first row that hugs its contents and a second
+     row pinned at 40px, so typing can grow the one and must not move the other.
+     Loaded via /demo/ui-harness.html?fixture=row-growth -->
+<div
+  id="main-table"
+  class="bloom-table"
+  data-column-widths="200px,200px"
+  data-row-heights="hug,40px"
+>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">A1</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">A2</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">B1</div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">B2</div>
+  </div>
+</div>

@@ -1,0 +1,34 @@
+<!-- e2e fixture for row growth inside a nested table: the outer row hugs, so a
+     nested table that grows has to push its host cell and the outer table with
+     it. Loaded via /demo/ui-harness.html?fixture=nested-row-growth -->
+<div
+  id="outer-table"
+  class="bloom-table"
+  data-column-widths="240px,200px"
+  data-row-heights="hug"
+>
+  <div class="bloom-cell" data-content-type="table">
+    <div
+      id="nested-table"
+      class="bloom-table"
+      data-column-widths="100px,100px"
+      data-row-heights="hug,hug"
+    >
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N11</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N12</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N21</div>
+      </div>
+      <div class="bloom-cell" data-content-type="text">
+        <div contenteditable="true">N22</div>
+      </div>
+    </div>
+  </div>
+  <div class="bloom-cell" data-content-type="text">
+    <div contenteditable="true">Outer 2</div>
+  </div>
+</div>

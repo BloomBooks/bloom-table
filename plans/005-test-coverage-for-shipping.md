@@ -19,6 +19,14 @@ only, and does not repeat those.
 | Playwright (`pnpm e2e`, chromium only) | 19 specs | 68 | 67 pass, 1 skipped | 46 s |
 | Screenshot snapshots | 4 PNG files | | all match | |
 
+After Phase 4, with the new browser specs in place:
+
+| Suite | Files | Tests | Result | Time |
+| --- | --- | --- | --- | --- |
+| Unit (`pnpm test`, vitest + happy-dom) | 54 | 1031 | 1031 pass | 18 s |
+| Playwright (`pnpm e2e`, chromium only) | 26 specs | 141 | 139 pass, 2 `test.fixme` | 58 s |
+| Screenshot snapshots | 21 PNG files | | all match | |
+
 Nothing runs either suite automatically. There is no `.github/workflows/` directory, no
 coverage provider installed (`@vitest/coverage-v8` is absent, so the `coverage` block in
 `vite.config.ts` is dead config), and no lint step. A release today depends on someone
@@ -236,41 +244,43 @@ a point that would overflow the viewport.
 
 ### Phase 4: Playwright flows that need a real browser
 
-New specs, each on the harness with a fixture, each taking library objects from
-`window.bloomTableTestHooks`:
+Done. Every spec below runs on the harness with a fixture and takes its library objects
+from `window.bloomTableTestHooks`; none of them waits on a timeout.
 
-- `drag-resize.spec.ts`: row drag, column drag, undo of each, double-click to hug, on the
-  top-level and on a nested table. Replaces the weak tests in
-  `resize-rows-and-columns.spec.ts`, which is then deleted.
-- `cell-menu.spec.ts`: right-click flow through every content type and back, merge and
-  split, Format rows, Escape and outside click, and the menu on a nested cell.
-- `pill-menus.spec.ts`: one real click on every Row, Column and Table item; asserts the
-  model and one undo step. Phase 2 covers the logic in happy-dom; this proves the popup
-  is clickable where it renders.
-- `save-round-trip.spec.ts`: build a table through the UI, type text, run
-  `removeTableEditingArtifacts`, reload the harness with the saved HTML as the fixture,
-  and assert `extractTableModelInPage` is equal before and after. Also assert the saved
-  HTML has no edit-time class, no anchor name, no overlay and no `<style>` the library
-  injected.
-- `text-editing.spec.ts`: type, Enter, Shift+Enter, in a top-level cell and a nested cell.
-- `scroll-container.spec.ts`: the table inside an `overflow: auto` div; scroll the div and
-  the window; pills and edge overlays stay on their cells.
-- `host-injection.spec.ts`: a harness page variant that mounts `TableMenu` with a stub
-  `tableApi` and a stub `colorPicker`, and proves each is used.
-- `row-growth.spec.ts`: on a fixture with one `hug` row and one `40px` row, type five
-  lines into a cell of each. Assert the `hug` row's rendered height grew and the table's
-  height grew with it; assert the fixed row kept its height. Delete the text and assert the
-  `hug` row shrank back. Repeat on a nested table, where the host cell must grow too. This
-  needs a real layout engine, so it is e2e and not happy-dom.
-- `container-narrowing.spec.ts`: drag a column boundary so the widths become px, then
-  shrink the host element with `element.style.width` and assert every cell still tiles the
-  grid and the table's bounding box stays inside the host. Write this test after plan 004
-  fixes the bug and states the width rule; until then mark it `test.fixme` with the plan's
-  name in the reason, so the gap is visible in every report.
-- Visual snapshots: one `toHaveScreenshot` per sample in `tests/samples/*.html` and per
-  fixture in `tests/e2e/fixtures/`, rendered through `_harness.html` in read state at a
-  fixed viewport. This is the regression net for `table-renderer.ts` and the CSS, which
-  unit tests cannot see.
+- `drag-resize.spec.ts` (10 tests): row drag, column drag, undo of each, double-click to
+  hug, on the top-level and on a nested table. `resize-rows-and-columns.spec.ts` and
+  `undo-resize-column.spec.ts` are deleted.
+- `cell-menu.spec.ts` (9 tests): right-click flow through every content type and back,
+  merge and split, padding, Escape and outside click, and the menu on a nested cell.
+- `pill-menus.spec.ts` (11 tests): one real click on every Row, Column and Table item,
+  asserting the model and one undo step, plus a hit test that says each item is where the
+  pointer can reach it. The 96 item labels come from `src/test-support/menu-item-labels.ts`,
+  which the Phase 2 unit suite reads as well.
+- `save-round-trip.spec.ts` (5 tests): a table built through the UI survives
+  `removeTableEditingArtifacts` and a fresh mount, and the saved markup carries no
+  edit-time class, anchor name, overlay or injected `<style>`.
+- `text-editing.spec.ts` (9 tests): typing, Enter making one paragraph, Shift+Enter making
+  a soft break, in a top-level cell and in a nested cell.
+- `scroll-container.spec.ts` (6 tests): the table inside an `overflow: auto` div. Every
+  overlay keeps its offset from the selected cell through a scroll of the div, of the
+  window, and of both, and the column boundary is still where the pointer finds it.
+- `host-injection.spec.ts` (8 tests): the harness under `?stubs=1` mounts the panel with a
+  recording `tableApi` and a stub `colorPicker`. The recorded calls grow as the user works,
+  the stub picker renders in place of the built-in one, and its `#abcdef` reaches the cell.
+- `row-growth.spec.ts` (5 tests, 1 `test.fixme`): a `hug` row grows with five lines of
+  text, the table grows with it, the `40px` row keeps its height, and deleting the text
+  shrinks the row back. The nested case is `test.fixme`: a nested table's rows stay at the
+  height the last render measured, so the text overflows a row that never grows. Plan 004,
+  item 2, owns that rule.
+- `container-narrowing.spec.ts` (1 `test.fixme`): the reason names
+  `plans/004-refit-on-container-resize-and-row-growth.md`, item 1, which owns the width
+  rule the test has to assert.
+- `visual-samples.spec.ts` (16 tests): one `toHaveScreenshot` per sample in
+  `tests/samples/` and per fixture in `tests/e2e/fixtures/`, rendered read-state through
+  `tests/samples/_harness.html` at a 1000x800 viewport. That harness takes `from=fixtures`
+  so both sets share one baseline shape.
+
+New fixtures: `scroll-container.html`, `row-growth.html`, `nested-row-growth.html`.
 
 ### Phase 5: the package as Bloom receives it
 
