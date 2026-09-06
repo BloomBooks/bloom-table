@@ -96,13 +96,14 @@ export default defineConfig({
       // report comes back 0/0.
       include: ["src/**"],
       exclude: ["**/*.test.*", "src/test-support/**", "**/*.d.ts"],
-      // The measured coverage at the end of the last phase, minus one point
-      // each. The gate can only move up; raise it at the end of every phase.
+      // The measured coverage at the end of the last phase, rounded down to
+      // whole percents. The gate can only move up; raise it at the end of every
+      // phase.
       thresholds: {
-        statements: 88,
-        branches: 77,
-        functions: 90,
-        lines: 91,
+        statements: 89,
+        branches: 78,
+        functions: 91,
+        lines: 92,
       },
     },
   },

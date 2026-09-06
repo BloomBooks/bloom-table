@@ -35,6 +35,7 @@
     "//will run and exit": "",
     "test": "vp test run",
     "test:coverage": "vp test run --coverage",
+    "test:package": "vp test run --config vite.package.config.ts",
     "capture": "node tests/samples/capture.mjs",
     "e2e": "npx playwright test",
     "e2e:ui": "npx playwright test --ui",

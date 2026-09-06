@@ -25,6 +25,11 @@ jobs:
 
       - run: pnpm test
 
+      # The dist smoke test imports the built bundle, so the build runs first.
+      - run: pnpm build
+
+      - run: pnpm test:package
+
       - run: npx playwright install --with-deps chromium
 
       - run: pnpm e2e

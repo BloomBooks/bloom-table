@@ -19,12 +19,13 @@ only, and does not repeat those.
 | Playwright (`pnpm e2e`, chromium only) | 19 specs | 68 | 67 pass, 1 skipped | 46 s |
 | Screenshot snapshots | 4 PNG files | | all match | |
 
-After Phase 4, with the new browser specs in place:
+After Phases 4 and 5:
 
 | Suite | Files | Tests | Result | Time |
 | --- | --- | --- | --- | --- |
 | Unit (`pnpm test`, vitest + happy-dom) | 54 | 1031 | 1031 pass | 18 s |
 | Playwright (`pnpm e2e`, chromium only) | 26 specs | 141 | 139 pass, 2 `test.fixme` | 58 s |
+| Package (`pnpm test:package`, after `pnpm build`) | 1 | 5 | 5 pass | 1 s |
 | Screenshot snapshots | 21 PNG files | | all match | |
 
 Nothing runs either suite automatically. There is no `.github/workflows/` directory, no
@@ -73,6 +74,17 @@ After Phase 3, with 1028 unit tests in 54 files:
 | Branches | 78.84% (2828/3587) | 77 |
 | Functions | 91.22% (852/934) | 90 |
 | Lines | 92.87% (4327/4659) | 91 |
+
+Phase 4 and Phase 5 added browser and package tests, not unit tests, so the measured
+numbers are unchanged. Phase 5 raised the gate to those numbers, rounded down to whole
+percents. Measured over 1031 unit tests in 54 files:
+
+| Metric | After Phase 5 | Threshold in `vite.config.ts` |
+| --- | --- | --- |
+| Statements | 89.71% (4782/5330) | 89 |
+| Branches | 78.84% (2828/3587) | 78 |
+| Functions | 91.22% (852/934) | 91 |
+| Lines | 92.87% (4327/4659) | 92 |
 
 ### Unit coverage by module
 
@@ -284,11 +296,21 @@ New fixtures: `scroll-container.html`, `row-growth.html`, `nested-row-growth.htm
 
 ### Phase 5: the package as Bloom receives it
 
-`tests/package/dist-smoke.test.ts`, run after `pnpm build` in CI: import
-`dist/bloom-table.mjs`, attach a table, add a row, undo, and check the three CSS files
-exist. Assert the bundle does not contain a copy of React or MUI (peer dependencies must
-stay external). Snapshot the list of exported names from `dist/bloom-table.d.mts`, so a
-removed export fails the build.
+Done. `tests/package/dist-smoke.test.ts` (5 tests) imports `dist/bloom-table.mjs` as a
+consumer does and asserts:
+
+- `attachTable`, `BloomTable.addRowAt` and `tableHistoryManager.undo` work through the
+  bundle, on a table built from plain markup.
+- The three stylesheets `package.json` points hosts at exist and are not empty.
+- React, React DOM and MUI arrive as imports, and no marker string from a copy of their
+  own source is in the bundle.
+- The exported names of `dist/bloom-table.d.mts` match a stored snapshot, so a removed
+  export fails.
+- Every runtime export is named in the type file.
+
+The build has to run first, so this file is its own project. `pnpm test:package` runs it
+through `vite.package.config.ts`, `pnpm test` never sees it, and `coverage.include` still
+names `src/**` only. CI runs `pnpm build` and then `pnpm test:package` after `pnpm test`.
 
 ### Phase 6 (optional): invariants under random operation sequences
 
