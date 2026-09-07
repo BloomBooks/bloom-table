@@ -58,7 +58,7 @@
  * use happy-dom, which do not support this selector properly. There may be other selectors that also do not work.
  */
 
-import { tableHistoryManager } from "./history";
+import { tableHistoryManager, type OperationDescription, type TableState } from "./history";
 import { setupContentsOfCell, getCurrentContentTypeId } from "./cell-contents";
 import type { HEdgeEntry, VEdgeEntry } from "./table-model";
 import { isBorderSpec } from "./edge-entries";
@@ -532,7 +532,7 @@ export const addRow = (table: HTMLElement, skipHistory = false, sourceIndex?: nu
   if (skipHistory) {
     performOperation();
   } else {
-    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+    addInsertionHistoryEntry(table, description, performOperation);
   }
 };
 
@@ -575,7 +575,7 @@ export const addColumn = (table: HTMLElement, skipHistory = false, sourceIndex?:
   if (skipHistory) {
     performOperation();
   } else {
-    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+    addInsertionHistoryEntry(table, description, performOperation);
   }
 };
 
@@ -848,7 +848,7 @@ export const addColumnAt = (
   if (skipHistory) {
     performOperation();
   } else {
-    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+    addInsertionHistoryEntry(table, description, performOperation);
   }
 };
 
@@ -886,7 +886,7 @@ export const addRowAt = (
   if (skipHistory) {
     performOperation();
   } else {
-    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+    addInsertionHistoryEntry(table, description, performOperation);
   }
 };
 
@@ -1127,6 +1127,99 @@ function sizesAfterGrowth(table: HTMLElement, sizes: string[]): string[] {
   return isNestedTable(table) ? sizes.map(() => "fill") : sizes;
 }
 
+// Where insertLineAt reports the cells it just made, while an insertion that
+// wants an in-place undo is running. See addInsertionHistoryEntry.
+let insertedCellsSink: HTMLElement[] | null = null;
+
+/**
+ * Take an insertion back out in place, leaving every cell it did not create
+ * exactly as it stands: the same elements, holding whatever they now hold.
+ *
+ * The snapshot restore that undo otherwise uses rewrites the whole table's
+ * innerHTML, so every cell comes back as a fresh element. A host that attaches
+ * a text editor to the cells loses it that way, along with anything the editor
+ * was keeping: Bloom attaches CKEditor, whose per-box undo stack holds the
+ * typing a person did BEFORE the insertion, so rebuilding the boxes puts that
+ * typing out of Undo's reach for good.
+ *
+ * Only the insertion's own cells go, so the previous state's cells and the ones
+ * left standing line up one for one, and each of those takes back the
+ * attributes it had (a merge the insertion grew shrinks again this way). Where
+ * the two do not line up, the live table is not the one this insertion left
+ * behind, and the snapshot is restored instead.
+ */
+function undoInsertionInPlace(
+  table: HTMLElement,
+  prevState: TableState,
+  insertedCells: HTMLElement[],
+): void {
+  insertedCells.forEach((cell) => cell.remove());
+  const previous = table.ownerDocument.createElement("div");
+  previous.innerHTML = prevState.innerHTML;
+  const previousCells = Array.from(previous.children).filter((element) =>
+    element.classList.contains("bloom-cell"),
+  ) as HTMLElement[];
+  const liveCells = getTableCells(table);
+  restoreAttributes(table, prevState.attributes);
+  if (previousCells.length !== liveCells.length) {
+    table.innerHTML = prevState.innerHTML;
+    return;
+  }
+  liveCells.forEach((cell, index) => copyAttributes(previousCells[index], cell));
+}
+
+/** Give `target` exactly the attributes in `attributes`, and no others. */
+function restoreAttributes(
+  target: HTMLElement,
+  attributes: Record<string, string> | undefined,
+): void {
+  Array.from(target.attributes)
+    .map((attribute) => attribute.name)
+    .forEach((name) => target.removeAttribute(name));
+  Object.entries(attributes ?? {}).forEach(([name, value]) => target.setAttribute(name, value));
+}
+
+/** Give `target` exactly the attributes `source` has, and no others. */
+function copyAttributes(source: HTMLElement, target: HTMLElement): void {
+  const attributes: Record<string, string> = {};
+  Array.from(source.attributes).forEach((attribute) => {
+    attributes[attribute.name] = attribute.value;
+  });
+  restoreAttributes(target, attributes);
+}
+
+/**
+ * Add the history entry for an operation that inserts a row or column, with an
+ * undo that takes the new cells back out rather than rebuilding the table. See
+ * undoInsertionInPlace.
+ *
+ * A nested table gets the ordinary snapshot undo: the snapshot in the entry is
+ * the top-level table's, so it says nothing about which of the nested table's
+ * cells stood before the insertion.
+ */
+function addInsertionHistoryEntry(
+  table: HTMLElement,
+  description: OperationDescription,
+  performOperation: () => void,
+): void {
+  const insertedCells: HTMLElement[] = [];
+  tableHistoryManager.addHistoryEntry(
+    table,
+    description,
+    () => {
+      insertedCellsSink = insertedCells;
+      try {
+        performOperation();
+      } finally {
+        insertedCellsSink = null;
+      }
+    },
+    isNestedTable(table)
+      ? undefined
+      : (undoTable, prevState) => undoInsertionInPlace(undoTable, prevState, insertedCells),
+  );
+}
+
 // The shared insertion core. Runs inside the caller's history entry.
 function insertLineAt(
   table: HTMLElement,
@@ -1214,6 +1307,7 @@ function insertLineAt(
   });
 
   newCells.forEach((cell, p) => table.insertBefore(cell, referenceNodes[p]));
+  insertedCellsSink?.push(...newCells);
   // Edges and gaps are per-boundary, so they move for every insertion — a
   // blank line included, or the arrays end up describing the wrong boundaries.
   ops.insertEdges(table, insertIndex, sourceIndex, info);
@@ -1331,7 +1425,7 @@ export const duplicateRowAt = (table: HTMLElement, sourceRow: number, skipHistor
   if (skipHistory) {
     performOperation();
   } else {
-    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+    addInsertionHistoryEntry(table, description, performOperation);
   }
 };
 
@@ -1364,7 +1458,7 @@ export const duplicateColumnAt = (
   if (skipHistory) {
     performOperation();
   } else {
-    tableHistoryManager.addHistoryEntry(table, description, performOperation);
+    addInsertionHistoryEntry(table, description, performOperation);
   }
 };
 

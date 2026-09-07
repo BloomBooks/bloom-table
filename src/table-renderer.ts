@@ -31,6 +31,52 @@ function makeSizeRule(size: string, minimum: string): string {
   return s;
 }
 
+/** The number in a "120px" width, or null for any other kind of width. */
+function pixelWidth(size: string): number | null {
+  const match = /^(\d+(?:\.\d+)?)px$/.exec((size || "").trim());
+  return match ? parseFloat(match[1]) : null;
+}
+
+/**
+ * The column half of the grid template.
+ *
+ * No column track may be wider than the space the table itself has: the grid
+ * overflows its own box otherwise, and the host clips the right-hand column.
+ * Two kinds of track can do that when the container loses space.
+ *
+ * A "fill" or "hug" column carries a floor of MIN_COLUMN_WIDTH so that a column
+ * stays wide enough to use, and N of them need N * 60px. Where the table has
+ * less than that, the floor drops to an equal share of what there is, so the
+ * columns divide the table between them instead of overflowing it.
+ *
+ * A column given a width in pixels keeps that width while it fits. Past that,
+ * every pixel column shrinks by the same proportion, so the relative widths a
+ * person set by dragging boundaries survive a container that has lost space.
+ * The alternative, dropping such a column back to "fill", would throw those
+ * widths away.
+ *
+ * Both rules are written as CSS min() against the table's own width, so the
+ * table re-fits whenever its container changes, with nothing to observe and
+ * nothing to recompute.
+ */
+function buildColumnTemplate(widths: string[], nested: boolean): string {
+  const pixels = widths.map(pixelWidth);
+  const totalPixels = pixels.reduce<number>((sum, px) => sum + (px ?? 0), 0);
+  // A nested table is pinned to its host cell, which owns the space; it takes a
+  // zero floor and its pixel widths as authored (see buildRenderModel).
+  const minimum = nested
+    ? "0"
+    : `min(${MIN_COLUMN_WIDTH},calc(100% / ${widths.length}))`;
+  return widths
+    .map((width, index) => {
+      const px = pixels[index];
+      if (px === null) return makeSizeRule(width, minimum);
+      if (nested || totalPixels <= 0) return width.trim();
+      return `min(${width.trim()},calc(100% * ${px} / ${totalPixels}))`;
+    })
+    .join(" ");
+}
+
 function getCells(table: HTMLElement): HTMLElement[] {
   const result: HTMLElement[] = [];
   Array.from(table.children).forEach((child) => {
@@ -155,9 +201,8 @@ export function buildRenderModel(table: HTMLElement): RenderModel {
   // box shifts left and the first columns vanish outside the cell. So nested
   // tracks get a zero minimum and genuinely share whatever the cell has.
   const nestedSizing = isNestedTable(table);
-  const minColumn = nestedSizing ? "0" : MIN_COLUMN_WIDTH;
   const minRow = nestedSizing ? "0" : MIN_ROW_HEIGHT;
-  const templateColumns = columnWidths.map((x) => makeSizeRule(x, minColumn)).join(" ");
+  const templateColumns = buildColumnTemplate(columnWidths, nestedSizing);
   const templateRows = rowHeights.map((x) => makeSizeRule(x, minRow)).join(" ");
 
   const cells = getCells(table);

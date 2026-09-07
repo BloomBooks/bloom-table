@@ -115,9 +115,11 @@ describe("TableMenu panel", () => {
     expect(table.getAttribute("data-row-heights")!.split(",").length).toBe(3);
     expect(cells[2].isConnected).toBe(true);
 
-    // A second operation, then undo it. Undo replaces every cell element, so
-    // the panel refocuses by remembered position.
-    click(button("Insert Row Below"));
+    // Merge the selected cell with its neighbour and undo that. Undoing anything
+    // but an insertion restores the table's markup wholesale, so every cell
+    // element is replaced and the panel has only the remembered position to
+    // refocus by.
+    click(button("Merge"));
     const undoButton = () =>
       Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Undo")!;
     click(undoButton());
@@ -126,6 +128,23 @@ describe("TableMenu panel", () => {
     // (1,0) would mean the panel remembered the pre-insert coordinates.
     const focused = (document.activeElement as HTMLElement | null)?.closest(".bloom-cell");
     expect(focused?.textContent).toBe("C");
+  });
+
+  it("leaves the selection on its own cell when an insertion is undone", () => {
+    // Undoing an insertion takes the new cells out and leaves the rest of the
+    // table's elements standing, so there is nothing to refocus: the cell the
+    // person was in is still the cell they are in. See undoInsertionInPlace.
+    const { cells } = makeAttachedTable();
+    mount(cells[2]); // "C", row 1 column 0
+    cells[2].focus();
+
+    click(button("Insert Row Above"));
+    const undoButton = () =>
+      Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Undo")!;
+    click(undoButton());
+
+    expect(cells[2].isConnected).toBe(true);
+    expect(cells[2].textContent).toBe("C");
   });
 
   it("disables Merge for a cell whose span already reaches the last column", () => {

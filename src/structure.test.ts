@@ -1698,6 +1698,42 @@ describe("the detail a structural operation records in history", () => {
     expect(lastEntry()).toMatchObject({ label: "Add Column", detail: "at the right edge" });
   });
 
+  it("undoes an added row without rebuilding the cells that were already there", () => {
+    // A host attaches its text editor to the cells, and that editor holds the
+    // person's typing in its own undo stack. Rebuilding a cell throws that away,
+    // so undoing an insertion has to leave the standing cells alone: same
+    // elements, same contents. See undoInsertionInPlace in structure.ts.
+    const table = attached2x2();
+    const before = getTableCells(table);
+    before[0].setAttribute("data-marker", "first");
+    before[0].textContent = "typed after the table was made";
+
+    addRowAt(table, 1);
+    expect(getTableCells(table).length).toBe(6);
+    tableHistoryManager.undo(table);
+
+    const after = getTableCells(table);
+    expect(after.length).toBe(4);
+    expect(after[0]).toBe(before[0]);
+    expect(after[3]).toBe(before[3]);
+    expect(after[0].getAttribute("data-marker")).toBe("first");
+    expect(after[0].textContent).toBe("typed after the table was made");
+    expect(table.getAttribute("data-row-heights")).toBe("50px,50px");
+  });
+
+  it("undoes an added column the same way", () => {
+    const table = attached2x2();
+    const before = getTableCells(table);
+    addColumnAt(table, 1);
+    expect(getTableCells(table).length).toBe(6);
+    tableHistoryManager.undo(table);
+    const after = getTableCells(table);
+    expect(after.length).toBe(4);
+    expect(after[0]).toBe(before[0]);
+    expect(after[3]).toBe(before[3]);
+    expect(table.getAttribute("data-column-widths")).toBe("100px,100px");
+  });
+
   it("names the column a removal took out", () => {
     const table = attached2x2();
     removeColumnAt(table, 1);

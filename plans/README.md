@@ -16,6 +16,7 @@ aren't re-audited from scratch next time.
 | 001  | Publish a React/MUI-free core bundle; fix dependency placement   | P1       | M      | —          | TODO   |
 | 002  | Make attach/detach symmetric and leak-free, with lifecycle tests | P2       | M      | —          | TODO   |
 | 003  | Lock in undoable row/column resize with tests; un-skip the e2e   | P2       | M      | —          | TODO   |
+| 004  | Re-fit a table when its container narrows; lock in row growth     | P2       | M      | —          | Item 1 DONE; item 2 TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
@@ -28,6 +29,10 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
   002 touches `src/attach.ts`/`text-editing.ts`/`ProximityDiv.ts`; 003 touches
   `src/drag-to-resize.ts` tests and the e2e spec. No file overlap, so parallel
   branches won't conflict.
+- 004 is independent of 001 and 002, but it reads and may change how column
+  widths resolve (`src/structure.ts`, `src/table-renderer.ts`) and adds a test
+  next to `tests/e2e/resize-rows-and-columns.spec.ts`, which 003 also touches.
+  Do not run 003 and 004 on the same tree at the same time.
 
 ## Baseline (verified during recon, commit `a6732ed`)
 

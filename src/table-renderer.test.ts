@@ -24,7 +24,9 @@ describe("table-renderer", () => {
     addCell(table);
     addCell(table);
     const model = buildRenderModel(table);
-    expect(model.templateColumns).toBe("minmax(60px,1fr) minmax(60px,1fr)");
+    expect(model.templateColumns).toBe(
+      "minmax(min(60px,calc(100% / 2)),1fr) minmax(min(60px,calc(100% / 2)),1fr)",
+    );
     expect(model.templateRows).toBe("minmax(20px,1fr)");
   });
 
@@ -43,6 +45,50 @@ describe("table-renderer", () => {
     const model = buildRenderModel(table);
     expect(model.templateColumns).toBe("minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)");
     expect(model.templateRows).toBe("minmax(0,1fr) minmax(0,1fr)");
+  });
+
+  it("drops the column floor to a share of the table when 60px each will not fit", () => {
+    // Two fill columns with a 60px floor need 120px. In a table narrower than
+    // that the right-hand column would hang past the table's own right edge and
+    // be clipped by whatever the table sits in, so the floor gives way instead.
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "fill,fill");
+    table.setAttribute("data-row-heights", "hug");
+    addCell(table);
+    addCell(table);
+    const model = buildRenderModel(table);
+    expect(model.templateColumns).toBe(
+      "minmax(min(60px,calc(100% / 2)),1fr) minmax(min(60px,calc(100% / 2)),1fr)",
+    );
+  });
+
+  it("scales pixel column widths in proportion when they no longer fit", () => {
+    // 200px and 100px keep those widths in a table 300px or wider, and share a
+    // narrower table two-to-one, which is the ratio the person dragged.
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "200px,100px");
+    table.setAttribute("data-row-heights", "hug");
+    addCell(table);
+    addCell(table);
+    const model = buildRenderModel(table);
+    expect(model.templateColumns).toBe(
+      "min(200px,calc(100% * 200 / 300)) min(100px,calc(100% * 100 / 300))",
+    );
+  });
+
+  it("leaves a nested table's columns exactly as authored", () => {
+    // The host cell owns the space and clips, so a nested table takes a zero
+    // floor and no scaling; see buildRenderModel.
+    const host = document.createElement("div");
+    host.className = "bloom-cell";
+    const table = makeTable();
+    host.appendChild(table);
+    table.setAttribute("data-column-widths", "200px,fill");
+    table.setAttribute("data-row-heights", "hug");
+    addCell(table);
+    addCell(table);
+    const model = buildRenderModel(table);
+    expect(model.templateColumns).toBe("200px minmax(0,1fr)");
   });
 
   it("applies data-gap-x / data-gap-y as visual grid gaps", () => {
@@ -488,7 +534,10 @@ describe("table-renderer", () => {
     g.setAttribute("data-column-widths", "hug,100px,fill");
     g.setAttribute("data-row-heights", "20px,hug");
     const m = buildRenderModel(g);
-    expect(m.templateColumns).toBe("minmax(60px,max-content) 100px minmax(60px,1fr)");
+    expect(m.templateColumns).toBe(
+      "minmax(min(60px,calc(100% / 3)),max-content) min(100px,calc(100% * 100 / 100)) " +
+        "minmax(min(60px,calc(100% / 3)),1fr)",
+    );
     expect(m.templateRows).toBe("20px minmax(20px,max-content)");
   });
 
@@ -501,7 +550,9 @@ describe("table-renderer", () => {
 
     render(g);
 
-    expect(g.style.gridTemplateColumns).toBe("100px 100px");
+    expect(g.style.gridTemplateColumns).toBe(
+      "min(100px,calc(100% * 100 / 200)) min(100px,calc(100% * 100 / 200))",
+    );
     expect(g.style.gridTemplateRows).toBe("30px 30px");
     expect(a.style.getPropertyValue("--span-x")).toBe("2");
     expect(a.style.getPropertyValue("--span-y")).toBe("1");

@@ -1,0 +1,41 @@
+<!-- e2e fixture: two tables in hosts of a width the test changes, for the rule
+     that a table re-fits itself when its host loses space. One table shares its
+     width between fill columns; the other was given column widths in pixels.
+     Loaded into the UI harness via /demo/ui-harness.html?fixture=narrow-host -->
+<div id="fill-host" style="width: 400px">
+  <div
+    id="fill-table"
+    class="bloom-table"
+    data-column-widths="fill,fill"
+    data-row-heights="hug,hug"
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">a</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">b</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">c</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">d</div>
+    </div>
+  </div>
+</div>
+
+<div id="pixel-host" style="width: 400px">
+  <div
+    id="pixel-table"
+    class="bloom-table"
+    data-column-widths="200px,100px"
+    data-row-heights="hug"
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">e</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">f</div>
+    </div>
+  </div>
+</div>
