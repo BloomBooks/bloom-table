@@ -24,10 +24,11 @@
  *
  * - `contentType` is the Content Type row, and `contentType:<id>` is one type
  *   within it, so `contentType:image` is the Image button.
- * - `alignment`, `verticalAlignment`, `padding`, `fill`, `borderStyle`,
- *   `borderWeight` and `corners` are the rows of the Format section. `fill` is
- *   the row that holds both colour pickers, Fill and Border color, because they
- *   share one row.
+ * - `alignment`, `verticalAlignment`, `padding`, `fill`, `borderColor`,
+ *   `borderStyle`, `borderWeight` and `corners` are the rows of the Format
+ *   section. `fill` is the Fill picker alone; `borderColor`, `borderStyle` and
+ *   `borderWeight` are the three rows inside the border scope panel, and
+ *   refusing all three takes the scope tabs with them.
  * - `paintFormat` is Paint format, in the Cell, Row and Column menus.
  *   `copyProperties` and `pasteProperties` are its Table menu counterparts.
  * - `merge` and `split` are the Cell menu's span commands. `merge` covers both
@@ -42,6 +43,7 @@ export const cellMenuItemIds = [
   "verticalAlignment",
   "padding",
   "fill",
+  "borderColor",
   "borderStyle",
   "borderWeight",
   "corners",

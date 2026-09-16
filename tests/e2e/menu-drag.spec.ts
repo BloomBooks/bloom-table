@@ -32,9 +32,10 @@ test.describe("dragging the popup menu", () => {
     const grip = (await handle.boundingBox())!;
     const fromX = grip.x + grip.width / 2;
     const fromY = grip.y + grip.height / 2;
-    // Drag UP, not down: the popup is nearly as tall as the window, so the drag
-    // would be clamped at the bottom edge and measure the clamp instead of the
-    // drag. There is room above, because the menu opens below the first cell.
+    // Drag UP, not down: the popup is nearly as tall as the window, so a drag
+    // down would be clamped at the bottom edge. The popup is also clamped 4px
+    // inside the window's top edge, and how much room it has above depends on
+    // its own height, so the expected y is whatever that clamp allows.
     await page.mouse.move(fromX, fromY);
     await page.mouse.down();
     await page.mouse.move(fromX + 120, fromY - 50, { steps: 8 });
@@ -43,7 +44,7 @@ test.describe("dragging the popup menu", () => {
     await expect(popup).toBeVisible();
     const after = (await popup.boundingBox())!;
     expect(Math.abs(after.x - (before.x + 120))).toBeLessThanOrEqual(2);
-    expect(Math.abs(after.y - (before.y - 50))).toBeLessThanOrEqual(2);
+    expect(Math.abs(after.y - Math.max(before.y - 50, 4))).toBeLessThanOrEqual(2);
 
     // A click outside the popup and the table still closes it.
     await page.mouse.click(760, 560);

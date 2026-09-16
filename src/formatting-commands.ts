@@ -11,7 +11,7 @@ import {
   applyCellSettings,
   type CellSettings,
 } from "./structure";
-import { buildGrid } from "./grid";
+import { buildGrid, type GridView } from "./grid";
 import { describeTarget, kWholeTableTarget } from "./operation-detail";
 import { render } from "./table-renderer";
 import { tableHistoryManager } from "./history";
@@ -55,6 +55,14 @@ import {
 } from "./edge-utils";
 
 export type FormattingScope = "cell" | "row" | "column" | "table";
+
+/** Which edges of a scope a border command writes. "outer" is the perimeter of
+ *  the selection, "inner" the boundaries between its own cells. */
+export type BorderEdgeSet = "all" | "outer" | "inner";
+
+export type CellSide = "top" | "right" | "bottom" | "left";
+
+export const kCellSides: CellSide[] = ["top", "right", "bottom", "left"];
 
 // Active cells only: bloom-skip cells are spanned-over placeholders — they are
 // display:none, own no rendered border sides, and must not be written to (a
@@ -109,6 +117,78 @@ export function getCellsInScope(
       ? target.row >= pos.row && target.row < pos.row + Math.max(1, span.y)
       : target.column >= pos.column &&
           target.column < pos.column + Math.max(1, span.x);
+  });
+}
+
+/** Each side of `cell`, classified against the scope it belongs to: "inner"
+ *  when the whole of that side faces cells the command is also writing,
+ *  "outer" otherwise. A side is inner only when EVERY grid slot across it (one
+ *  per track the cell spans along that side) is covered by a non-skip cell in
+ *  `scopeCells`; a side at the table's edge faces no slot at all and is outer.
+ *
+ *  That one rule gives every scope its natural reading: a single cell is all
+ *  outer, a row's top and bottom are outer while its left and right are inner
+ *  except at the first and last column, a column is the mirror of that, and a
+ *  whole table has an outer perimeter with every interior boundary inner.
+ *
+ *  `grid` lets a caller that classifies several cells build the grid once. */
+export function classifyCellSides(
+  table: HTMLElement,
+  scopeCells: HTMLElement[],
+  cell: HTMLElement,
+  grid: GridView = buildGrid(table),
+): Record<CellSide, "outer" | "inner"> {
+  const outerEverywhere: Record<CellSide, "outer" | "inner"> = {
+    top: "outer",
+    right: "outer",
+    bottom: "outer",
+    left: "outer",
+  };
+  const pos = grid.posOf.get(cell);
+  if (!pos) return outerEverywhere;
+  const span = getSpan(cell);
+  const sx = Math.max(1, span.x);
+  const sy = Math.max(1, span.y);
+  const inScope = new Set(scopeCells);
+
+  // The grid slots directly across each side, one per track the cell spans
+  // along that side.
+  const slotsAcross: Record<CellSide, Array<[number, number]>> = {
+    top: Array.from({ length: sx }, (_, i) => [pos.row - 1, pos.column + i]),
+    bottom: Array.from({ length: sx }, (_, i) => [
+      pos.row + sy,
+      pos.column + i,
+    ]),
+    left: Array.from({ length: sy }, (_, i) => [pos.row + i, pos.column - 1]),
+    right: Array.from({ length: sy }, (_, i) => [
+      pos.row + i,
+      pos.column + sx,
+    ]),
+  };
+
+  const result = { ...outerEverywhere };
+  for (const side of kCellSides) {
+    const slots = slotsAcross[side];
+    const facesScope = slots.every(([r, c]) => {
+      const cover = grid.coverAt(r, c);
+      return !!cover && inScope.has(cover.anchor);
+    });
+    if (slots.length && facesScope) result[side] = "inner";
+  }
+  return result;
+}
+
+/** Does this scope have any interior at all? False for a single cell, and for
+ *  any scope whose cells share no boundary — which is what disables the Inner
+ *  tab in the menu. */
+export function scopeHasInnerSides(
+  table: HTMLElement,
+  scopeCells: HTMLElement[],
+): boolean {
+  const grid = buildGrid(table);
+  return scopeCells.some((c) => {
+    const sides = classifyCellSides(table, scopeCells, c, grid);
+    return kCellSides.some((side) => sides[side] === "inner");
   });
 }
 
@@ -289,15 +369,23 @@ export function applyBorderProps(
   scope: FormattingScope,
   cells: HTMLElement[],
   props: BorderProps,
+  edgeSet: BorderEdgeSet = "all",
 ): void {
   const changed = describeBorderProps(props);
+  // The journal has to say which edges the command wrote, or two entries that
+  // painted different halves of a selection read identically.
+  const edges =
+    edgeSet === "outer"
+      ? ", outer edges"
+      : edgeSet === "inner"
+        ? ", inner edges"
+        : "";
   if (scope === "table") {
     // No cell count here: the table scope writes the outer, inner and default
     // borders rather than each cell's perimeter, so a count of cells would
     // describe something the command does not do.
-    const detail = changed
-      ? `${changed}, ${kWholeTableTarget}`
-      : kWholeTableTarget;
+    const detail =
+      (changed ? `${changed}, ${kWholeTableTarget}` : kWholeTableTarget) + edges;
     withHistory(table, "Change Border", detail, () => {
       const base = getTableOuterBorderValueMap(table);
       const firstCell = cells[0] ?? tableCells(table)[0];
@@ -306,6 +394,28 @@ export function applyBorderProps(
         (firstCell ? representativeBorderColorHex(firstCell) : "#000000");
       const side = (s: { weight: number; style: BorderStyle }) =>
         resolveEdge(s, props, color);
+      if (edgeSet === "outer") {
+        applyOuterBorders(
+          table,
+          {
+            top: side(base.top),
+            right: side(base.right),
+            bottom: side(base.bottom),
+            left: side(base.left),
+          },
+          color,
+        );
+        render(table);
+        return;
+      }
+      if (edgeSet === "inner") {
+        // The table default stays as it is, so a row added later takes the
+        // default rather than the value written here.
+        applyUniformInner(table, "innerH", side(base.innerH) as any, color);
+        applyUniformInner(table, "innerV", side(base.innerV) as any, color);
+        render(table);
+        return;
+      }
       // The default goes first: the writers below leave a never-set entry unset
       // when the value they are asked to write renders like the CURRENT
       // default, so changing the default afterwards would move it out from
@@ -328,31 +438,50 @@ export function applyBorderProps(
     });
     return;
   }
+  // "all" writes every side without asking, so the classification runs only
+  // for the two sets that select among them. It runs before the history entry
+  // is recorded: a set that names no side of any cell (Inner on a single cell)
+  // has nothing to write, and the history keeps every entry it is given, so
+  // recording one would put a no-op on the undo stack.
+  const sidesOf =
+    edgeSet === "all"
+      ? null
+      : (() => {
+          const grid = buildGrid(table);
+          return cells.map((c) => classifyCellSides(table, cells, c, grid));
+        })();
+  if (sidesOf && !sidesOf.some((s) => kCellSides.some((side) => s[side] === edgeSet)))
+    return;
   const target = describeTarget(table, scope, cells);
   withHistory(
     table,
     "Change Border",
-    changed ? `${changed}, ${target}` : target,
+    (changed ? `${changed}, ${target}` : target) + edges,
     () => {
       // Snapshot every perimeter before writing: cells share edges, so a write
       // for one cell must not feed into the map read for the next. Colors are
       // kept per edge so a style/weight change doesn't flatten a multi-colored
       // perimeter to one color.
-      const snapshots = cells.map((c) => ({
+      const snapshots = cells.map((c, i) => ({
         map: getCellPerimeterValueMap(c),
         colors: getCellPerimeterColors(c),
         fallback: props.color ?? representativeBorderColorHex(c),
+        sides: sidesOf ? sidesOf[i] : null,
       }));
       cells.forEach((c, i) => {
-        const { map, colors, fallback } = snapshots[i];
+        const { map, colors, fallback, sides } = snapshots[i];
         const edgeColor = (current: string | null) =>
           props.color ?? current ?? fallback;
-        applyCellPerimeter(table, c, {
-          top: resolveEdge(map.top, props, edgeColor(colors.top)),
-          right: resolveEdge(map.right, props, edgeColor(colors.right)),
-          bottom: resolveEdge(map.bottom, props, edgeColor(colors.bottom)),
-          left: resolveEdge(map.left, props, edgeColor(colors.left)),
-        });
+        // A side the edge set does not name is left undefined, which
+        // applyCellPerimeter takes as "do not touch".
+        const write: Parameters<typeof applyCellPerimeter>[2] = {};
+        let wrote = false;
+        for (const side of kCellSides) {
+          if (sides && sides[side] !== edgeSet) continue;
+          write[side] = resolveEdge(map[side], props, edgeColor(colors[side]));
+          wrote = true;
+        }
+        if (wrote) applyCellPerimeter(table, c, write);
       });
       render(table);
     },
@@ -364,8 +493,29 @@ export function applyBorderColor(
   scope: FormattingScope,
   cells: HTMLElement[],
   color: string,
+  edgeSet: BorderEdgeSet = "all",
 ): void {
-  applyBorderProps(table, scope, cells, { color });
+  applyBorderProps(table, scope, cells, { color }, edgeSet);
+}
+
+/** Paint one side of one cell, for Border Brush. Style "none" and weight 0 go
+ *  through as given; toSpec in edge-utils collapses either into the explicit
+ *  none state, so a brush loaded with either one erases that segment. */
+export function applyBorderToEdge(
+  table: HTMLElement,
+  cell: HTMLElement,
+  side: CellSide,
+  brush: { style: BorderStyle; weight: BorderWeight; color: string },
+): void {
+  withHistory(
+    table,
+    "Change Border",
+    `${describeBorderProps(brush)}, ${side} edge of ${describeTarget(table, "cell", [cell])}`,
+    () => {
+      applyCellPerimeter(table, cell, { [side]: brush });
+      render(table);
+    },
+  );
 }
 
 // ---- Copy / Paste properties -----------------------------------------------
@@ -563,8 +713,9 @@ export function applyBorderStyle(
   scope: FormattingScope,
   cells: HTMLElement[],
   style: BorderStyle,
+  edgeSet: BorderEdgeSet = "all",
 ): void {
-  applyBorderProps(table, scope, cells, { style });
+  applyBorderProps(table, scope, cells, { style }, edgeSet);
 }
 
 export function applyBorderWeight(
@@ -572,6 +723,7 @@ export function applyBorderWeight(
   scope: FormattingScope,
   cells: HTMLElement[],
   weight: BorderWeight,
+  edgeSet: BorderEdgeSet = "all",
 ): void {
-  applyBorderProps(table, scope, cells, { weight });
+  applyBorderProps(table, scope, cells, { weight }, edgeSet);
 }

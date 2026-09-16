@@ -3,6 +3,7 @@ import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
 import {
   getCellMenuItems,
+  isBorderBrushModeActive,
   openCellMenu,
   removeTable,
   resetTableSizeButtons,
@@ -1007,5 +1008,296 @@ describe("the host's chance to open a cell's menu itself", () => {
     );
 
     expect(asked).toBe(0);
+  });
+});
+
+// ===== The border scope chooser =====
+
+describe("the border scope tabs", () => {
+  const rightClick = (el: HTMLElement) =>
+    el.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }),
+    );
+
+  const tabs = () =>
+    Array.from(
+      menuPopup()?.querySelectorAll<HTMLButtonElement>('[role="tablist"] [role="tab"]') ?? [],
+    );
+  const tab = (id: string) =>
+    menuPopup()?.querySelector<HTMLButtonElement>(`[role="tab"][data-scope="${id}"]`) ?? null;
+  const selectedTab = () =>
+    menuPopup()?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]') ?? null;
+  const panel = () => menuPopup()?.querySelector<HTMLElement>('[role="tabpanel"]') ?? null;
+  const styleToggle = (style: string) =>
+    panel()?.querySelector<HTMLButtonElement>(`[data-style="${style}"]`) ?? null;
+  const weightToggle = (weight: number) =>
+    panel()?.querySelector<HTMLButtonElement>(`[data-weight="${weight}"]`) ?? null;
+  const colorInput = () =>
+    panel()?.querySelector<HTMLInputElement>('input[aria-label="Border color"]') ?? null;
+
+  // The table pill serves the table that owns the selected cell, so the menu
+  // needs a selection before it has a scope to act on.
+  const openTableMenu = (cell: HTMLElement) => {
+    focusCell(cell);
+    click(pill("table"));
+    expect(menuPopup()).not.toBe(null);
+  };
+  const openCellMenuOn = (cell: HTMLElement) => {
+    focusCell(cell);
+    rightClick(cell);
+    expect(menuPopup()).not.toBe(null);
+  };
+  const openRowMenu = (cell: HTMLElement) => {
+    focusCell(cell);
+    click(pill("row"));
+    expect(menuPopup()).not.toBe(null);
+  };
+
+  afterEach(() => {
+    setCellMenuItemFilter(undefined);
+    closeAnyMenu();
+  });
+
+  // The popup closes on an outside mousedown, which is also how a test leaves
+  // Border Brush mode between cases.
+  function closeAnyMenu() {
+    document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  }
+
+  it("shows four tabs with All selected by default", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+
+    expect(tabs().map((t) => t.dataset.scope)).toEqual(["all", "outer", "inner", "brush"]);
+    expect(tabs().map((t) => t.textContent)).toEqual([
+      "All",
+      "Outer",
+      "Inner",
+      "Border Brush",
+    ]);
+    expect(selectedTab()!.dataset.scope).toBe("all");
+    expect(panel()!.textContent).toContain("Every edge in the table");
+  });
+
+  it("disables Inner in the cell menu and enables it in a row menu", () => {
+    const { cells } = makeTable();
+    openCellMenuOn(cells[0]);
+    expect(tab("inner")!.getAttribute("aria-disabled")).toBe("true");
+    expect(tab("inner")!.disabled).toBe(true);
+    closeAnyMenu();
+
+    openRowMenu(cells[0]);
+    expect(tab("inner")!.hasAttribute("aria-disabled")).toBe(false);
+    expect(tab("inner")!.disabled).toBe(false);
+  });
+
+  it("remembers the chosen tab across closing and reopening the menu", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+    click(tab("outer")!);
+    expect(selectedTab()!.dataset.scope).toBe("outer");
+    closeAnyMenu();
+
+    openTableMenu(cells[0]);
+    expect(selectedTab()!.dataset.scope).toBe("outer");
+    expect(panel()!.textContent).toContain("The four outside edges of the table");
+  });
+
+  it("changes no border when a tab is clicked", () => {
+    const { table, cells } = makeTable();
+    openTableMenu(cells[0]);
+    const before = table.outerHTML;
+
+    click(tab("outer")!);
+    click(tab("inner")!);
+
+    expect(table.outerHTML).toBe(before);
+  });
+
+  it("applies a style to the outer edges only, once Outer is chosen", () => {
+    const { table, cells } = makeTable();
+    openRowMenu(cells[0]);
+    click(tab("outer")!);
+
+    click(styleToggle("dashed")!);
+
+    // The row's own top is outer; the boundary to its row-mate is not.
+    expect(cells[0].style.borderTopStyle).toBe("dashed");
+    expect(cells[0].style.borderRightStyle).not.toBe("dashed");
+    expect(table.getAttribute("data-edges-h")).toContain("dashed");
+  });
+
+  it("applies a weight to the inner edges only, once Inner is chosen", () => {
+    const { cells } = makeTable();
+    openRowMenu(cells[0]);
+    click(tab("inner")!);
+
+    click(weightToggle(2)!);
+
+    expect(cells[0].style.borderRightWidth).toBe("2px");
+    expect(cells[0].style.borderTopWidth).not.toBe("2px");
+  });
+
+  it("loads the brush instead of applying, once Border Brush is chosen", () => {
+    const { table, cells } = makeTable();
+    openTableMenu(cells[0]);
+    const before = table.outerHTML;
+
+    click(tab("brush")!);
+    expect(isBorderBrushModeActive()).toBe(true);
+    expect(panel()!.textContent).toContain("then click edges in the table");
+
+    click(styleToggle("dotted")!);
+
+    expect(table.outerHTML).toBe(before);
+    expect(isBorderBrushModeActive()).toBe(true);
+    // The loaded brush is what the toggles show.
+    expect(styleToggle("dotted")!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("keeps the loaded brush when the selected Border Brush tab is clicked again", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+    click(tab("brush")!);
+    click(styleToggle("dotted")!);
+    expect(styleToggle("dotted")!.getAttribute("aria-pressed")).toBe("true");
+
+    click(tab("brush")!);
+
+    expect(isBorderBrushModeActive()).toBe(true);
+    expect(styleToggle("dotted")!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("ignores a right-click on a cell while the brush is loaded", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+    click(tab("brush")!);
+    click(styleToggle("dotted")!);
+    const popup = menuPopup();
+
+    rightClick(cells[1]);
+
+    // The same popup is still open, with the same brush loaded.
+    expect(menuPopup()).toBe(popup);
+    expect(isBorderBrushModeActive()).toBe(true);
+    expect(styleToggle("dotted")!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("leaves brush mode for another tab, and when the menu closes", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+
+    click(tab("brush")!);
+    expect(isBorderBrushModeActive()).toBe(true);
+    click(tab("all")!);
+    expect(isBorderBrushModeActive()).toBe(false);
+
+    click(tab("brush")!);
+    expect(isBorderBrushModeActive()).toBe(true);
+    closeAnyMenu();
+    expect(isBorderBrushModeActive()).toBe(false);
+  });
+
+  it("reloads the brush when a menu opens on a remembered Border Brush", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+    click(tab("brush")!);
+    expect(isBorderBrushModeActive()).toBe(true);
+
+    closeAnyMenu();
+    expect(isBorderBrushModeActive()).toBe(false);
+
+    openTableMenu(cells[0]);
+
+    // The selected tab and the loaded brush say the same thing: a menu showing
+    // the Brush tab with no brush loaded would paint nothing on a click.
+    expect(selectedTab()!.dataset.scope).toBe("brush");
+    expect(isBorderBrushModeActive()).toBe(true);
+  });
+
+  it("keeps the menu open while the user paints a table", () => {
+    const { cells } = makeTable();
+    openTableMenu(cells[0]);
+    click(tab("brush")!);
+
+    // A press on a table is a stroke, not an outside click.
+    cells[0].dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+    expect(menuPopup()).not.toBe(null);
+    expect(isBorderBrushModeActive()).toBe(true);
+  });
+
+  it("shows no color while the edges in scope disagree, and the shared color once they agree", () => {
+    // Top perimeter red, every other edge black.
+    const red = '{"weight":1,"style":"solid","color":"#ff0000"}';
+    const black = '{"weight":1,"style":"solid","color":"#000000"}';
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div class="bloom-table" id="mixed" data-column-widths="hug,hug" data-row-heights="hug,hug"
+        data-edges-h='[[${red},${red}],[${black},${black}],[${black},${black}]]'
+        data-edges-v='[[${black},${black},${black}],[${black},${black},${black}]]'>
+        <div class="bloom-cell"><div contenteditable="true">a</div></div>
+        <div class="bloom-cell"><div contenteditable="true">b</div></div>
+        <div class="bloom-cell"><div contenteditable="true">c</div></div>
+        <div class="bloom-cell"><div contenteditable="true">d</div></div>
+      </div>`;
+    const table = wrapper.firstElementChild as HTMLElement;
+    document.body.appendChild(table);
+    attachTable(table);
+    const cells = stubGrid(table);
+    // The crossed-out swatch that says "no selection" is the picker's sibling.
+    const noColorShown = () =>
+      (
+        Array.from(colorInput()!.parentElement!.children).find(
+          (el) => el.tagName === "DIV",
+        ) as HTMLElement
+      ).style.display;
+
+    openTableMenu(cells[0]);
+    // All: red on top, black elsewhere, so no one color is shown.
+    expect(noColorShown()).toBe("block");
+    expect(colorInput()!.value).toBe("#ffffff");
+
+    // Outer: the perimeter still mixes red and black.
+    click(tab("outer")!);
+    expect(noColorShown()).toBe("block");
+
+    // Inner: every interior edge is black, so black is shown.
+    click(tab("inner")!);
+    expect(noColorShown()).toBe("none");
+    expect(colorInput()!.value).toBe("#000000");
+
+    // Border Brush over disagreeing edges still loads a definite color: a
+    // stroke has to paint something.
+    click(tab("all")!);
+    expect(noColorShown()).toBe("block");
+    click(tab("brush")!);
+    expect(noColorShown()).toBe("none");
+    expect(colorInput()!.value).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it("drops the color input when the host refuses borderColor, and nothing else", () => {
+    const { cells } = makeTable();
+    setCellMenuItemFilter((itemId) => itemId !== "borderColor");
+    openTableMenu(cells[0]);
+
+    expect(colorInput()).toBe(null);
+    expect(tabs().length).toBe(4);
+    expect(styleToggle("dashed")).not.toBe(null);
+    expect(weightToggle(2)).not.toBe(null);
+    // Fill is its own row and is untouched.
+    expect(menuPopup()!.querySelector('input[aria-label="Fill"]')).not.toBe(null);
+  });
+
+  it("takes the tabs away when every border row is refused", () => {
+    const { cells } = makeTable();
+    setCellMenuItemFilter(
+      (itemId) => !["borderColor", "borderStyle", "borderWeight"].includes(itemId),
+    );
+    openTableMenu(cells[0]);
+
+    expect(tabs().length).toBe(0);
+    expect(panel()).toBe(null);
+    expect(menuPopup()!.querySelector('input[aria-label="Fill"]')).not.toBe(null);
   });
 });

@@ -12,6 +12,9 @@ import {
   applyBorderColor,
   applyBorderStyle,
   applyBorderWeight,
+  applyBorderToEdge,
+  classifyCellSides,
+  scopeHasInnerSides,
   copyProperties,
   pasteProperties,
   hasCopiedProperties,
@@ -650,5 +653,227 @@ describe("the detail a command records in history", () => {
       label: "Paste Properties",
       detail: "row 2 (2 cells)",
     });
+  });
+});
+
+// ===== Edge sets: Outer, Inner, and single-edge writes =====
+
+describe("classifyCellSides", () => {
+  // A 3x3 table, so the middle cell has an interior on all four sides.
+  function make3x3(): { table: HTMLElement; cells: HTMLElement[] } {
+    const oneCell = '<div class="bloom-cell"><div contenteditable="true">c</div></div>';
+    document.body.innerHTML =
+      '<div class="bloom-table" data-column-widths="hug,hug,hug" data-row-heights="hug,hug,hug">' +
+      oneCell.repeat(9) +
+      "</div>";
+    const table = document.querySelector(".bloom-table") as HTMLElement;
+    attachTable(table);
+    const cells = Array.from(table.children).filter(
+      (c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains("bloom-cell"),
+    );
+    return { table, cells };
+  }
+
+  it("calls every side of a single-cell scope outer", () => {
+    const { table, cells } = make3x3();
+    const scope = getCellsInScope(table, "cell", cells[4]);
+    expect(classifyCellSides(table, scope, cells[4])).toEqual({
+      top: "outer",
+      right: "outer",
+      bottom: "outer",
+      left: "outer",
+    });
+  });
+
+  it("calls a row's top and bottom outer, and its shared left/right inner", () => {
+    const { table, cells } = make3x3();
+    const scope = getCellsInScope(table, "row", cells[3]); // the middle row
+    // The middle cell of the row faces row-mates left and right.
+    expect(classifyCellSides(table, scope, cells[4])).toEqual({
+      top: "outer",
+      right: "inner",
+      bottom: "outer",
+      left: "inner",
+    });
+    // The first cell of the row has no row-mate to its left — the table's edge
+    // is there — so that side is outer.
+    expect(classifyCellSides(table, scope, cells[3]).left).toBe("outer");
+    expect(classifyCellSides(table, scope, cells[5]).right).toBe("outer");
+  });
+
+  it("mirrors that for a column scope", () => {
+    const { table, cells } = make3x3();
+    const scope = getCellsInScope(table, "column", cells[1]); // the middle column
+    expect(classifyCellSides(table, scope, cells[4])).toEqual({
+      top: "inner",
+      right: "outer",
+      bottom: "inner",
+      left: "outer",
+    });
+    expect(classifyCellSides(table, scope, cells[1]).top).toBe("outer");
+    expect(classifyCellSides(table, scope, cells[7]).bottom).toBe("outer");
+  });
+
+  it("gives a table scope an outer perimeter and an all-inner interior", () => {
+    const { table, cells } = make3x3();
+    const scope = getCellsInScope(table, "table", null);
+    expect(classifyCellSides(table, scope, cells[4])).toEqual({
+      top: "inner",
+      right: "inner",
+      bottom: "inner",
+      left: "inner",
+    });
+    expect(classifyCellSides(table, scope, cells[0])).toEqual({
+      top: "outer",
+      left: "outer",
+      right: "inner",
+      bottom: "inner",
+    });
+  });
+
+  it("reads a spanning cell's sides against every track it covers", () => {
+    const { table, cells } = make3x3();
+    // The middle row's first cell absorbs the one beside it.
+    setSpan(cells[3], { x: 2, y: 1 });
+    cells[4].classList.add("bloom-skip");
+    render(table);
+    const scope = getCellsInScope(table, "row", cells[3]);
+    const sides = classifyCellSides(table, scope, cells[3]);
+    // Its right side now faces the row's last cell, which is in scope.
+    expect(sides.right).toBe("inner");
+    // Its top and bottom span two columns of cells that are NOT in the row
+    // scope, and its left is the table's edge, so all three stay outer.
+    expect(sides.top).toBe("outer");
+    expect(sides.bottom).toBe("outer");
+    expect(sides.left).toBe("outer");
+  });
+});
+
+describe("scopeHasInnerSides", () => {
+  it("is false for one cell and true for a row of a 2x2 table", () => {
+    const { table, cells } = makeTable();
+    expect(scopeHasInnerSides(table, getCellsInScope(table, "cell", cells[0]))).toBe(false);
+    expect(scopeHasInnerSides(table, getCellsInScope(table, "row", cells[0]))).toBe(true);
+    expect(scopeHasInnerSides(table, getCellsInScope(table, "table", null))).toBe(true);
+  });
+});
+
+describe("applyBorderProps with an edge set", () => {
+  it("writes only a row's own perimeter for 'outer'", () => {
+    const { table, cells } = makeTable();
+    const row = getCellsInScope(table, "row", cells[0]); // the top row
+    applyBorderStyle(table, "row", row, "dashed", "outer");
+
+    // The row's top and bottom boundaries are its outer sides, as are the two
+    // ends of the row.
+    expect(cells[0].style.borderTopStyle).toBe("dashed");
+    expect(cells[0].style.borderBottomStyle).toBe("dashed");
+    expect(cells[0].style.borderLeftStyle).toBe("dashed");
+    expect(cells[1].style.borderRightStyle).toBe("dashed");
+    // The boundary between the two cells of the row is inner, so it keeps the
+    // table's own default style.
+    expect(cells[0].style.borderRightStyle).not.toBe("dashed");
+  });
+
+  it("writes only the boundaries between a row's cells for 'inner'", () => {
+    const { table, cells } = makeTable();
+    const row = getCellsInScope(table, "row", cells[0]);
+    applyBorderStyle(table, "row", row, "dotted", "inner");
+
+    expect(cells[0].style.borderRightStyle).toBe("dotted");
+    expect(cells[0].style.borderTopStyle).not.toBe("dotted");
+    expect(cells[0].style.borderLeftStyle).not.toBe("dotted");
+    expect(cells[1].style.borderRightStyle).not.toBe("dotted");
+  });
+
+  it("leaves a table's interior alone for 'outer' and its perimeter alone for 'inner'", () => {
+    const { table, cells } = makeTable();
+    const all = getCellsInScope(table, "table", null);
+
+    applyBorderWeight(table, "table", all, 4, "outer");
+    expect(cells[0].style.borderTopWidth).toBe("4px");
+    // The interior boundary is untouched.
+    expect(cells[0].style.borderRightWidth).not.toBe("4px");
+
+    applyBorderStyle(table, "table", all, "dotted", "inner");
+    expect(cells[0].style.borderRightStyle).toBe("dotted");
+    // The perimeter kept what the outer pass gave it.
+    expect(cells[0].style.borderTopWidth).toBe("4px");
+    expect(cells[0].style.borderTopStyle).not.toBe("dotted");
+  });
+
+  it("leaves the table default alone for a table 'inner' pass", () => {
+    const { table } = makeTable();
+    const before = table.getAttribute("data-border-default");
+    applyBorderStyle(table, "table", getCellsInScope(table, "table", null), "dashed", "inner");
+    expect(table.getAttribute("data-border-default")).toBe(before);
+    // The interior itself did change.
+    expect(table.getAttribute("data-edges-v")).toContain("dashed");
+  });
+
+  it("names the edge set in the history detail", () => {
+    const { table, cells } = makeTable();
+    applyBorderStyle(table, "row", getCellsInScope(table, "row", cells[0]), "dashed", "outer");
+    const entries = tableHistoryManager.getEntriesForDebug();
+    expect(entries[entries.length - 1].detail).toBe(
+      "style dashed, row 1 (2 cells), outer edges",
+    );
+  });
+
+  it("records nothing for an edge set that names no side of any cell", () => {
+    const { table, cells } = makeTable();
+    const before = tableHistoryManager.getEntriesForDebug().length;
+
+    // A single cell has no inner sides, so there is nothing to write.
+    applyBorderStyle(table, "cell", getCellsInScope(table, "cell", cells[0]), "dashed", "inner");
+
+    expect(tableHistoryManager.getEntriesForDebug().length).toBe(before);
+  });
+});
+
+describe("applyBorderToEdge", () => {
+  it("writes one side and records one history entry naming it", () => {
+    const { table, cells } = makeTable();
+    const before = tableHistoryManager.getEntriesForDebug().length;
+
+    applyBorderToEdge(table, cells[0], "top", {
+      style: "dotted",
+      weight: 2,
+      color: "#ff0000",
+    });
+
+    expect(cells[0].style.borderTopStyle).toBe("dotted");
+    expect(cells[0].style.borderTopWidth).toBe("2px");
+    expect(cells[0].style.borderTopColor).toBe("#ff0000");
+    // The other sides of the same cell are untouched.
+    expect(cells[0].style.borderLeftStyle).not.toBe("dotted");
+    expect(cells[0].style.borderBottomStyle).not.toBe("dotted");
+
+    const entries = tableHistoryManager.getEntriesForDebug();
+    expect(entries.length).toBe(before + 1);
+    expect(entries[entries.length - 1]).toMatchObject({
+      label: "Change Border",
+      detail:
+        "color #ff0000, style dotted, weight 2, top edge of cell at row 1, column 1",
+    });
+  });
+
+  it("erases a segment for a brush loaded with weight 0", () => {
+    const { table, cells } = makeTable();
+    applyBorderToEdge(table, cells[0], "top", {
+      style: "solid",
+      weight: 2,
+      color: "#000000",
+    });
+    expect(cells[0].style.borderTopWidth).toBe("2px");
+
+    applyBorderToEdge(table, cells[0], "top", {
+      style: "solid",
+      weight: 0,
+      color: "#000000",
+    });
+    expect(
+      cells[0].style.borderTopWidth === "" || cells[0].style.borderTopWidth === "0px",
+    ).toBe(true);
   });
 });

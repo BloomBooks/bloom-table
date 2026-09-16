@@ -61,12 +61,18 @@ import {
   type CellAlign,
   type CellVAlign,
 } from "./table-model";
-import { representativeBorderColorHex } from "./color-utils";
-import { getCellPerimeterValueMap } from "./border-state";
+import { representativeBorderColorHex, toHexColor } from "./color-utils";
+import { getCellPerimeterValueMap, getCellPerimeterColors } from "./border-state";
 import type { BorderStyle, BorderWeight } from "./components/BorderControl/logic/types";
+import { normalizeEdgeChange } from "./components/BorderControl/logic/normalize";
 import {
   type FormattingScope,
+  type BorderEdgeSet,
+  type CellSide,
+  kCellSides,
   getCellsInScope,
+  classifyCellSides,
+  scopeHasInnerSides,
   applyContentType,
   applyAlignment,
   applyVerticalAlignment,
@@ -87,6 +93,13 @@ import {
   setPaintFormatOverlayHider,
 } from "./paint-format";
 import { nextSplitSpan } from "./components/spanCommands";
+import {
+  enterBorderBrushMode,
+  exitBorderBrushMode,
+  isBorderBrushModeActive,
+  updateBorderBrush,
+  type BorderBrush,
+} from "./border-brush";
 // Toolbar icons reused on the menu (imported as URLs).
 import columnDeleteIcon from "./components/icons/column-delete.svg";
 import cellMergeIcon from "./components/icons/cell-merge.svg";
@@ -118,6 +131,11 @@ import {
   kMoveDownIconSvg,
   kMoveLeftIconSvg,
   kMoveRightIconSvg,
+  kScopeAllIconSvg,
+  kScopeOuterIconSvg,
+  kScopeInnerIconSvg,
+  kScopeBrushIconSvg,
+  kBorderBrushCursorUrl,
   kCopyIconSvg,
   kPasteIconSvg,
   kCutIconSvg,
@@ -142,7 +160,12 @@ import {
   makeCornerToggle,
   firstPx,
   makeSliderRow,
-  makeColorPairRow,
+  makeColorRow,
+  setColorInputValue,
+  makeCaption,
+  makeScopeTabs,
+  makeScopePanel,
+  makeScopeGroup,
 } from "./menu-widgets";
 
 let installed = false;
@@ -155,6 +178,8 @@ const mintedAnchorNames = new Set<string>();
 // Reset function for testing
 export function resetTableSizeButtons(): void {
   exitPaintFormatMode();
+  exitBorderBrushMode();
+  borderScopeMode = "all";
   removeTableSizeButtonListeners();
   installed = false;
   overlayTable = null;
@@ -244,7 +269,10 @@ function onFocusInForOverlays(event: Event): void {
 export function openCellMenu(cell: HTMLElement, position: { x: number; y: number }): boolean {
   const table = ownerTable(cell);
   if (!table) return false;
-  if (isPaintFormatModeActive()) return false;
+  // Neither click mode opens a menu on a cell. Border Brush swallows the press
+  // itself, and a new Cell menu here would close the popup holding the loaded
+  // brush and reload one from the clicked cell's edges instead.
+  if (isPaintFormatModeActive() || isBorderBrushModeActive()) return false;
   showEdgeOverlays(table);
   openMenu(["cell"], position, "context", cell);
   return true;
@@ -852,8 +880,289 @@ function buildContentTypeSection(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   return controls.length ? [makeDivider(), ...controls] : [];
 }
 
-// The formatting controls shared by all four menus: Alignment, Padding,
-// Fill + Border color, Corners. Each control applies to every cell in the
+// ===== The border scope chooser =====
+// Four folder tabs — All, Outer, Inner, Border Brush — opening into a panel
+// that holds the caption, Border color, Border Style and Border Weight. The
+// panel is the body of the selected tab, so the choosers say which edges they
+// write instead of leaving the user to guess.
+
+type BorderScopeMode = BorderEdgeSet | "brush";
+
+// Remembered for the session, so a user who works in one mode does not re-pick
+// it at every menu. Not persisted: it is a working habit, not a document value.
+let borderScopeMode: BorderScopeMode = "all";
+
+// What each tab means for the scope whose menu this is, in words. The Inner tab
+// is disabled where the scope has no interior, so its cell wording never shows.
+const kScopeCaptions: Record<BorderScopeMode, Record<FormattingScope, string>> = {
+  all: {
+    cell: "Every edge of this cell",
+    row: "Every edge in this row",
+    column: "Every edge in this column",
+    table: "Every edge in the table",
+  },
+  outer: {
+    cell: "The four edges of this cell",
+    row: "The outside edges of this row",
+    column: "The outside edges of this column",
+    table: "The four outside edges of the table",
+  },
+  inner: {
+    cell: "Only the edges between cells",
+    row: "Only the edges between cells in this row",
+    column: "Only the edges between cells in this column",
+    table: "Only the edges between cells",
+  },
+  brush: {
+    cell: "Set the color, style and weight below, then click edges in the table",
+    row: "Set the color, style and weight below, then click edges in the table",
+    column: "Set the color, style and weight below, then click edges in the table",
+    table: "Set the color, style and weight below, then click edges in the table",
+  },
+};
+
+function buildBorderScopeGroup(
+  ctx: MenuCtx,
+  scope: FormattingScope,
+  table: HTMLElement,
+  cells: () => HTMLElement[],
+  seed: HTMLElement,
+): HTMLElement | null {
+  const offersColor = menuOffers(ctx, "borderColor");
+  const offersStyle = menuOffers(ctx, "borderStyle");
+  const offersWeight = menuOffers(ctx, "borderWeight");
+  if (!offersColor && !offersStyle && !offersWeight) return null;
+
+  // A scope with no interior cannot offer Inner. A remembered "inner" still
+  // shows as "all" here without overwriting the memory, so the next menu that
+  // does have an interior opens on Inner again.
+  const hasInner = scopeHasInnerSides(table, cells());
+  let mode: BorderScopeMode =
+    borderScopeMode === "inner" && !hasInner ? "all" : borderScopeMode;
+
+  // Which of a cell's sides belong to an edge set, built against one grid so a
+  // refresh classifies the whole scope in a single pass.
+  const sidesBySet = (set: BorderEdgeSet): Array<[HTMLElement, CellSide[]]> => {
+    const list = cells();
+    if (set === "all") return list.map((c) => [c, kCellSides] as [HTMLElement, CellSide[]]);
+    const grid = buildGrid(table);
+    return list.map((c) => {
+      const cls = classifyCellSides(table, list, c, grid);
+      return [c, kCellSides.filter((s) => cls[s] === set)] as [HTMLElement, CellSide[]];
+    });
+  };
+
+  // The values every edge IN THE CURRENT SET agrees on, so the pressed toggle
+  // describes the edges the next click would write and not the other half of
+  // the selection. A cell contributing no side to the set is skipped. Style,
+  // weight and color come out of one walk of the scope, reading each cell's
+  // perimeter once; three separate walks would classify the grid and resolve
+  // every perimeter three times per refresh.
+  //
+  // `style` and `weight` are "mixed" when the set disagrees and undefined when
+  // no edge is in the set. `color` is the one color every visible edge of the
+  // set carries, the scope's representative color when no edge in the set is
+  // visible, or "" when they disagree, which the picker shows as no selection.
+  // Picking one of several colors would claim the set has a color it does not.
+  type Agreed<T> = T | "mixed" | undefined;
+  const agreedInSet = (
+    set: BorderEdgeSet,
+  ): { style: Agreed<BorderStyle>; weight: Agreed<BorderWeight>; color: string } => {
+    let style: Agreed<BorderStyle>;
+    let weight: Agreed<BorderWeight>;
+    let seen = false;
+    let color: string | undefined;
+    let colorMixed = false;
+    for (const [c, sides] of sidesBySet(set)) {
+      if (!sides.length) continue;
+      const m = getCellPerimeterValueMap(c);
+      const colors = getCellPerimeterColors(c);
+      for (const s of sides) {
+        if (!seen) {
+          style = m[s].style;
+          weight = m[s].weight;
+          seen = true;
+        } else {
+          if (style !== m[s].style) style = "mixed";
+          if (weight !== m[s].weight) weight = "mixed";
+        }
+        const hex = colors[s] ? toHexColor(colors[s]) : undefined;
+        if (!hex) continue;
+        if (color === undefined) color = hex;
+        else if (color !== hex) colorMixed = true;
+      }
+    }
+    return {
+      style,
+      weight,
+      color: colorMixed ? "" : (color ?? representativeBorderColorHex(seed)),
+    };
+  };
+
+  const readSet = (): BorderEdgeSet => (mode === "brush" ? "all" : mode);
+  let colorValue = agreedInSet(readSet()).color;
+
+  // The loaded brush, while Border Brush mode runs. Style and weight stay
+  // consistent through the same rule every other edit path uses.
+  let brush: BorderBrush = { style: "solid", weight: 1, color: colorValue };
+
+  const panel = makeScopePanel();
+  const caption = makeCaption(kScopeCaptions[mode][scope]);
+  panel.appendChild(caption);
+
+  // Loading the brush, from the tab and from a menu that opens on a remembered
+  // Border Brush. Both go through here: a menu that showed the Brush tab
+  // without entering the mode would promise a brush that paints nothing.
+  const loadBrush = () => {
+    // Whatever the toggles were already showing, so the first stroke paints
+    // what the user is looking at. Where the set disagrees the brush needs a
+    // definite value all the same: a stroke has to paint something, so a mixed
+    // style or weight loads as a plain 1px solid line and a mixed color as the
+    // scope's representative color rather than an empty string, which would be
+    // stored on the edge as its color.
+    const agreed = agreedInSet(readSet());
+    brush = {
+      style: agreed.style === undefined || agreed.style === "mixed" ? "solid" : agreed.style,
+      weight: agreed.weight === undefined || agreed.weight === "mixed" ? 1 : agreed.weight,
+      color: agreed.color || representativeBorderColorHex(seed),
+    };
+    // The group is the brush's owner: a press on its tabs or choosers reloads
+    // the brush rather than ending the mode, wherever the group is mounted.
+    enterBorderBrushMode(group, brush);
+    panel.style.setProperty("cursor", kBorderBrushCursorUrl);
+  };
+
+  const styleButtons: HTMLButtonElement[] = [];
+  const weightButtons: HTMLButtonElement[] = [];
+  const refreshBorderToggles = () => {
+    // Style and weight are coupled in the model (style "none" zeroes the
+    // weight, weight 0 turns the style off, and either one can re-arm the
+    // other), so every change refreshes BOTH rows. In brush mode the rows and
+    // the picker show the loaded brush; otherwise the values the current set
+    // agrees on, or none.
+    const shown = mode === "brush" ? brush : agreedInSet(mode);
+    styleButtons.forEach((b) =>
+      setToggleActive(
+        b,
+        shown.style !== undefined && shown.style !== "mixed" && b.dataset.style === shown.style,
+      ),
+    );
+    weightButtons.forEach((b) =>
+      setToggleActive(
+        b,
+        shown.weight !== undefined &&
+          shown.weight !== "mixed" &&
+          Number(b.dataset.weight) === shown.weight,
+      ),
+    );
+    colorValue = shown.color;
+    if (colorRow) setColorInputValue(colorRow, "Border color", colorValue);
+  };
+
+  // Border color sits to the right of Border Style on one line: both describe
+  // the stroke, and the weight row below then reads as the group's last line.
+  const colorRow = offersColor
+    ? makeColorRow(
+        [
+          {
+            label: "Border color",
+            value: colorValue,
+            onInput: (color) => {
+              colorValue = color;
+              if (mode === "brush") {
+                brush = { ...brush, color };
+                updateBorderBrush(brush);
+                return;
+              }
+              applyBorderColor(table, scope, cells(), color, mode);
+              refreshBorderToggles();
+            },
+          },
+        ],
+        { inset: false },
+      )
+    : null;
+
+  for (const style of ["none", "solid", "dashed", "dotted", "double"] as BorderStyle[]) {
+    const b = makeBorderStyleToggle(style, () => {
+      if (mode === "brush") {
+        const next = normalizeEdgeChange(brush, { style });
+        brush = { ...brush, style: next.style, weight: next.weight as BorderWeight };
+        updateBorderBrush(brush);
+      } else {
+        applyBorderStyle(table, scope, cells(), style, mode);
+      }
+      refreshBorderToggles();
+    });
+    styleButtons.push(b);
+  }
+  const styleRow = offersStyle
+    ? makeControlRow("Border Style", styleButtons, { inset: false })
+    : null;
+  if (styleRow || colorRow) {
+    const line = document.createElement("div");
+    Object.assign(line.style, {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: "16px",
+    } as CSSStyleDeclaration);
+    if (styleRow) line.appendChild(styleRow);
+    if (colorRow) line.appendChild(colorRow);
+    panel.appendChild(line);
+  }
+
+  for (const weight of [0, 1, 2, 4] as BorderWeight[]) {
+    const b = makeBorderWeightToggle(weight, () => {
+      if (mode === "brush") {
+        const next = normalizeEdgeChange(brush, { weight });
+        brush = { ...brush, style: next.style, weight: next.weight as BorderWeight };
+        updateBorderBrush(brush);
+      } else {
+        applyBorderWeight(table, scope, cells(), weight, mode);
+      }
+      refreshBorderToggles();
+    });
+    weightButtons.push(b);
+  }
+  if (offersWeight)
+    panel.appendChild(makeControlRow("Border Weight", weightButtons, { inset: false }));
+
+  const tabs = makeScopeTabs(
+    [
+      { id: "all", label: "All", icon: kScopeAllIconSvg },
+      { id: "outer", label: "Outer", icon: kScopeOuterIconSvg },
+      { id: "inner", label: "Inner", icon: kScopeInnerIconSvg, disabled: !hasInner },
+      { id: "brush", label: "Border Brush", icon: kScopeBrushIconSvg },
+    ],
+    mode,
+    (id) => {
+      const chosen = id as BorderScopeMode;
+      if (chosen === "brush") {
+        loadBrush();
+      } else {
+        exitBorderBrushMode();
+        panel.style.removeProperty("cursor");
+      }
+      borderScopeMode = chosen;
+      mode = chosen;
+      caption.textContent = kScopeCaptions[chosen][scope];
+      // Choosing a tab changes no border; it only says which ones the next
+      // choice writes.
+      refreshBorderToggles();
+    },
+  );
+
+  const group = makeScopeGroup(tabs.root, panel);
+
+  // A menu opening on a remembered Border Brush enters the mode now, so the
+  // selected tab and the loaded brush always say the same thing.
+  if (mode === "brush") loadBrush();
+  refreshBorderToggles();
+  return group;
+}
+
+// The formatting controls shared by all four menus: Alignment, Padding, Fill,
+// the border scope group, Corners. Each control applies to every cell in the
 // given scope (the cell / its row / its column / the whole table), so the
 // last command wins regardless of which menu it came from. Toggles light up
 // only when every cell in the scope agrees (mixed state shows none active).
@@ -945,74 +1254,28 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     ),
   );
 
-  // Fill and Border color side by side. Fill's table scope falls back to the
-  // container color so a legacy table-level background still shows as current.
-  // (common() maps "no cell has a fill" to null, which must reach the table
-  // fallback — don't coalesce it to "" before the ?? chain.)
+  // Fill stands alone above the border group: it is the one color here that is
+  // not an edge, so the scope tabs have nothing to say about it. Fill's table
+  // scope falls back to the container color so a legacy table-level background
+  // still shows as current. (common() maps "no cell has a fill" to null, which
+  // must reach the table fallback — don't coalesce it to "" before the ?? chain.)
   const fillValue =
     common((c) => getCellBackground(c)) ??
     (scope === "table" ? getTableBackground(table) : null) ??
     "";
   if (menuOffers(ctx, "fill"))
     els.push(
-      makeColorPairRow([
+      makeColorRow([
         {
           label: "Fill",
           value: fillValue,
           onInput: (color) => applyFill(table, scope, cells(), color || null),
         },
-        {
-          label: "Border color",
-          value: representativeBorderColorHex(seed),
-          onInput: (color) => applyBorderColor(table, scope, cells(), color),
-        },
       ]),
     );
 
-  // Border style and weight, mirroring the sidebar's choices. The shown value
-  // is the one every perimeter edge of every cell in the scope agrees on.
-  const cellEdgeCommon = <T>(pick: (e: { weight: number; style: BorderStyle }) => T) =>
-    common((c) => {
-      const m = getCellPerimeterValueMap(c);
-      const vals = [m.top, m.right, m.bottom, m.left].map(pick);
-      return vals.every((v) => v === vals[0]) ? vals[0] : ("mixed" as const);
-    });
-
-  // Style and weight are coupled in the model (style "none" zeroes the
-  // weight, weight 0 turns the style off, and either one can re-arm the
-  // other), so every change refreshes BOTH toggle rows.
-  const styleButtons: HTMLButtonElement[] = [];
-  const weightButtons: HTMLButtonElement[] = [];
-  const refreshBorderToggles = () => {
-    const curStyle = cellEdgeCommon((e) => e.style);
-    styleButtons.forEach((b) =>
-      setToggleActive(b, curStyle !== undefined && curStyle !== "mixed" && b.dataset.style === curStyle),
-    );
-    const curWeight = cellEdgeCommon((e) => e.weight);
-    weightButtons.forEach((b) =>
-      setToggleActive(
-        b,
-        curWeight !== undefined && curWeight !== "mixed" && Number(b.dataset.weight) === curWeight,
-      ),
-    );
-  };
-  for (const style of ["none", "solid", "dashed", "dotted", "double"] as BorderStyle[]) {
-    const b = makeBorderStyleToggle(style, () => {
-      applyBorderStyle(table, scope, cells(), style);
-      refreshBorderToggles();
-    });
-    styleButtons.push(b);
-  }
-  if (menuOffers(ctx, "borderStyle")) els.push(makeControlRow("Border Style", styleButtons));
-  for (const weight of [0, 1, 2, 4] as BorderWeight[]) {
-    const b = makeBorderWeightToggle(weight, () => {
-      applyBorderWeight(table, scope, cells(), weight);
-      refreshBorderToggles();
-    });
-    weightButtons.push(b);
-  }
-  if (menuOffers(ctx, "borderWeight")) els.push(makeControlRow("Border Weight", weightButtons));
-  refreshBorderToggles();
+  const borderGroup = buildBorderScopeGroup(ctx, scope, table, cells, seed);
+  if (borderGroup) els.push(borderGroup);
 
   // Corners: corner radius (0/4/8/16) applied per cell.
   const cornerButtons: HTMLButtonElement[] = [];
@@ -1087,6 +1350,14 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
 // importers (attach.ts, tests) keep working.
 export { enterPaintFormatMode, exitPaintFormatMode, isPaintFormatModeActive } from "./paint-format";
 
+// Border Brush mode lives in border-brush.ts; re-exported here beside Paint
+// Format, the other modal click mode the menus enter.
+export {
+  enterBorderBrushMode,
+  exitBorderBrushMode,
+  isBorderBrushModeActive,
+} from "./border-brush";
+
 // The rows of the Format section, by the ids the host filters them under. The
 // model does not describe these rows one by one yet, so it says the section is
 // there when the host allows any of them; see CellMenuFormatControls.
@@ -1095,6 +1366,7 @@ const kFormatRowIds = [
   "verticalAlignment",
   "padding",
   "fill",
+  "borderColor",
   "borderStyle",
   "borderWeight",
   "corners",
@@ -1328,6 +1600,15 @@ const sectionBuilders: Record<SectionName, (ctx: MenuCtx) => HTMLElement[]> = {
 function onDocMouseDownForMenu(e: MouseEvent): void {
   const t = e.target as Node | null;
   if (!t) return;
+  // While Border Brush is loaded, a press on a table is a stroke, and the menu
+  // holds the brush the user is painting with, so it must stay open. The grip
+  // strip drags it aside when it covers the edges being painted.
+  if (
+    isBorderBrushModeActive() &&
+    t instanceof Element &&
+    t.closest(".bloom-table")
+  )
+    return;
   if (
     (menuPopup && menuPopup.contains(t)) ||
     (colMenuPill && colMenuPill.contains(t)) ||
@@ -1344,6 +1625,8 @@ function onKeyDownForMenu(e: KeyboardEvent): void {
 }
 
 function closeMenuPopup(): void {
+  // The loaded brush lives in the menu that loaded it, so it goes with it.
+  exitBorderBrushMode();
   if (unmountCellSection) {
     unmountCellSection();
     unmountCellSection = null;
@@ -1840,7 +2123,10 @@ function pointerInActiveZone(table: HTMLElement, x: number, y: number): boolean 
 }
 
 function updateProximityGate(): void {
-  // While painting formats, the pills stay out of the way entirely.
+  // While painting formats, the pills stay out of the way entirely. Border
+  // Brush takes no such branch, here or in applyAnchorPositioning: hiding the
+  // overlays calls hideEdgeOverlays, which closes the popup, and the brush is
+  // loaded from that popup. The pills are left exactly as they are.
   if (isPaintFormatModeActive()) {
     if (overlayTable) hideEdgeOverlays();
     return;

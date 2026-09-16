@@ -28,3 +28,17 @@ export const kInfoIconSvg = `<svg ${kIconAttr}><path d="M11 7h2v2h-2zm0 4h2v6h-2
 export const kPaintRollerPath =
   "M18 4V3c0-.55-.45-1-1-1H5c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h12c.55 0 1-.45 1-1V6h1v4H9v11c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-9h8V4z";
 export const kPaintIconSvg = `<svg ${kIconAttr}><path d="${kPaintRollerPath}"/></svg>`;
+
+// The border scope tabs' 20x20 glyphs: a cell grid whose perimeter square and
+// interior cross say which edges that tab changes. The set the tab does not
+// touch is drawn thin and grey, the set it does is 2px currentColor, so the
+// selected tab's Bloom-blue reaches only the edges it writes.
+export const kScopeAllIconSvg = `<svg width="20" height="20" viewBox="0 0 20 20" style="display:block"><rect x="3" y="3" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 3v14M3 10h14" stroke="currentColor" stroke-width="2"/></svg>`;
+export const kScopeOuterIconSvg = `<svg width="20" height="20" viewBox="0 0 20 20" style="display:block"><path d="M10 3v14M3 10h14" stroke="#c9cdcf" stroke-width="1"/><rect x="3" y="3" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
+export const kScopeInnerIconSvg = `<svg width="20" height="20" viewBox="0 0 20 20" style="display:block"><rect x="3" y="3" width="14" height="14" fill="none" stroke="#c9cdcf" stroke-width="1"/><path d="M10 3v14M3 10h14" stroke="currentColor" stroke-width="2"/></svg>`;
+export const kScopeBrushIconSvg = `<svg width="20" height="20" viewBox="0 0 20 20" style="display:block"><path d="M13.6 2.9l3.5 3.5-7.4 7.4-3.5-3.5z" fill="currentColor"/><path d="M5.5 11.2L2.6 17.4l6.2-2.9z" fill="currentColor"/></svg>`;
+
+// The cursor the table takes while Border Brush is loaded: the same brush,
+// drawn large with a white keyline so it reads over any cell fill. The hotspot
+// is the bristle tip at 3,25.
+export const kBorderBrushCursorUrl = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><path d='M19 2.5l6.5 6.5-11 11-6.5-6.5z' fill='%231d94a4' stroke='white' stroke-width='1.6'/><path d='M7.2 14.8L2.5 25.5l10.7-4.7z' fill='%2319818f' stroke='white' stroke-width='1.6'/></svg>") 3 25, crosshair`;

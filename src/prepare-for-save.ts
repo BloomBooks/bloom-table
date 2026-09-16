@@ -27,6 +27,15 @@ export function setPaintFormatExiter(fn: () => void): void {
   paintFormatExiter = fn;
 }
 
+// Border Brush mode is exited here for the same reasons and through the same
+// indirection: its preview overlays, cursor <style> and body class are all
+// stripped below, and a mode left running with none of them would still
+// swallow every press on a cell and paint an edge.
+let borderBrushExiter: () => void = () => {};
+export function setBorderBrushExiter(fn: () => void): void {
+  borderBrushExiter = fn;
+}
+
 const kHintColorProps = [
   "--hint-top-color",
   "--hint-right-color",
@@ -42,6 +51,7 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
   // nothing on screen to say the mode is on. The mode is module-global state,
   // so it is exited whatever `root` is.
   paintFormatExiter();
+  borderBrushExiter();
 
   stripEditTimeMarkup(root);
 }
@@ -59,10 +69,11 @@ function stripEditTimeMarkup(root: ParentNode): void {
   // takes its child with it; removing an already-detached child is a no-op.
   root.querySelectorAll("[data-table-overlay]").forEach((el) => el.remove());
 
-  // Paint Format mode paints the cursor via a class on <body>. `root` may be
+  // Both click modes paint their cursor via a class on <body>. `root` may be
   // the document, the body itself, or a container above the table.
-  root.querySelectorAll("body").forEach((b) => b.classList.remove("bloom-paint-format"));
-  if (root instanceof Element) root.classList.remove("bloom-paint-format");
+  const kModeClasses = ["bloom-paint-format", "bloom-border-brush"];
+  root.querySelectorAll("body").forEach((b) => b.classList.remove(...kModeClasses));
+  if (root instanceof Element) root.classList.remove(...kModeClasses);
 
   // Transient per-cell hint colors and selection classes left by the renderer
   // and the selection highlighter.

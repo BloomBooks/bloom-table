@@ -5,6 +5,7 @@ import {
   showResizeBoundaryHighlight,
   hideResizeBoundaryHighlight,
 } from "./resize-boundary-highlight";
+import { isBorderBrushModeActive } from "./border-brush";
 
 interface DragState {
   isDragging: boolean;
@@ -171,6 +172,10 @@ export class DragToResize {
   }
 
   private updateCursorOnMouseMove = (event: MouseEvent): void => {
+    // Border Brush claims the same bands at a cell's right and bottom edges,
+    // and it owns them while it runs: a resize cursor there would promise a
+    // drag that the brush's own handlers swallow.
+    if (isBorderBrushModeActive()) return;
     if (this.dragState.isDragging) {
       // If dragging, the cursor is already set and latched, so do nothing here.
       return;
@@ -215,6 +220,9 @@ export class DragToResize {
     }
   }
   private handleMouseDown = (event: MouseEvent): void => {
+    // See updateCursorOnMouseMove: a press in an edge band paints while the
+    // brush is loaded, and must not start a resize drag.
+    if (isBorderBrushModeActive()) return;
     const target = event.target as HTMLElement;
     const resizeInfo = this.getResizeInfo(target, event);
 

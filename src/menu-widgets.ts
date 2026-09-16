@@ -166,28 +166,40 @@ export function makeInfoNote(text: string): HTMLDivElement {
   return row;
 }
 
+// Whether a row carries the menu's own outer padding and left icon gutter. A
+// row inside the border scope panel sits in a box that already provides both,
+// so it takes `inset: false` and draws flush.
+export type RowOptions = { inset?: boolean };
+
 // A control group: the command label on one line, then its chooser buttons on
 // the line below (indented to align under the label text).
-export function makeControlRow(label: string, controls: HTMLElement[]): HTMLDivElement {
+export function makeControlRow(
+  label: string,
+  controls: HTMLElement[],
+  opts: RowOptions = {},
+): HTMLDivElement {
+  const inset = opts.inset !== false;
   const wrap = document.createElement("div");
-  wrap.style.padding = "4px 14px";
+  wrap.style.padding = inset ? "4px 14px" : "4px 0";
   wrap.style.boxSizing = "border-box";
 
   const labelLine = document.createElement("div");
   Object.assign(labelLine.style, { display: "flex", alignItems: "center" } as CSSStyleDeclaration);
-  const slot = document.createElement("span");
-  slot.style.flex = `0 0 ${kIconSlotPx}px`;
+  if (inset) {
+    const slot = document.createElement("span");
+    slot.style.flex = `0 0 ${kIconSlotPx}px`;
+    labelLine.appendChild(slot);
+  }
   const text = document.createElement("span");
   text.textContent = label;
   Object.assign(text.style, { fontSize: "13px", color: "#222" } as CSSStyleDeclaration);
-  labelLine.appendChild(slot);
   labelLine.appendChild(text);
 
   const controlsLine = document.createElement("div");
   Object.assign(controlsLine.style, {
     display: "flex",
     gap: "4px",
-    paddingLeft: `${kIconSlotPx}px`,
+    paddingLeft: inset ? `${kIconSlotPx}px` : "0",
     marginTop: "2px",
   } as CSSStyleDeclaration);
   controls.forEach((c) => controlsLine.appendChild(c));
@@ -195,6 +207,19 @@ export function makeControlRow(label: string, controls: HTMLElement[]): HTMLDivE
   wrap.appendChild(labelLine);
   wrap.appendChild(controlsLine);
   return wrap;
+}
+
+// A line of explanatory text at the top of the border scope panel, saying in
+// words which edges the selected tab writes.
+export function makeCaption(text: string): HTMLDivElement {
+  const c = document.createElement("div");
+  c.textContent = text;
+  Object.assign(c.style, {
+    font: "400 11px/1.3 system-ui, sans-serif",
+    color: kBloomBlue,
+    paddingBottom: "9px",
+  } as CSSStyleDeclaration);
+  return c;
 }
 
 export function setToggleActive(btn: HTMLButtonElement, active: boolean): void {
@@ -494,18 +519,40 @@ export function makeColorInput(label: string, value: string, onInput: (v: string
   return wrap;
 }
 
+// Point a color input made by makeColorInput (or a row holding one, found by
+// its aria-label) at a new value. Anything but a six-digit hex shows the
+// crossed-out swatch, which is how a picker says it has no selection: the
+// border scope panel uses it when the edges in scope disagree about color.
+export function setColorInputValue(root: HTMLElement, label: string, value: string): void {
+  const input = root.querySelector<HTMLInputElement>(
+    `input[type="color"][aria-label="${label}"]`,
+  );
+  if (!input) return;
+  const isSet = /^#[0-9a-fA-F]{6}$/.test(value);
+  input.value = isSet ? value : "#ffffff";
+  // The crossed-out swatch is the input's sibling div inside makeColorInput's
+  // wrapper. (A plain child walk, not ":scope", which happy-dom cannot match.)
+  const noColor = Array.from(input.parentElement?.children ?? []).find(
+    (el) => el !== input && el.tagName === "DIV",
+  ) as HTMLElement | undefined;
+  if (noColor) noColor.style.display = isSet ? "none" : "block";
+}
+
 export type ColorEntry = { label: string; value: string; onInput: (v: string) => void };
 
-// Two labeled color pickers side by side on one row (Fill | Border color).
-export function makeColorPairRow(entries: [ColorEntry, ColorEntry]): HTMLDivElement {
+// One or more labeled color pickers side by side on one row. Fill stands alone
+// above the border scope group; Border color sits inside the panel, where it
+// takes `inset: false` so it lines up with the panel's other rows.
+export function makeColorRow(entries: ColorEntry[], opts: RowOptions = {}): HTMLDivElement {
+  const inset = opts.inset !== false;
   const wrap = document.createElement("div");
-  wrap.style.padding = "4px 14px";
+  wrap.style.padding = inset ? "4px 14px" : "4px 0";
   wrap.style.boxSizing = "border-box";
   const line = document.createElement("div");
   Object.assign(line.style, {
     display: "flex",
     gap: "16px",
-    paddingLeft: `${kIconSlotPx}px`,
+    paddingLeft: inset ? `${kIconSlotPx}px` : "0",
   } as CSSStyleDeclaration);
   for (const e of entries) {
     const col = document.createElement("div");
@@ -523,4 +570,156 @@ export function makeColorPairRow(entries: [ColorEntry, ColorEntry]): HTMLDivElem
   }
   wrap.appendChild(line);
   return wrap;
+}
+
+// ===== Border scope chooser: folder tabs joined to their panel =====
+// The tabs and the panel share one 1px outline. Each tab overlaps its
+// neighbour and the panel's top edge by a pixel (the negative margins below),
+// and the selected tab paints its bottom border in the panel's background, so
+// the outline runs from the tab into the panel and the two read as one shape.
+// That overlap is the whole point of the arrangement: a tab drawn as a
+// separate box no longer says the choosers below it are its body.
+
+export type ScopeTab = { id: string; label: string; icon: string; disabled?: boolean };
+
+const kScopeOutline = "#2D8294";
+const kScopeUnselectedFill = "#f1f3f4";
+const kScopeHoverFill = "#d7ecf1";
+
+export function makeScopeTabs(
+  tabs: ScopeTab[],
+  selectedId: string,
+  onSelect: (id: string) => void,
+): { root: HTMLDivElement; select(id: string): void } {
+  const root = document.createElement("div");
+  root.setAttribute("role", "tablist");
+  root.setAttribute("aria-label", "Which borders to change");
+  Object.assign(root.style, {
+    display: "flex",
+    paddingLeft: "1px",
+  } as CSSStyleDeclaration);
+
+  const buttons: HTMLButtonElement[] = [];
+
+  const paint = (b: HTMLButtonElement, selected: boolean): void => {
+    const disabled = b.disabled;
+    b.setAttribute("aria-selected", selected ? "true" : "false");
+    b.style.background = selected ? "#fff" : kScopeUnselectedFill;
+    b.style.border = `1px solid ${selected ? kScopeOutline : "rgba(0,0,0,0.12)"}`;
+    b.style.borderBottomColor = selected ? "#fff" : kScopeOutline;
+    b.style.color = selected ? kBloomBlue : "rgba(0,0,0,0.5)";
+    b.style.opacity = disabled ? "0.45" : "1";
+    b.style.cursor = disabled ? "default" : "pointer";
+  };
+
+  const select = (id: string): void => {
+    for (const b of buttons) paint(b, b.dataset.scope === id);
+  };
+
+  const move = (from: HTMLButtonElement, step: number): void => {
+    const start = buttons.indexOf(from);
+    for (let i = start + step; i >= 0 && i < buttons.length; i += step) {
+      if (buttons[i].disabled) continue;
+      select(buttons[i].dataset.scope!);
+      buttons[i].focus();
+      onSelect(buttons[i].dataset.scope!);
+      return;
+    }
+  };
+
+  for (const tab of tabs) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.dataset.scope = tab.id;
+    b.title = tab.label;
+    Object.assign(b.style, {
+      flex: "1",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "3px",
+      padding: "6px 0",
+      font: "400 10px/1 system-ui, sans-serif",
+      position: "relative",
+      zIndex: "2",
+      margin: tab === tabs[tabs.length - 1] ? "0 0 -1px 0" : "0 -1px -1px 0",
+      borderRadius: "0",
+      boxSizing: "border-box",
+    } as CSSStyleDeclaration);
+    const glyph = document.createElement("span");
+    glyph.style.display = "block";
+    glyph.innerHTML = tab.icon;
+    b.appendChild(glyph);
+    const text = document.createElement("span");
+    text.textContent = tab.label;
+    b.appendChild(text);
+    if (tab.disabled) {
+      b.disabled = true;
+      b.setAttribute("aria-disabled", "true");
+    }
+    paint(b, tab.id === selectedId);
+    // Every other button in these menus keeps the caret where it was, so the
+    // command acts on the cell the user was editing.
+    b.addEventListener("mousedown", (e) => e.preventDefault());
+    if (!tab.disabled) {
+      b.addEventListener("mouseenter", () => {
+        if (b.getAttribute("aria-selected") !== "true") b.style.background = kScopeHoverFill;
+      });
+      b.addEventListener("mouseleave", () => {
+        if (b.getAttribute("aria-selected") !== "true")
+          b.style.background = kScopeUnselectedFill;
+      });
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        // The selected tab is already in effect. Reporting it again would make
+        // the Border Brush tab reload its brush from the table and discard the
+        // style, weight and color the user has set on it.
+        if (b.getAttribute("aria-selected") === "true") return;
+        select(tab.id);
+        onSelect(tab.id);
+      });
+      b.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        e.stopPropagation();
+        move(b, e.key === "ArrowLeft" ? -1 : 1);
+      });
+    }
+    buttons.push(b);
+    root.appendChild(b);
+  }
+
+  return { root, select };
+}
+
+// The body of the selected tab: the caption and the border choosers, in a box
+// whose outline the selected tab opens into. It sits below the tabs in the DOM
+// and a layer beneath them, so their overlapping pixel covers its top edge.
+export function makeScopePanel(): HTMLDivElement {
+  const panel = document.createElement("div");
+  panel.setAttribute("role", "tabpanel");
+  Object.assign(panel.style, {
+    position: "relative",
+    zIndex: "1",
+    border: `1px solid ${kScopeOutline}`,
+    background: "#fff",
+    padding: "10px 12px 12px",
+    borderRadius: "0",
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  return panel;
+}
+
+// Tabs and panel together, indented so the group's left edge lines up with the
+// label text of the rows above and below it rather than with their icon gutter.
+export function makeScopeGroup(tabs: HTMLElement, panel: HTMLElement): HTMLDivElement {
+  const group = document.createElement("div");
+  Object.assign(group.style, {
+    padding: `4px 14px 4px ${14 + kIconSlotPx}px`,
+    boxSizing: "border-box",
+  } as CSSStyleDeclaration);
+  group.appendChild(tabs);
+  group.appendChild(panel);
+  return group;
 }
