@@ -1,0 +1,39 @@
+{
+  "name": "bloom-table",
+  "version": "0.1.0",
+  "description": "A TypeScript library for editing tables/grids in pure html",
+  "keywords": [
+    "grid",
+    "table",
+    "typescript"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/bloom-table.umd.js",
+  "module": "dist/bloom-table.mjs",
+  "types": "dist/bloom-table.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/bloom-table.d.mts",
+      "import": "./dist/bloom-table.mjs",
+      "require": "./dist/bloom-table.umd.js"
+    },
+    "./bloom-table.css": "./dist/bloom-table.css",
+    "./bloom-table-edit.css": "./dist/bloom-table-edit.css",
+    "./table-menu.css": "./dist/table-menu.css",
+    "./dist/*": "./dist/*"
+  },
+  "peerDependencies": {
+    "@emotion/react": "^11.0.0",
+    "@emotion/styled": "^11.0.0",
+    "@mui/icons-material": "^5.0.0",
+    "@mui/material": "^5.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
