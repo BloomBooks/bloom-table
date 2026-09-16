@@ -27,11 +27,13 @@ import {
   setColumnWidths,
   setRowHeights,
   setCellAlign,
+  setCellVAlign,
   setCellPadding,
   setCellBackground,
   setCellCorners,
   setTableBackground,
   type CellAlign,
+  type CellVAlign,
 } from "./table-model";
 import {
   getCellPerimeterValueMap,
@@ -159,6 +161,23 @@ export function applyAlignment(
     `${align}, ${describeTarget(table, scope, cells)}`,
     () => {
       for (const c of cells) setCellAlign(c, align);
+      render(table);
+    },
+  );
+}
+
+export function applyVerticalAlignment(
+  table: HTMLElement,
+  scope: FormattingScope,
+  cells: HTMLElement[],
+  align: CellVAlign,
+): void {
+  withHistory(
+    table,
+    "Set Vertical Alignment",
+    `${align}, ${describeTarget(table, scope, cells)}`,
+    () => {
+      for (const c of cells) setCellVAlign(c, align);
       render(table);
     },
   );

@@ -631,6 +631,21 @@ export function render(table: HTMLElement): void {
     }
   });
 
+  // Apply per-cell vertical text alignment from data-valign. The cell is a flex
+  // container, so this is its cross-axis position (align-items). Absent attribute =>
+  // default centering (property cleared). Content that is stretched to fill the cell
+  // by the stylesheet (image, video, nested table) is unaffected, as with data-align.
+  const VALIGN_ITEMS: Record<string, string> = {
+    top: "flex-start",
+    center: "center",
+    bottom: "flex-end",
+  };
+  cells.forEach((cell) => {
+    const v = cell.getAttribute("data-valign") || "";
+    if (VALIGN_ITEMS[v]) cell.style.alignItems = VALIGN_ITEMS[v];
+    else cell.style.removeProperty("align-items");
+  });
+
   // Apply per-cell padding override from data-pad (absent => stylesheet default).
   cells.forEach((cell) => {
     const pad = cell.getAttribute("data-pad");

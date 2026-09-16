@@ -75,7 +75,12 @@ describe("the CellMenuItems component", () => {
     const { cells } = makeTable();
     render(cells[0]);
 
-    expect(rows()).toEqual(["Paint format", "Merge with cell to the right", "Split"]);
+    expect(rows()).toEqual([
+      "Paint format",
+      "Merge with cell to the right",
+      "Merge with cell below",
+      "Split",
+    ]);
     expect(toggles().map((t) => t.dataset.ctId)).toEqual(["text", "table", "image", "video"]);
     // The cell holds text, so that is the pressed toggle.
     expect(toggles().filter((t) => t.getAttribute("aria-pressed") === "true").length).toBe(1);

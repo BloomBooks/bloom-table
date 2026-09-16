@@ -204,7 +204,13 @@ export function setToggleActive(btn: HTMLButtonElement, active: boolean): void {
 }
 
 // A small icon button used inside control rows (content type, alignment).
-export function makeIconToggle(icon: string, title: string, active: boolean, onClick: () => void): HTMLButtonElement {
+export function makeIconToggle(
+  icon: string,
+  title: string,
+  active: boolean,
+  onClick: () => void,
+  iconColor: string = kBloomBlue,
+): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
   b.title = title;
@@ -222,7 +228,7 @@ export function makeIconToggle(icon: string, title: string, active: boolean, onC
     padding: "0",
     boxSizing: "border-box",
   } as CSSStyleDeclaration);
-  setIconSlot(b, icon, kBloomBlue);
+  setIconSlot(b, icon, iconColor);
   setToggleActive(b, active);
   b.addEventListener("mousedown", (e) => e.preventDefault());
   b.addEventListener("click", (e) => {

@@ -825,6 +825,7 @@ describe("inserted rows/columns inherit the source's settings", () => {
     const c01 = getCell(table, 0, 1);
     c00.setAttribute("data-bg", "#ff0000");
     c00.setAttribute("data-align", "end");
+    c00.setAttribute("data-valign", "bottom");
     c01.setAttribute("data-pad", "8px");
     c01.setAttribute("data-corners", '{"radius":4}');
 
@@ -836,6 +837,7 @@ describe("inserted rows/columns inherit the source's settings", () => {
     const n1 = getCell(table, 1, 1);
     expect(n0.getAttribute("data-bg")).toBe("#ff0000");
     expect(n0.getAttribute("data-align")).toBe("end");
+    expect(n0.getAttribute("data-valign")).toBe("bottom");
     expect(n1.getAttribute("data-pad")).toBe("8px");
     expect(n1.getAttribute("data-corners")).toBe('{"radius":4}');
   });

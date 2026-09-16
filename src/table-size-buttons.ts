@@ -12,7 +12,8 @@
 // delete/add hover previews.
 
 import { BloomTable } from "./BloomTable";
-import { getTableInfo, getRowAndColumn } from "./structure";
+import { getTableInfo, getRowAndColumn, canGrowSpan } from "./structure";
+import { visibleCellBounds } from "./resize-boundary-highlight";
 import { buildGrid } from "./grid";
 import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
@@ -45,6 +46,7 @@ import type {
 import { tableMarkupForClipboard } from "./prepare-for-save";
 import {
   getCellAlign,
+  getCellVAlign,
   getSpan,
   getGapX,
   setGapX,
@@ -57,6 +59,7 @@ import {
   getColumnWidths,
   getRowHeights,
   type CellAlign,
+  type CellVAlign,
 } from "./table-model";
 import { representativeBorderColorHex } from "./color-utils";
 import { getCellPerimeterValueMap } from "./border-state";
@@ -66,6 +69,7 @@ import {
   getCellsInScope,
   applyContentType,
   applyAlignment,
+  applyVerticalAlignment,
   applyPadding,
   applyCorners,
   applyFill,
@@ -82,13 +86,18 @@ import {
   isPaintFormatModeActive,
   setPaintFormatOverlayHider,
 } from "./paint-format";
+import { nextSplitSpan } from "./components/spanCommands";
 // Toolbar icons reused on the menu (imported as URLs).
 import columnDeleteIcon from "./components/icons/column-delete.svg";
 import cellMergeIcon from "./components/icons/cell-merge.svg";
+import cellMergeDownIcon from "./components/icons/cell-merge-down.svg";
 import cellSplitIcon from "./components/icons/cell-split.svg";
 import alignLeftIcon from "./components/icons/align-left.svg";
 import alignCenterIcon from "./components/icons/align-center.svg";
 import alignRightIcon from "./components/icons/align-right.svg";
+import alignTopIcon from "./components/icons/align-top.svg";
+import alignMiddleIcon from "./components/icons/align-middle.svg";
+import alignBottomIcon from "./components/icons/align-bottom.svg";
 import cellContentTableIcon from "./components/icons/cell-content-table.svg";
 import menuRowIcon from "./components/icons/menu-row.svg";
 import menuColumnIcon from "./components/icons/menu-column.svg";
@@ -853,7 +862,10 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   const { table, cells, seed, common } = scopeCells(ctx, scope);
   if (!table || !seed) return els;
 
-  // Text alignment: label followed by left/center/right toggles.
+  // Text alignment: label followed by left/center/right toggles. The alignment
+  // glyphs are thin outlined frames, which the menu's blue washes out; they are
+  // drawn black so they can be read.
+  const kAlignIconColor = "#000";
   const aligns: { id: CellAlign; icon: string; title: string }[] = [
     { id: "start", icon: alignLeftIcon, title: "Left" },
     { id: "center", icon: alignCenterIcon, title: "Center" },
@@ -865,16 +877,59 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     alignButtons.forEach((b) => setToggleActive(b, !!cur && b.dataset.align === cur));
   };
   for (const a of aligns) {
-    const b = makeIconToggle(a.icon, a.title, false, () => {
-      applyAlignment(table, scope, cells(), a.id);
-      refreshAlign();
-    });
+    const b = makeIconToggle(
+      a.icon,
+      a.title,
+      false,
+      () => {
+        applyAlignment(table, scope, cells(), a.id);
+        refreshAlign();
+      },
+      kAlignIconColor,
+    );
     b.dataset.align = a.id;
     alignButtons.push(b);
   }
-  if (menuOffers(ctx, "alignment")) {
-    els.push(makeControlRow("Alignment", alignButtons));
-    refreshAlign();
+  // Vertical alignment: three more toggles, on the same row to the right of the
+  // horizontal ones.
+  const vAligns: { id: CellVAlign; icon: string; title: string }[] = [
+    { id: "top", icon: alignTopIcon, title: "Top" },
+    { id: "center", icon: alignMiddleIcon, title: "Middle" },
+    { id: "bottom", icon: alignBottomIcon, title: "Bottom" },
+  ];
+  const vAlignButtons: HTMLButtonElement[] = [];
+  const refreshVAlign = () => {
+    const cur = common((c) => getCellVAlign(c) || "center");
+    vAlignButtons.forEach((b) => setToggleActive(b, !!cur && b.dataset.valign === cur));
+  };
+  for (const a of vAligns) {
+    const b = makeIconToggle(
+      a.icon,
+      a.title,
+      false,
+      () => {
+        applyVerticalAlignment(table, scope, cells(), a.id);
+        refreshVAlign();
+      },
+      kAlignIconColor,
+    );
+    b.dataset.valign = a.id;
+    vAlignButtons.push(b);
+  }
+  const offersAlign = menuOffers(ctx, "alignment");
+  const offersVAlign = menuOffers(ctx, "verticalAlignment");
+  if (offersAlign || offersVAlign) {
+    const controls: HTMLElement[] = [];
+    if (offersAlign) controls.push(...alignButtons);
+    if (offersAlign && offersVAlign) {
+      const gap = document.createElement("span");
+      gap.style.flex = "0 0 10px";
+      controls.push(gap);
+    }
+    if (offersVAlign) controls.push(...vAlignButtons);
+    els.push(makeControlRow("Alignment", controls));
+    if (offersAlign) refreshAlign();
+    if (offersVAlign) refreshVAlign();
   }
 
   // Padding. Seeds from the scope's common value, or the first cell when mixed.
@@ -1035,7 +1090,15 @@ export { enterPaintFormatMode, exitPaintFormatMode, isPaintFormatModeActive } fr
 // The rows of the Format section, by the ids the host filters them under. The
 // model does not describe these rows one by one yet, so it says the section is
 // there when the host allows any of them; see CellMenuFormatControls.
-const kFormatRowIds = ["alignment", "padding", "fill", "borderStyle", "borderWeight", "corners"];
+const kFormatRowIds = [
+  "alignment",
+  "verticalAlignment",
+  "padding",
+  "fill",
+  "borderStyle",
+  "borderWeight",
+  "corners",
+];
 
 /**
  * The Cell menu for `cell`, as data.
@@ -1080,9 +1143,14 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
       invoke: () => enterPaintFormatMode(table, "cell", cells()),
     });
 
-  // Merge needs a column to the right to absorb; Split needs an existing
-  // horizontal span to reduce.
-  const spanX = getSpan(cell).x || 1;
+  // Each merge needs cells beyond the span's far edge to absorb, a column to
+  // the right or a row below, and every one of them must be a plain 1x1 cell:
+  // absorbing a cell that spans, or one already covered by a span, would leave
+  // the slots it claimed hidden with nothing spanning them. Split needs a span
+  // of either kind to reduce.
+  const span = getSpan(cell);
+  const spanX = span.x || 1;
+  const spanY = span.y || 1;
   if (menuOffers(ctx, "merge"))
     items.push({
       kind: "command",
@@ -1090,8 +1158,18 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
       group: "span",
       label: "Merge with cell to the right",
       icon: cellMergeIcon,
-      enabled: ctx.col + spanX < ctx.colCount,
+      enabled: canGrowSpan(cell, 1, 0),
       invoke: () => menuMergeCell(cell),
+    });
+  if (menuOffers(ctx, "merge"))
+    items.push({
+      kind: "command",
+      id: "mergeDown",
+      group: "span",
+      label: "Merge with cell below",
+      icon: cellMergeDownIcon,
+      enabled: canGrowSpan(cell, 0, 1),
+      invoke: () => menuMergeCellDown(cell),
     });
   if (menuOffers(ctx, "split"))
     items.push({
@@ -1100,7 +1178,7 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
       group: "span",
       label: "Split",
       icon: cellSplitIcon,
-      enabled: spanX > 1,
+      enabled: spanX > 1 || spanY > 1,
       invoke: () => menuSplitCell(cell),
     });
 
@@ -1537,6 +1615,18 @@ function menuMergeCell(cellToActOn?: HTMLElement): void {
   } catch {}
 }
 
+function menuMergeCellDown(cellToActOn?: HTMLElement): void {
+  const cell = cellToActOn ?? getMenuCell();
+  const table = (cell ? ownerTable(cell) : null) ?? getMenuTable();
+  if (!table || !cell) return;
+  try {
+    const controller = new BloomTable(table);
+    const s = controller.getSpan(cell);
+    controller.setSpan(cell, s.x || 1, (s.y || 1) + 1);
+    scheduleOverlayReposition();
+  } catch {}
+}
+
 function menuSplitCell(cellToActOn?: HTMLElement): void {
   const cell = cellToActOn ?? getMenuCell();
   const table = (cell ? ownerTable(cell) : null) ?? getMenuTable();
@@ -1544,7 +1634,10 @@ function menuSplitCell(cellToActOn?: HTMLElement): void {
   try {
     const controller = new BloomTable(table);
     const s = controller.getSpan(cell);
-    controller.setSpan(cell, Math.max(1, (s.x || 1) - 1), s.y || 1);
+    // Reduce whichever direction the cell is actually merged in.
+    const next = nextSplitSpan(s.x || 1, s.y || 1);
+    if (!next) return;
+    controller.setSpan(cell, next.x, next.y);
     scheduleOverlayReposition();
   } catch {}
 }
@@ -1738,29 +1831,6 @@ let gateMouseX = 0;
 let gateMouseY = 0;
 let gateRaf = 0;
 let gateInstalled = false; // independent of `installed` so the listener is added exactly once
-
-// Union of the table's visible cell rects (viewport coords); null when the
-// table has no laid-out cells. Shared by the proximity gate,
-// applyAnchorPositioning, and the add-preview geometry.
-function visibleCellBounds(
-  table: HTMLElement,
-): { minL: number; minT: number; maxR: number; maxB: number } | null {
-  let minL = Infinity,
-    minT = Infinity,
-    maxR = -Infinity,
-    maxB = -Infinity;
-  for (const child of Array.from(table.children)) {
-    if (!(child instanceof HTMLElement) || !child.classList.contains("bloom-cell")) continue;
-    const r = child.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) continue;
-    if (r.left < minL) minL = r.left;
-    if (r.top < minT) minT = r.top;
-    if (r.right > maxR) maxR = r.right;
-    if (r.bottom > maxB) maxB = r.bottom;
-  }
-  if (!isFinite(minL) || !isFinite(maxR)) return null;
-  return { minL, minT, maxR, maxB };
-}
 
 function pointerInActiveZone(table: HTMLElement, x: number, y: number): boolean {
   const b = visibleCellBounds(table);

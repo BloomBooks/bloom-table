@@ -32,6 +32,8 @@ import { getCellPerimeterValueMap, getTableOuterBorderValueMap } from "../border
 import {
   getCellAlign,
   setCellAlign,
+  getCellVAlign,
+  setCellVAlign,
   getCellCorners,
   setCellCorners,
   getCellPadding,
@@ -75,6 +77,8 @@ export interface TableApi {
   // per-cell alignment
   getCellAlign: typeof getCellAlign;
   setCellAlign: typeof setCellAlign;
+  getCellVAlign: typeof getCellVAlign;
+  setCellVAlign: typeof setCellVAlign;
   // per-cell corners / padding
   getCellCorners: typeof getCellCorners;
   setCellCorners: typeof setCellCorners;
@@ -113,6 +117,8 @@ export const defaultTableApi: TableApi = {
   getTableOuterBorderValueMap,
   getCellAlign,
   setCellAlign,
+  getCellVAlign,
+  setCellVAlign,
   getCellCorners,
   setCellCorners,
   getCellPadding,

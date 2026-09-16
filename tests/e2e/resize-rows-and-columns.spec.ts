@@ -32,6 +32,38 @@ test.describe("Resize Rows and Columns", () => {
     console.log("Table info:", gridInfo);
   });
 
+  test("shows the boundary line under the pointer, and takes it away after the drag", async ({
+    page,
+  }) => {
+    await page.goto("/demo/ui-harness.html?fixture=basic-table");
+    await page.waitForSelector(".bloom-table");
+
+    const table = page.locator("#main-table");
+    const firstCell = table.locator(".bloom-cell").first();
+    const bounds = (await firstCell.boundingBox())!;
+    expect(bounds).not.toBeNull();
+
+    const line = page.locator('[data-table-overlay="resize-boundary"]');
+
+    // Hover the cell's right edge, where a press would begin a column resize.
+    const edgeX = bounds.x + bounds.width - 2;
+    const midY = bounds.y + bounds.height / 2;
+    await page.mouse.move(edgeX, midY);
+    await expect(line).toBeVisible();
+
+    // The line straddles the cell's right edge.
+    const lineBox = (await line.boundingBox())!;
+    expect(lineBox.x).toBeLessThanOrEqual(bounds.x + bounds.width);
+    expect(lineBox.x + lineBox.width).toBeGreaterThanOrEqual(bounds.x + bounds.width);
+
+    // It follows a drag, and goes when the drag ends.
+    await page.mouse.down();
+    await page.mouse.move(edgeX + 40, midY);
+    await expect(line).toBeVisible();
+    await page.mouse.up();
+    await expect(line).toBeHidden();
+  });
+
   test("updates row height and UI during drag operations", async ({ page }) => {
     await page.goto("/demo/ui-harness.html?fixture=basic-table");
 

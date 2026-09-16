@@ -32,15 +32,18 @@ test.describe("dragging the popup menu", () => {
     const grip = (await handle.boundingBox())!;
     const fromX = grip.x + grip.width / 2;
     const fromY = grip.y + grip.height / 2;
+    // Drag UP, not down: the popup is nearly as tall as the window, so the drag
+    // would be clamped at the bottom edge and measure the clamp instead of the
+    // drag. There is room above, because the menu opens below the first cell.
     await page.mouse.move(fromX, fromY);
     await page.mouse.down();
-    await page.mouse.move(fromX + 120, fromY + 60, { steps: 8 });
+    await page.mouse.move(fromX + 120, fromY - 50, { steps: 8 });
     await page.mouse.up();
 
     await expect(popup).toBeVisible();
     const after = (await popup.boundingBox())!;
     expect(Math.abs(after.x - (before.x + 120))).toBeLessThanOrEqual(2);
-    expect(Math.abs(after.y - (before.y + 60))).toBeLessThanOrEqual(2);
+    expect(Math.abs(after.y - (before.y - 50))).toBeLessThanOrEqual(2);
 
     // A click outside the popup and the table still closes it.
     await page.mouse.click(760, 560);

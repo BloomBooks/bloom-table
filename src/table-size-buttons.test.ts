@@ -338,6 +338,72 @@ describe("the cell context menu", () => {
     expect(document.body.contains(table)).toBe(true);
   });
 
+  it("sets a cell's vertical alignment from the Format section", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+
+    rightClick(cells[0].querySelector("[contenteditable]") as HTMLElement);
+    const popup = menuPopup()!;
+    // The vertical toggles share the Alignment row; there is no row of their own.
+    expect(popup.textContent).not.toContain("Vertical alignment");
+    const row = popup.querySelector<HTMLElement>('[data-valign="bottom"]')!.parentElement!;
+    expect(row.querySelector('[data-align="start"]')).not.toBe(null);
+
+    click(popup.querySelector<HTMLElement>('[data-valign="bottom"]')!);
+
+    expect(cells[0].getAttribute("data-valign")).toBe("bottom");
+    expect(cells[0].style.alignItems).toBe("flex-end");
+
+    // Undo restores the table's markup, so the cell has to be looked up again.
+    tableHistoryManager.undo(table);
+    expect(table.querySelector(".bloom-cell")!.getAttribute("data-valign")).toBe(null);
+  });
+
+  it("merges the cell downward, then Split restores it", () => {
+    const { table, cells } = makeTable();
+    focusCell(cells[0]);
+
+    rightClick(cells[0].querySelector("[contenteditable]") as HTMLElement);
+    expect(menuPopup()).not.toBe(null);
+    click(menuItem("Merge with cell below")!);
+
+    expect(cells[0].getAttribute("data-span-y")).toBe("2");
+    expect(cells[2].classList.contains("bloom-skip")).toBe(true);
+
+    rightClick(cells[0].querySelector("[contenteditable]") as HTMLElement);
+    click(menuItem("Split")!);
+
+    expect(cells[0].getAttribute("data-span-y") ?? "1").toBe("1");
+    expect(cells[2].classList.contains("bloom-skip")).toBe(false);
+    expect(document.body.contains(table)).toBe(true);
+  });
+
+  it("offers Merge with cell below greyed out in the last row", () => {
+    const { cells } = makeTable();
+    focusCell(cells[2]);
+
+    rightClick(cells[2].querySelector("[contenteditable]") as HTMLElement);
+    const item = menuItem("Merge with cell below")!;
+    expect(item).not.toBe(null);
+    expect(item.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("greys out a merge that would swallow a cell that already spans", () => {
+    const { cells } = makeTable();
+    // Row 1 becomes one wide cell: r1c0 spans right over r1c1.
+    focusCell(cells[2]);
+    rightClick(cells[2].querySelector("[contenteditable]") as HTMLElement);
+    click(menuItem("Merge with cell to the right")!);
+    expect(cells[2].getAttribute("data-span-x")).toBe("2");
+
+    // r0c0 growing down would cover r1c0, whose own span still claims r1c1.
+    focusCell(cells[0]);
+    rightClick(cells[0].querySelector("[contenteditable]") as HTMLElement);
+    expect(menuItem("Merge with cell below")!.getAttribute("aria-disabled")).toBe("true");
+    // Growing right over a plain 1x1 cell is still fine.
+    expect(menuItem("Merge with cell to the right")!.getAttribute("aria-disabled")).not.toBe("true");
+  });
+
   it("merges the cell that was right-clicked, not the one that is selected", () => {
     const { cells } = makeTable();
     focusCell(cells[0]); // cell r0c0 is the selected cell
@@ -660,6 +726,7 @@ describe("the host's Cell menu item filter", () => {
     expect(menuText()).toContain("Format");
     expect(menuItem("Paint format")).not.toBe(null);
     expect(menuItem("Merge with cell to the right")).not.toBe(null);
+    expect(menuItem("Merge with cell below")).not.toBe(null);
     expect(menuItem("Split")).not.toBe(null);
   });
 
@@ -677,6 +744,7 @@ describe("the host's Cell menu item filter", () => {
     expect(menuText()).not.toContain("Format");
     expect(menuItem("Paint format")).toBe(null);
     expect(menuItem("Merge with cell to the right")).toBe(null);
+    expect(menuItem("Merge with cell below")).toBe(null);
     expect(menuItem("Split")).toBe(null);
   });
 
@@ -690,9 +758,11 @@ describe("the host's Cell menu item filter", () => {
 
     openCellMenuOn(reduced.cells[0]);
     expect(menuItem("Merge with cell to the right")).toBe(null);
+    expect(menuItem("Merge with cell below")).toBe(null);
 
     openCellMenuOn(plain.cells[0]);
     expect(menuItem("Merge with cell to the right")).not.toBe(null);
+    expect(menuItem("Merge with cell below")).not.toBe(null);
     expect(menuText()).toContain("Format");
   });
 
@@ -706,6 +776,7 @@ describe("the host's Cell menu item filter", () => {
     expect(contentTypeIds()).toContain("text");
     expect(menuItem("Split")).toBe(null);
     expect(menuItem("Merge with cell to the right")).not.toBe(null);
+    expect(menuItem("Merge with cell below")).not.toBe(null);
     expect(menuText()).toContain("Format");
   });
 
@@ -858,6 +929,28 @@ describe("the Cell menu as data", () => {
     // take the cell to the right.
     expect(commandOf(cells[0], "split").enabled).toBe(false);
     expect(commandOf(cells[0], "merge").enabled).toBe(true);
+  });
+
+  it("disables merging down in the last row, and enables it above", () => {
+    const { cells } = makeTable();
+
+    expect(commandOf(cells[0], "mergeDown").enabled).toBe(true);
+    expect(commandOf(cells[2], "mergeDown").enabled).toBe(false);
+  });
+
+  it("merges down, and then Split reduces the vertical span", () => {
+    const { cells } = makeTable();
+
+    commandOf(cells[0], "mergeDown").invoke();
+
+    expect(cells[0].getAttribute("data-span-y")).toBe("2");
+    expect(cells[2].classList.contains("bloom-skip")).toBe(true);
+    expect(commandOf(cells[0], "split").enabled).toBe(true);
+
+    commandOf(cells[0], "split").invoke();
+
+    expect(cells[0].getAttribute("data-span-y") ?? "1").toBe("1");
+    expect(cells[2].classList.contains("bloom-skip")).toBe(false);
   });
 });
 

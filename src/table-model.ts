@@ -202,6 +202,23 @@ export function setCellAlign(cell: HTMLElement, align: CellAlign | null): void {
   else cell.setAttribute("data-align", align);
 }
 
+// Vertical text alignment within a cell. Default (no attribute) is center, matching the
+// structural CSS. The vertical axis does not flip with writing direction, so these name the
+// edges directly rather than start/end.
+export type CellVAlign = "top" | "center" | "bottom";
+
+export function getCellVAlign(cell: HTMLElement): CellVAlign | null {
+  assert(cell.classList.contains("bloom-cell"), "getCellVAlign: not a cell");
+  const v = cell.getAttribute("data-valign");
+  return v === "top" || v === "center" || v === "bottom" ? v : null;
+}
+
+export function setCellVAlign(cell: HTMLElement, align: CellVAlign | null): void {
+  assert(cell.classList.contains("bloom-cell"), "setCellVAlign: not a cell");
+  if (!align) cell.removeAttribute("data-valign");
+  else cell.setAttribute("data-valign", align);
+}
+
 // Per-cell padding override (CSS padding shorthand string, e.g. "6px 16px"). Absent => the
 // stylesheet default (--cell-padding). Rendered as inline padding so it wins over the default.
 export function getCellPadding(cell: HTMLElement): string | null {

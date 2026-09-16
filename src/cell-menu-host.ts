@@ -24,18 +24,22 @@
  *
  * - `contentType` is the Content Type row, and `contentType:<id>` is one type
  *   within it, so `contentType:image` is the Image button.
- * - `alignment`, `padding`, `fill`, `borderStyle`, `borderWeight` and `corners`
- *   are the rows of the Format section. `fill` is the row that holds both colour
- *   pickers, Fill and Border color, because they share one row.
+ * - `alignment`, `verticalAlignment`, `padding`, `fill`, `borderStyle`,
+ *   `borderWeight` and `corners` are the rows of the Format section. `fill` is
+ *   the row that holds both colour pickers, Fill and Border color, because they
+ *   share one row.
  * - `paintFormat` is Paint format, in the Cell, Row and Column menus.
  *   `copyProperties` and `pasteProperties` are its Table menu counterparts.
- * - `merge` and `split` are the Cell menu's span commands.
+ * - `merge` and `split` are the Cell menu's span commands. `merge` covers both
+ *   merge commands, "Merge with cell to the right" and "Merge with cell below",
+ *   so a host that offers merging offers it in both directions.
  *
  * A `contentType:<id>` is only asked about once its row has been allowed.
  */
 export const cellMenuItemIds = [
   "contentType",
   "alignment",
+  "verticalAlignment",
   "padding",
   "fill",
   "borderStyle",

@@ -1,6 +1,10 @@
 import { tableHistoryManager } from "./history";
 import { setColumnWidth, getTableCells, getTableInfo, getRowAndColumn } from "./structure";
 import { render } from "./table-renderer";
+import {
+  showResizeBoundaryHighlight,
+  hideResizeBoundaryHighlight,
+} from "./resize-boundary-highlight";
 
 interface DragState {
   isDragging: boolean;
@@ -82,6 +86,11 @@ export class DragToResize {
 
     this.attachedTables.delete(div);
     tableHistoryManager.detachTable(div); // Remove event listeners
+    // A table removed while the pointer rests in its edge band fires no
+    // mouseleave, so the line would otherwise stay painted over whatever
+    // replaces it.
+    this.setHoverCursor(null, null);
+    hideResizeBoundaryHighlight();
     div.removeEventListener("mousemove", this.updateCursorOnMouseMove);
     div.removeEventListener("mousedown", this.handleMouseDown);
     div.removeEventListener("dblclick", this.handleDoubleClick);
@@ -118,7 +127,16 @@ export class DragToResize {
    * target is whatever the host has painted on top.
    */
   resizeEdgeAtPoint(event: MouseEvent): "row" | "column" | null {
+    // During a drag the pointer leaves the edge band at once; the drag's own
+    // move handler keeps the line on the track being resized, so do not let the
+    // host's per-move call hide it or draw it at some other cell.
+    if (this.dragState.isDragging) return this.dragState.dragType;
     const resizeInfo = this.getResizeInfoAtPoint(event);
+    // The host draws its own cursor, but the boundary line is ours to show, so a
+    // host asking this on every mouse move gets the highlight without asking for it.
+    if (resizeInfo)
+      showResizeBoundaryHighlight(resizeInfo.table, resizeInfo.type, resizeInfo.boundary);
+    else hideResizeBoundaryHighlight();
     return resizeInfo ? resizeInfo.type : null;
   }
 
@@ -167,8 +185,10 @@ export class DragToResize {
       // listeners that ProximityDiv and the proximity gate use to track the
       // pointer, freezing them whenever the cursor sat in a cell's edge band.
       this.setHoverCursor(target, resizeInfo.type === "row" ? "ns-resize" : "ew-resize");
+      showResizeBoundaryHighlight(resizeInfo.table, resizeInfo.type, resizeInfo.boundary);
     } else {
       this.setHoverCursor(null, null);
+      hideResizeBoundaryHighlight();
     }
   };
 
@@ -245,6 +265,7 @@ export class DragToResize {
     // mouseleave does not bubble, so event.target is the table div itself; the
     // element we actually styled may be a content node inside a cell.
     this.setHoverCursor(null, null);
+    hideResizeBoundaryHighlight();
     (event.target as HTMLElement).style.removeProperty("cursor");
   };
 
@@ -286,7 +307,50 @@ export class DragToResize {
     } else if (this.dragState.dragType === "row") {
       this.updateRowHeightPreview(this.dragState.targetElement, deltaY);
     }
+
+    // The hovered cell's rect is stale as soon as the track moves, so the line
+    // has to be measured again from the track being dragged.
+    this.updateHighlightForDrag();
   };
+
+  /**
+   * Put the boundary line back on the edge of the track the drag is moving,
+   * after the preview has re-laid the table out. Hides it when no cell of that
+   * track has a measurable rect.
+   */
+  private updateHighlightForDrag(): void {
+    const table = this.dragState.targetElement;
+    const type = this.dragState.dragType;
+    const index = this.dragState.targetIndex;
+    if (!table || !type) return;
+    let boundary: number | null = null;
+    try {
+      // Cells sit in row-major order, one per grid slot (covered slots keep a
+      // hidden cell), so a cell's position follows from its index and the
+      // column count; asking getRowAndColumn per cell would walk the table
+      // once per cell on every mouse move.
+      const columnCount = getTableInfo(table).columnCount;
+      const cells = getTableCells(table);
+      for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        if (cell.classList.contains("bloom-skip")) continue;
+        const spanX = Math.max(1, parseInt(cell.getAttribute("data-span-x") || "1", 10) || 1);
+        const spanY = Math.max(1, parseInt(cell.getAttribute("data-span-y") || "1", 10) || 1);
+        const row = Math.floor(i / columnCount);
+        const column = i % columnCount;
+        const ends = type === "row" ? row + spanY - 1 : column + spanX - 1;
+        if (ends !== index) continue;
+        const rect = cell.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        boundary = type === "row" ? rect.bottom : rect.right;
+        break;
+      }
+    } catch {
+      boundary = null;
+    }
+    if (boundary == null) hideResizeBoundaryHighlight();
+    else showResizeBoundaryHighlight(table, type, boundary);
+  }
 
   private handleGlobalMouseUp = (): void => {
     if (this.dragState.isDragging && this.dragState.hasStartedOperation) {
@@ -309,6 +373,7 @@ export class DragToResize {
     } catch {}
     this.resetDragState();
     this.setHoverCursor(null, null);
+    hideResizeBoundaryHighlight();
     document.body.style.cursor = "default"; // Release cursor
   }
   private commitResizeOperation(): void {
@@ -489,6 +554,10 @@ export class DragToResize {
     element: HTMLElement;
     currentValue: string;
     index: number;
+    // The line a drag would move, in viewport coordinates: y for a row, x for a
+    // column. Measured here so callers showing the highlight need not re-measure.
+    boundary: number;
+    table: HTMLElement;
   } | null {
     const cell = target.closest<HTMLElement>(".bloom-cell");
 
@@ -528,6 +597,8 @@ export class DragToResize {
           element: table, // We store height info on the table, not individual cells
           currentValue: currentHeight,
           index: rowIndex,
+          boundary: rect.bottom,
+          table,
         };
       }
     }
@@ -545,6 +616,8 @@ export class DragToResize {
           element: table,
           currentValue: widthArray[columnIndex] || "hug",
           index: columnIndex,
+          boundary: rect.right,
+          table,
         };
       }
     }

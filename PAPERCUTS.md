@@ -39,3 +39,16 @@ both show up as text and pictures jammed against the line drawn around them.
   on the cell directly, or re-set `--this-padding` on the nested table in CSS).
 - **Context:** every one of the four nested tables in
   `demo/exercises/primer-lesson-story.html` carries both workarounds.
+
+## 2026-09-16 — A stale dev server on 5173 makes e2e test the wrong source
+
+- **Cut:** `playwright.config.ts` sets `reuseExistingServer: true`, so whatever is already
+  listening on 5173 serves the tests. A dev server left over from an earlier session, or
+  started in a different checkout of this repo, serves stale modules, and a brand new source
+  file 404s. The failure reads as a broken feature: the element the spec waits for is never
+  created, and nothing in the output names the server.
+- **Check:** `curl http://localhost:5173/src/<new-file>.ts` returning 404.
+- **Workaround:** start a dev server on a free port and run with
+  `BASE_URL=http://localhost:<port>`.
+- **Idea:** have the config probe the existing server for a known source path, or pick a
+  port per checkout, before reusing it.

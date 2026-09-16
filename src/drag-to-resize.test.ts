@@ -47,6 +47,9 @@ function makeTable(columnWidths: string, rowHeights: string, firstCellAttrs = ""
   return table;
 }
 
+const boundaryHighlight = () =>
+  document.querySelector<HTMLElement>('[data-table-overlay="resize-boundary"]');
+
 function mouseDownAt(el: HTMLElement, clientX: number, clientY: number) {
   el.dispatchEvent(new MouseEvent("mousedown", { clientX, clientY, bubbles: true }));
 }
@@ -115,6 +118,64 @@ describe("drag to resize", () => {
     otherChild.dispatchEvent(new MouseEvent("mousemove", { clientX: 140, clientY: 170, bubbles: true }));
     expect(edgeChild.style.cursor).toBe("");
     expect(otherChild.style.cursor).toBe("");
+
+    detachTable(table);
+  });
+
+  it("draws the boundary line a hover over a column edge would grab", () => {
+    const table = makeTable("hug,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    child.dispatchEvent(new MouseEvent("mousemove", { clientX: 198, clientY: 120, bubbles: true }));
+
+    const line = boundaryHighlight()!;
+    expect(line).not.toBe(null);
+    expect(line.style.display).toBe("block");
+    // The 4px line straddles column 0's right edge at x=200...
+    expect(line.style.left).toBe("198px");
+    expect(line.style.width).toBe("4px");
+    // ...and runs the full height of the table's cells (two rows of 50).
+    expect(line.style.top).toBe("100px");
+    expect(line.style.height).toBe("100px");
+
+    // Away from any edge it goes again.
+    child.dispatchEvent(new MouseEvent("mousemove", { clientX: 140, clientY: 120, bubbles: true }));
+    expect(line.style.display).toBe("none");
+
+    detachTable(table);
+  });
+
+  it("draws the boundary line across the table for a row edge", () => {
+    const table = makeTable("hug,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    child.dispatchEvent(new MouseEvent("mousemove", { clientX: 140, clientY: 148, bubbles: true }));
+
+    const line = boundaryHighlight()!;
+    expect(line.style.display).toBe("block");
+    expect(line.style.top).toBe("148px");
+    expect(line.style.height).toBe("4px");
+    expect(line.style.left).toBe("100px");
+    expect(line.style.width).toBe("200px");
+
+    detachTable(table);
+  });
+
+  it("takes the boundary line away when the drag ends", () => {
+    const table = makeTable("100px,hug", "hug,hug");
+    const cells = layOutGrid(table);
+    const child = cells[0].firstElementChild as HTMLElement;
+
+    child.dispatchEvent(new MouseEvent("mousemove", { clientX: 198, clientY: 120, bubbles: true }));
+    expect(boundaryHighlight()!.style.display).toBe("block");
+
+    mouseDownAt(child, 198, 120);
+    moveDocument(238, 120);
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    expect(boundaryHighlight()!.style.display).toBe("none");
 
     detachTable(table);
   });

@@ -143,6 +143,26 @@ describe("table-renderer", () => {
     expect(right.style.textAlign).toBe("right");
   });
 
+  it("applies per-cell vertical alignment from data-valign", () => {
+    const table = makeTable();
+    table.setAttribute("data-column-widths", "50px,50px,50px");
+    table.setAttribute("data-row-heights", "50px");
+    const top = addCell(table);
+    top.setAttribute("data-valign", "top");
+    const middle = addCell(table); // no attribute => default centering
+    const bottom = addCell(table);
+    bottom.setAttribute("data-valign", "bottom");
+    render(table);
+    expect(top.style.alignItems).toBe("flex-start");
+    expect(middle.style.alignItems).toBe(""); // default, untouched
+    expect(bottom.style.alignItems).toBe("flex-end");
+
+    // Removing the attribute clears the inline property again.
+    top.removeAttribute("data-valign");
+    render(table);
+    expect(top.style.alignItems).toBe("");
+  });
+
   it("applies per-cell corner radius from data-corners", () => {
     const table = makeTable();
     table.setAttribute("data-column-widths", "50px,50px");

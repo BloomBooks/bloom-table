@@ -95,7 +95,13 @@ export type { SpanCover } from "./grid";
 // kind of cell" without copying its content. This is THE definition shared by
 // row/column insertion (structure.ts) and the copy/paste-properties clipboard
 // (formatting-commands.ts) — extend it here so the consumers can't drift.
-const CELL_SETTING_ATTRS = ["data-bg", "data-align", "data-pad", "data-corners"] as const;
+const CELL_SETTING_ATTRS = [
+  "data-bg",
+  "data-align",
+  "data-valign",
+  "data-pad",
+  "data-corners",
+] as const;
 
 export type CellSettings = Partial<Record<(typeof CELL_SETTING_ATTRS)[number], string | null>> & {
   contentType?: string;
@@ -744,6 +750,42 @@ export function setCellSpan(cell: HTMLElement, newHorizontalSpan: number, newVer
       const coveredCell = getCell(table, r, c);
       coveredCell.classList.add("bloom-skip");
     }
+  }
+}
+
+/**
+ * Whether a cell's span can grow by `dx` columns and `dy` rows.
+ *
+ * Every slot the larger span would newly cover has to be inside the table and
+ * hold a plain 1x1 cell that no other span covers. setCellSpan itself only
+ * checks the table bounds: growing over a cell that spans, or over one already
+ * covered, would hide that cell while the slots it claimed stay hidden with
+ * nothing spanning them.
+ */
+export function canGrowSpan(cell: HTMLElement, dx: number, dy: number): boolean {
+  const table = cell.closest<HTMLElement>(".bloom-table");
+  if (!table) return false;
+  try {
+    const { rowCount, columnCount } = getTableInfo(table);
+    const { row, column } = getRowAndColumn(table, cell);
+    const spanX = parseInt(cell.getAttribute("data-span-x") || "1") || 1;
+    const spanY = parseInt(cell.getAttribute("data-span-y") || "1") || 1;
+    const newX = spanX + dx;
+    const newY = spanY + dy;
+    if (column + newX > columnCount || row + newY > rowCount) return false;
+    for (let r = row; r < row + newY; r++) {
+      for (let c = column; c < column + newX; c++) {
+        const alreadyCovered = r < row + spanY && c < column + spanX;
+        if (alreadyCovered) continue;
+        const covered = getCell(table, r, c);
+        if (covered.classList.contains("bloom-skip")) return false;
+        if ((parseInt(covered.getAttribute("data-span-x") || "1") || 1) > 1) return false;
+        if ((parseInt(covered.getAttribute("data-span-y") || "1") || 1) > 1) return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
