@@ -15,3 +15,36 @@
 - A host that has to show a cell's items beside items of its own renders the exported React component `CellMenuItems` inside its own MUI menu. It is the component the library's own popup mounts, so there is one renderer of these items and the two menus cannot come to differ: the commands are MUI `MenuItem` rows with the library's icons, the Content Type row is its label on one line and the options below it as toggle buttons with the chosen one pressed, and a divider falls wherever the item group changes. It heads them with a "Table Cell" section heading, small, grey and upper case like the library's other section headings but starting at the left edge of the menu's content rather than at the icon gutter, so the same heading appears wherever the items do and the library's popup adds none of its own; a cell whose host filters every item away gets no heading either. The props are `cell` (the cell whose menu this is), `localize`, `closeMenu` and `renderFormatControls`. The items come already filtered by `setCellMenuItemFilter`, and each acts on the cell it was given. Labels are English, because the library does not localize; pass `localize: (englishLabel, id) => string` to supply your own wording, where `id` is the item's id, `<choice id>:<option id>` for one button of the Content Type row, or `tableCell` for the heading. `closeMenu` is called just before a command runs, so the host's menu is out of the way of whatever the command changes; choosing a content type leaves the menu open. Because the component is the menu's currency, react, react-dom, @mui/material, @mui/icons-material and @emotion/react are required peer dependencies, and a host must supply the one shared copy of React.
   - The Format rows are sliders and colour pickers, and they are still the library's own DOM widgets: the component draws them only where the host passes `renderFormatControls: (container) => void`, which the library's popup does and a host need not. A host that leaves it out gets no Format section, and gains one for free if those rows ever become part of the component.
 - The right-click reaches such a host through `setCellMenuOpenHandler((cell, table, position) => boolean)`. A right-click on a cell asks the handler first; a handler that answers true has opened a menu of its own and the library opens none, and one that answers false leaves the menu to the library, as does having no handler. Bloom answers true for a picture in a calendar month grid, where the menu has to carry the image commands as well as the content type, and false everywhere else. Together with `CellMenuItems` and `openCellMenu` this gives a host both routes to one menu whose cell items come from the library.
+
+## Releases
+
+**Releasing is on demand — nothing publishes when you merge.** Push your work to `master`,
+then run the `Release` workflow (Actions -> Release -> Run workflow) and pick `patch`,
+`minor` or `major`. One click does the whole thing:
+
+1. builds `dist/` from the current `master`
+2. only if that build succeeded: bumps the version in `package.json` and commits that to
+   `master`
+3. publishes the immutable tag `dist-v<new version>`, holding `dist/` plus a package.json
+   trimmed to entry points, exports and peer dependencies
+4. writes a GitHub Release whose notes are the commit subjects since the last release
+
+The run's summary prints the exact line to paste into Bloom. Publishing is **refused if
+`dist-v<version>` already exists** — tags are immutable, so choose a larger bump or pass an
+exact `version` input.
+
+Bloom installs the tag as a GitHub dependency, because Bloom is yarn 1 and cannot build this
+pnpm + vite-plus project on install:
+
+```jsonc
+// src/BloomBrowserUI/package.json
+"bloom-table": "github:BloomBooks/bloom-table#dist-v1.0.1",
+```
+
+Pin the exact ref, not a semver range: the tag _is_ the version, so different Bloom branches
+can hold different library builds and re-installing an unchanged ref can never change what
+Bloom gets. To work against a local build instead, run `pnpm build` here and `pnpm link
+bloom-table` in Bloom.
+
+`dist/` is gitignored and lives only in those tags; `master` carries source only. This is not
+on npm. See the header comment in `.github/workflows/release.yml`.
