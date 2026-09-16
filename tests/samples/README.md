@@ -32,6 +32,11 @@ can't express, the library itself gets fixed.
   alignment), that's a **real gap**: implement it in the library, or file the sample under
   `ai-gaveup` with the gap recorded in `NOTES.md`. Don't paper over it with raw CSS.
 
+  **Except how the text itself looks.** Font family, size, weight, italics and text colour are
+  the host's (see the root `README.md`), so a target whose display letter is large or whose
+  caption is italic is matched only in structure. That difference is not a gap, doesn't go in
+  `NOTES.md`, and doesn't hold a sample back from `ai-success`.
+
 ## Files
 
 - `NN.png` — target design (input). The thing we're trying to reproduce.

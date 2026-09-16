@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Primer Lesson Story</title>
+    <link rel="stylesheet" href="../../src/bloom-table.css" />
+    <link rel="stylesheet" href="../../src/bloom-table-edit.css" />
+  </head>
+  <body>
+    <div
+      id="page"
+      style="
+        background: white;
+        width: 148mm;
+        height: 210mm;
+        padding: 4mm;
+        box-sizing: border-box;
+        font-family: Andika, 'Segoe UI', Arial, sans-serif;
+      "
+    >
+      <!-- One table. The three boxes down the page are its three rows: the row
+           gap separates them and the default edge draws each box, so no edge
+           array is needed at this level.
+
+           Each panel's contents are a nested table, and a nested table is
+           pinned to its host cell's padding box, so the host cell's padding
+           cannot move it. "inset: 10px; width: auto; height: auto" is what
+           holds the contents clear of the box drawn around them; width and
+           height have to go to auto or the table keeps its full width and
+           spills out to the right. -->
+      <div
+        id="main-table"
+        class="bloom-table"
+        data-column-widths="fill"
+        data-row-heights="376px,170px,140px"
+        data-gap-y="12px"
+        data-border-default='{"weight":1,"style":"solid","color":"black"}'
+      >
+        <!-- The lesson: the letter, the story sentence, Didi, her words, and
+             the syllables. Only the picture carries a box, so the two edge
+             arrays name its four sides and nothing else. -->
+        <div class="bloom-cell" data-content-type="table">
+          <div
+            class="bloom-table"
+            style="inset: 10px; width: auto; height: auto; --this-padding: 8px 10px"
+            data-column-widths="180px,fill"
+            data-row-heights="hug,200px,84px"
+            data-gap-y="8px"
+            data-border-default='{"style":"none"}'
+            data-edges-h='[
+              [null,null],
+              [{"south":{"weight":1,"style":"solid","color":"black"}},null],
+              [{"north":{"weight":1,"style":"solid","color":"black"}},null],
+              [null,null]
+            ]'
+            data-edges-v='[
+              [null,null,null],
+              [{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},null],
+              [null,null,null]
+            ]'
+          >
+            <div class="bloom-cell" data-content-type="text">
+              <div contenteditable="true">D d</div>
+            </div>
+            <div class="bloom-cell" data-content-type="text" data-align="start" style="align-items: flex-start">
+              <div contenteditable="true">Didi save duim olketa samting olsem yu save duim tu.</div>
+            </div>
+
+            <!-- Didi, with her name and her letter beside her -->
+            <div class="bloom-cell" data-content-type="table">
+              <div
+                class="bloom-table"
+                style="--this-padding: 8px 10px"
+                data-column-widths="fill,56px"
+                data-row-heights="fill"
+                data-border-default='{"style":"none"}'
+              >
+                <div class="bloom-cell" data-content-type="image">
+                  <!-- The picture is stretched over its whole cell, so its own
+                       padding is what keeps it off the box around it. -->
+                  <img src="/demo/didi.png" alt="Didi" style="box-sizing: border-box; padding: 6px" />
+                </div>
+                <div class="bloom-cell" data-content-type="text" data-align="start">
+                  <div contenteditable="true">Didi<br />d</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Her other words, in two columns under one heading -->
+            <div class="bloom-cell" data-content-type="table">
+              <div
+                class="bloom-table"
+                style="--this-padding: 8px 10px"
+                data-column-widths="120px,fill"
+                data-row-heights="hug,44px,44px,44px"
+                data-border-default='{"style":"none"}'
+              >
+                <div class="bloom-cell" data-content-type="text" data-span-x="2" data-align="start">
+                  <div contenteditable="true">Samfala wod moa wea hem stat wetem 'd'</div>
+                </div>
+                <div class="bloom-cell bloom-skip" data-content-type="text"><div contenteditable="true"></div></div>
+                <div class="bloom-cell" data-content-type="text" data-align="start"><div contenteditable="true">duim</div></div>
+                <div class="bloom-cell" data-content-type="text" data-align="start"><div contenteditable="true">deferen</div></div>
+                <div class="bloom-cell" data-content-type="text" data-align="start"><div contenteditable="true">dokta</div></div>
+                <div class="bloom-cell" data-content-type="text" data-align="start"><div contenteditable="true">danis</div></div>
+                <div class="bloom-cell" data-content-type="text" data-align="start"><div contenteditable="true">dog</div></div>
+                <div class="bloom-cell" data-content-type="text" data-align="start"><div contenteditable="true">diswan</div></div>
+              </div>
+            </div>
+
+            <!-- One box per vowel. The column gap is what separates the five
+                 boxes; every edge is drawn, so each box closes on all sides. -->
+            <div class="bloom-cell" data-content-type="table" data-span-x="2">
+              <div
+                class="bloom-table"
+                data-column-widths="fill,fill,fill,fill,fill"
+                data-row-heights="fill"
+                data-gap-x="8px"
+                data-border-default='{"style":"none"}'
+                data-edges-h='[
+                  [{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"}],
+                  [{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"}]
+                ]'
+                data-edges-v='[
+                  [{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"},{"weight":1,"style":"solid","color":"black"}]
+                ]'
+              >
+                <div class="bloom-cell" data-content-type="text" data-align="start" data-pad="4px 6px">
+                  <div contenteditable="true">a<br />da<br />dak</div>
+                </div>
+                <div class="bloom-cell" data-content-type="text" data-align="start" data-pad="4px 6px">
+                  <div contenteditable="true">e<br />de<br />deferen</div>
+                </div>
+                <div class="bloom-cell" data-content-type="text" data-align="start" data-pad="4px 6px">
+                  <div contenteditable="true">i<br />di<br />disfala</div>
+                </div>
+                <div class="bloom-cell" data-content-type="text" data-align="start" data-pad="4px 6px">
+                  <div contenteditable="true">o<br />do<br />dog</div>
+                </div>
+                <div class="bloom-cell" data-content-type="text" data-align="start" data-pad="4px 6px">
+                  <div contenteditable="true">u<br />du<br />duim</div>
+                </div>
+              </div>
+            </div>
+            <div class="bloom-cell bloom-skip" data-content-type="text"><div contenteditable="true"></div></div>
+          </div>
+        </div>
+
+        <!-- What to write in your exercise book. The lines to write on are
+             underlines under the words, as they are in the printed page. -->
+        <div class="bloom-cell" data-content-type="table">
+          <div
+            class="bloom-table"
+            style="inset: 10px; width: auto; height: auto; --this-padding: 8px 10px"
+            data-column-widths="80px,fill"
+            data-row-heights="hug,fill"
+            data-border-default='{"style":"none"}'
+          >
+            <div class="bloom-cell" data-content-type="image">
+              <img
+                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='64' viewBox='0 0 120 64'><g transform='rotate(-18 60 32)' fill='none' stroke='black' stroke-width='2'><polygon points='26,22 100,22 100,42 26,42' /><polygon points='26,22 26,42 8,32' fill='black' /><line x1='40' y1='22' x2='40' y2='42' /><line x1='100' y1='22' x2='112' y2='22' /><line x1='100' y1='42' x2='112' y2='42' /><line x1='112' y1='22' x2='112' y2='42' /></g></svg>"
+                alt="Pencil"
+                style="box-sizing: border-box; padding: 6px"
+              />
+            </div>
+            <div class="bloom-cell" data-content-type="text" data-align="start" style="align-items: flex-start">
+              <div contenteditable="true">
+                Raetem olketa leta an wod ya insaet long eksasaes buk blong yu<br />
+                <span style="text-decoration: underline">D d D d D d D d D d D d D d</span><br />
+                <span style="text-decoration: underline">Didi dans deferen diswan dokta duim dolfin</span>
+              </div>
+            </div>
+            <div
+              class="bloom-cell"
+              data-content-type="text"
+              data-span-x="2"
+              data-align="start"
+              style="align-items: flex-start"
+            >
+              <div contenteditable="true">
+                <span style="text-decoration: underline"
+                  >Raetem tufala sentens abaotem samfala samting Didi hem duim.</span
+                >
+              </div>
+            </div>
+            <div class="bloom-cell bloom-skip" data-content-type="text"><div contenteditable="true"></div></div>
+          </div>
+        </div>
+
+        <!-- And what the story made you feel -->
+        <div class="bloom-cell" data-content-type="table">
+          <div
+            class="bloom-table"
+            style="inset: 10px; width: auto; height: auto; --this-padding: 8px 10px"
+            data-column-widths="80px,fill"
+            data-row-heights="fill"
+            data-border-default='{"style":"none"}'
+          >
+            <div class="bloom-cell" data-content-type="image">
+              <img
+                src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='64' viewBox='0 0 120 64'><g transform='rotate(-18 60 32)' fill='none' stroke='black' stroke-width='2'><polygon points='26,22 100,22 100,42 26,42' /><polygon points='26,22 26,42 8,32' fill='black' /><line x1='40' y1='22' x2='40' y2='42' /><line x1='100' y1='22' x2='112' y2='22' /><line x1='100' y1='42' x2='112' y2='42' /><line x1='112' y1='22' x2='112' y2='42' /></g></svg>"
+                alt="Pencil"
+                style="box-sizing: border-box; padding: 6px"
+              />
+            </div>
+            <div class="bloom-cell" data-content-type="text" data-align="start">
+              <div contenteditable="true">
+                Raetem samfala wod wea hem somaot hao nao yu fil taem yu herem disfala stori.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

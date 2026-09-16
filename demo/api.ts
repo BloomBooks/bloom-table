@@ -43,10 +43,14 @@ export async function getExamples(req, res, next) {
         }
       }
       return {
+        // The sidebar shows this, so a file name becomes a title: hyphens and
+        // underscores read as spaces, a camelCase hump starts a new word, and
+        // every word takes a capital.
         name: file
           .replace(".html", "")
           .replace(/([a-z])([A-Z])/g, "$1 $2")
-          .replace(/^\w/, (c) => c.toUpperCase())
+          .replace(/[-_]+/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase())
           .replace(/\d+/, (match) => ` ${match}`),
         htmlFile: file,
         pngFile: pngExists ? pngFile : undefined,
