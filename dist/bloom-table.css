@@ -1,0 +1,87 @@
+/* bloom-table: structural / read-time styles.
+   These rules are required wherever a table is rendered, including static
+   reader/publish views that do not run the table's JavaScript. The edit-only
+   styles (selection highlighting, boundary hints, contenteditable
+   affordances) live in bloom-table-edit.css and should be included only in an
+   editing context. */
+
+:root {
+  --cell-bg: #fff;
+  --cell-padding: 8px 10px;
+  /* Default edge border (used by renderer when no data-border-default is provided) */
+  --edge-default-weight: 1;
+  --edge-default-style: solid;
+  --edge-default-color: #000;
+}
+
+.bloom-table {
+  display: grid;
+  width: 100%;
+  height: 100%;
+
+  gap: var(--gap, 0);
+  background: var(--bg, transparent);
+}
+
+.bloom-cell {
+  background: var(--cell-bg);
+  padding: var(--cell-padding);
+
+  background: var(--this-bg, var(--cell-bg));
+  padding: var(--this-padding, var(--cell-padding));
+
+  grid-column: span var(--span-x, 1);
+  grid-row: span var(--span-y, 1);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* A skipped cell is one that is logically "covered" by
+   a previous cell's row or column span. We hide it
+   completely so the CSS grid layout ignores it. */
+.bloom-cell.bloom-skip {
+  display: none;
+}
+
+.bloom-cell:nth-of-type(odd) {
+  border-radius: var(--cell-border-radius-odd);
+}
+/* removed outline-based even-cell override */
+
+/* Remove padding when the cell contains a table */
+.bloom-cell[data-content-type="table"] {
+  --this-padding: 0;
+}
+
+/* Non-text content (image, video, nested table) conforms to its cell rather
+   than the other way around. The content element is taken out of normal flow so
+   its intrinsic size never drives the grid track size (which would otherwise
+   make the cell grow when switching content type); it is then stretched to fill
+   whatever size the cell already has. Switching a cell's content type therefore
+   never changes the cell's size. */
+.bloom-cell[data-content-type="image"],
+.bloom-cell[data-content-type="video"],
+.bloom-cell[data-content-type="table"] {
+  position: relative;
+  /* clip, not hidden: a hidden box is still a scroll container, and focusing a
+     cell of a nested table (e.g. the new cell after an add) scrolls it into
+     view. The stuck scrollTop then shifts the whole nested table out of
+     alignment with the host cell's borders. clip forbids all scrolling. */
+  overflow: clip;
+}
+.bloom-cell[data-content-type="image"] > img,
+.bloom-cell[data-content-type="video"] > video,
+.bloom-cell[data-content-type="table"] > .bloom-table {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Replaced media is scaled to fit (preserving aspect ratio) inside that box. */
+.bloom-cell[data-content-type="image"] > img,
+.bloom-cell[data-content-type="video"] > video {
+  object-fit: contain;
+}

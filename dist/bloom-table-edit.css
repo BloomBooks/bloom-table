@@ -1,0 +1,169 @@
+/* bloom-table: edit-time-only styles.
+   Selection highlighting, boundary hints, and contenteditable affordances.
+   These are NOT needed when rendering a saved table statically (e.g. in a
+   reader/publish view); include them only in an editor. A host app that strips
+   edit-mode stylesheets before saving (as Bloom does) should load this file
+   there so it never reaches published output. Requires bloom-table.css. */
+
+:root {
+  /* Selection highlight */
+  --selected-cell-bg: #3d82950e;
+
+  --selected-table-outline-color: #3d8295;
+  --selected-table-outline-width: 1px;
+  --selected-table-outline-offset: 1px;
+  --selected-table-outline-style: dotted;
+  /* Subtle boundary hint color (very faint) */
+  --table-hint-color: rgba(0, 0, 0, 0.15);
+}
+
+/* All of the editing chrome below (selection outline, selected-cell tint,
+   boundary hints) is gated on .bloom-pointer-near: table-size-buttons.ts adds
+   it to the table while the pointer is inside the table's active zone (the
+   same zone that reveals the "+"/menu pills, held open while a menu popup is
+   up) and removes it when the mouse moves away. With nested tables the class
+   can land on either the outer or the inner table (focus targets the inner,
+   the mouse gate the outer), so the :is(...) forms match a selected table
+   that IS the near table, is inside it, or contains it. */
+
+/* Selected outlines (non-intrusive, no layout shift) */
+.bloom-cell.cell--selected {
+  position: relative; /* establish containing block for overlay */
+}
+.bloom-table:is(.bloom-pointer-near, .bloom-pointer-near *, :has(.bloom-pointer-near))
+  .bloom-cell.cell--selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Use a single variable with a default (~90% transparent blue) */
+  background: var(--selected-cell-bg);
+  pointer-events: none; /* don't block editing/clicks */
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.bloom-table.table--selected:is(
+    .bloom-pointer-near,
+    .bloom-pointer-near *,
+    :has(.bloom-pointer-near)
+  ) {
+  outline: var(--selected-table-outline-width) var(--selected-table-outline-style, solid)
+    var(--selected-table-outline-color);
+  outline-offset: var(--selected-table-outline-offset);
+}
+
+/* The table the user has entered ("current table"): the one that owns the
+   selected cell, and the only table whose "+" buttons and pill menus exist. A
+   top-level table carries no mark — its chrome is the only chrome there has
+   ever been — so this shows only on a NESTED table, to say which level the
+   next edit will act on. Not gated on .bloom-pointer-near: it answers "where
+   am I", which stays true when the pointer wanders off. */
+.bloom-table.bloom-current-table {
+  outline: 2px solid var(--selected-table-outline-color);
+  outline-offset: 2px;
+}
+
+/* Boundary hints: while the table is selected AND the pointer is near it,
+   every cell of that table gets a faint dashed outline all the way around, so
+   cells whose borders are invisible stay findable. Drawn just inside the cell
+   edge, so it overlays the outer pixel of a real border — faint enough to be
+   unobtrusive there. The child combinator keeps a selected outer table from
+   outlining the cells of nested tables. */
+.bloom-table.table--selected:is(
+    .bloom-pointer-near,
+    .bloom-pointer-near *,
+    :has(.bloom-pointer-near)
+  )
+  > .bloom-cell {
+  outline: 1px dashed var(--table-hint-color);
+  outline-offset: -1px;
+}
+
+/* --- Selection / affected-region highlight ---------------------------------
+   When the user mouses into a toolbar section, pulse-highlight.ts marks the
+   region that section's controls would change (table / row / column / cell)
+   with a single overlay (.bloom-sel-overlay) drawn as "marching ants" around
+   the region. It is edit-only and transient (added on mouseenter, removed on
+   mouseleave) and tagged data-table-overlay so prepare-for-save strips it. */
+:root {
+  --bloom-pulse-color: #3d8295; /* ants color */
+  --bloom-pulse-duration: 1.1s; /* march speed */
+  --bloom-ants-opacity: 1; /* overall opacity of the ants */
+  --bloom-ants-dash: 8px; /* length of each dash */
+  --bloom-ants-gap: 8px; /* space between dashes */
+  --bloom-ants-thickness: 2px; /* line thickness */
+  --bloom-ants-period: calc(var(--bloom-ants-dash) + var(--bloom-ants-gap));
+}
+
+/* Marching by exactly one dash+gap period keeps any dash/gap seamless. */
+@keyframes bloom-ants-kf {
+  to {
+    background-position:
+      var(--bloom-ants-period) 0,
+      calc(-1 * var(--bloom-ants-period)) 100%,
+      0 calc(-1 * var(--bloom-ants-period)),
+      100% var(--bloom-ants-period);
+  }
+}
+
+/* One box covering a whole region so the highlight reads as a single area
+   rather than per-cell boxes. Four gradient edges form the dashed perimeter. */
+.bloom-sel-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 40;
+  box-sizing: border-box;
+  background-color: transparent;
+  opacity: var(--bloom-ants-opacity);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--bloom-pulse-color) 0 var(--bloom-ants-dash),
+      transparent var(--bloom-ants-dash) var(--bloom-ants-period)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--bloom-pulse-color) 0 var(--bloom-ants-dash),
+      transparent var(--bloom-ants-dash) var(--bloom-ants-period)
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--bloom-pulse-color) 0 var(--bloom-ants-dash),
+      transparent var(--bloom-ants-dash) var(--bloom-ants-period)
+    ),
+    repeating-linear-gradient(
+      0deg,
+      var(--bloom-pulse-color) 0 var(--bloom-ants-dash),
+      transparent var(--bloom-ants-dash) var(--bloom-ants-period)
+    );
+  background-size:
+    100% var(--bloom-ants-thickness),
+    100% var(--bloom-ants-thickness),
+    var(--bloom-ants-thickness) 100%,
+    var(--bloom-ants-thickness) 100%;
+  background-position:
+    0 0,
+    0 100%,
+    0 0,
+    100% 0;
+  background-repeat: no-repeat;
+  animation: bloom-ants-kf var(--bloom-pulse-duration) linear infinite;
+}
+
+.bloom-cell > div[contenteditable="true"] {
+  min-width: 2em; /* without a min-width, you can't click in an empty cell that was added dynamically*/
+  text-align: center;
+  /*padding: 1em; /* Give it some clickable area around the text so that it's not hard to get your cursor in there when there is no text
+  box-sizing: border-box; /* for padding not to increase total size */
+  /*background-color: aqua;*/
+}
+
+[contenteditable]:focus {
+  outline: none;
+}
+
+/* Cells can receive focus directly (e.g. clicking an image/table cell selects
+   it). The selection is shown via .cell--selected, so suppress the default ring. */
+.bloom-cell:focus {
+  outline: none;
+}
