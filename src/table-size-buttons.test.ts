@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
 import {
+  effectivePaddingPx,
   getCellMenuItems,
   isBorderBrushModeActive,
+  paddingLabel,
   openCellMenu,
   removeTable,
   resetTableSizeButtons,
@@ -1299,5 +1301,38 @@ describe("the border scope tabs", () => {
     expect(tabs().length).toBe(0);
     expect(panel()).toBe(null);
     expect(menuPopup()!.querySelector('input[aria-label="Fill"]')).not.toBe(null);
+  });
+});
+
+describe("the padding slider", () => {
+  it("names what the padding surrounds", () => {
+    expect(paddingLabel("text")).toBe("Padding between border and text");
+    expect(paddingLabel("image")).toBe("Padding between border and image");
+    expect(paddingLabel("video")).toBe("Padding between border and video");
+  });
+
+  it("falls back to a neutral name when the selected cells hold different things", () => {
+    expect(paddingLabel(undefined)).toBe("Padding inside the cell");
+  });
+
+  it("shows the padding the cell actually has when none has been set on it", () => {
+    const cell = document.createElement("div");
+    cell.className = "bloom-cell";
+    // Stands in for the stylesheet's --cell-padding, which happy-dom does not apply.
+    cell.style.padding = "8px 10px";
+    document.body.appendChild(cell);
+    expect(cell.hasAttribute("data-pad"), "Sanity check: no padding set on the cell").toBe(false);
+    expect(effectivePaddingPx(cell)).toBe(8);
+    cell.remove();
+  });
+
+  it("shows the padding set on the cell when there is one", () => {
+    const cell = document.createElement("div");
+    cell.className = "bloom-cell";
+    cell.setAttribute("data-pad", "3px");
+    cell.style.padding = "8px 10px";
+    document.body.appendChild(cell);
+    expect(effectivePaddingPx(cell)).toBe(3);
+    cell.remove();
   });
 });

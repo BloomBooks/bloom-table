@@ -1241,14 +1241,15 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     if (offersVAlign) refreshVAlign();
   }
 
-  // Padding. Seeds from the scope's common value, or the first cell when mixed.
+  // Padding. Seeds from the scope's common value, or the first cell when mixed. The label names
+  // what the padding surrounds, since a picture cell has no text to be padded.
   if (menuOffers(ctx, "padding"))
     els.push(
       makeSliderRow(
-      "Padding between border and text",
+      paddingLabel(common((c) => getCurrentContentTypeId(c))),
       0,
       40,
-      common((c) => firstPx(getCellPadding(c))) ?? firstPx(getCellPadding(seed)),
+      common((c) => effectivePaddingPx(c)) ?? effectivePaddingPx(seed),
       "px",
       (v) => applyPadding(table, scope, cells(), v),
     ),
@@ -2737,4 +2738,27 @@ function updatePillTargetPreviewGeometry() {
 function attachPillTargetPreview(pill: HTMLButtonElement, kind: MenuKind): void {
   pill.addEventListener("mouseenter", () => showPillTargetPreview(kind));
   pill.addEventListener("mouseleave", hidePillTargetPreview);
+}
+
+/** What the padding slider is called, given the content type every selected cell shares. */
+export function paddingLabel(contentTypeId: string | undefined): string {
+  const inside: Record<string, string> = {
+    text: "text",
+    image: "image",
+    video: "video",
+    table: "table",
+  };
+  const what = contentTypeId ? inside[contentTypeId] : undefined;
+  return what ? `Padding between border and ${what}` : "Padding inside the cell";
+}
+
+/**
+ * The padding a cell has, in px. A cell nobody has set padding on carries no data-pad and gets the
+ * stylesheet's --cell-padding, so read what the browser applies rather than calling that 0: a
+ * slider at 0 over a cell that visibly has padding cannot be dragged down to remove it.
+ */
+export function effectivePaddingPx(cell: HTMLElement): number {
+  const set = getCellPadding(cell);
+  if (set) return firstPx(set);
+  return parseFloat(getComputedStyle(cell).paddingTop) || 0;
 }
