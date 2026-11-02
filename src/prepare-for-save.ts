@@ -76,7 +76,7 @@ export function removeTableEditingMarkup(root: ParentNode): void {
   // the document, the body itself, or a container above the table.
   const kModeClasses = ["bloom-paint-format", "bloom-border-brush"];
   root.querySelectorAll("body").forEach((b) => b.classList.remove(...kModeClasses));
-  if (root instanceof Element) root.classList.remove(...kModeClasses);
+  asElement(root)?.classList.remove(...kModeClasses);
 
   // Transient per-cell hint colors and selection classes left by the renderer
   // and the selection highlighter.
@@ -102,8 +102,15 @@ export function removeTableEditingMarkup(root: ParentNode): void {
 // the table, or a cell, as the root.
 function selfAndDescendants(root: ParentNode, selector: string): HTMLElement[] {
   const found = Array.from(root.querySelectorAll<HTMLElement>(selector));
-  if (root instanceof HTMLElement && root.matches(selector)) found.unshift(root);
+  const rootElement = asElement(root);
+  if (rootElement?.matches(selector)) found.unshift(rootElement as HTMLElement);
   return found;
+}
+
+// `root` as an Element, if it is one. By node type rather than instanceof, which is false for an
+// element from another frame (a host may clean a page in an iframe from its parent's module).
+function asElement(root: ParentNode): Element | undefined {
+  return (root as Node).nodeType === Node.ELEMENT_NODE ? (root as Element) : undefined;
 }
 
 /**
