@@ -80,7 +80,7 @@ export function removeTableEditingMarkup(root: ParentNode): void {
 
   // Transient per-cell hint colors and selection classes left by the renderer
   // and the selection highlighter.
-  root.querySelectorAll<HTMLElement>(".bloom-cell").forEach((cell) => {
+  selfAndDescendants(root, ".bloom-cell").forEach((cell) => {
     kHintColorProps.forEach((p) => cell.style.removeProperty(p));
     cell.classList.remove("cell--selected", "bloom-pulse-fill", "bloom-pulse-border");
   });
@@ -89,13 +89,21 @@ export function removeTableEditingMarkup(root: ParentNode): void {
   // meaningful within the session that minted them; saved copies collide with
   // the next session's names (its counter restarts), anchoring the pills to
   // the wrong cell.
-  root.querySelectorAll<HTMLElement>("[data-btable-anchor-name]").forEach((el) => {
+  selfAndDescendants(root, "[data-btable-anchor-name]").forEach((el) => {
     el.style.removeProperty("anchor-name");
     delete el.dataset.btableAnchorName;
   });
-  root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
+  selfAndDescendants(root, ".bloom-table").forEach((table) => {
     table.classList.remove("table--selected", "bloom-pointer-near", "bloom-current-table");
   });
+}
+
+// The elements under `root` that match `selector`, and `root` itself if it does: a host may pass
+// the table, or a cell, as the root.
+function selfAndDescendants(root: ParentNode, selector: string): HTMLElement[] {
+  const found = Array.from(root.querySelectorAll<HTMLElement>(selector));
+  if (root instanceof HTMLElement && root.matches(selector)) found.unshift(root);
+  return found;
 }
 
 /**

@@ -44,6 +44,22 @@ describe("removeTableEditingArtifacts", () => {
     expect(document.querySelector("[data-table-overlay]")).not.toBe(null);
   });
 
+  it("cleans the root itself when the root is the table", () => {
+    document.body.innerHTML = `
+      <div class="bloom-table table--selected bloom-current-table"
+           data-column-widths="hug" data-row-heights="hug">
+        <div class="bloom-cell cell--selected"><div contenteditable>a</div></div>
+      </div>`;
+    const copy = document.querySelector(".bloom-table")!.cloneNode(true) as HTMLElement;
+    expect(copy.classList.contains("table--selected")).toBe(true); // sanity check
+
+    removeTableEditingMarkup(copy);
+
+    expect(copy.classList.contains("table--selected")).toBe(false);
+    expect(copy.classList.contains("bloom-current-table")).toBe(false);
+    expect(copy.querySelector(".cell--selected")).toBe(null);
+  });
+
   it("strips minted anchor names along with selection classes", () => {
     document.body.innerHTML = `
       <div class="bloom-table table--selected bloom-pointer-near"
