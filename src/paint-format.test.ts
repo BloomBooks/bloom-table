@@ -8,7 +8,7 @@ import {
   isPaintFormatModeActive,
 } from "./table-size-buttons";
 import { paintProperties, snapshotCellProperties } from "./formatting-commands";
-import { removeTableEditingArtifacts } from "./prepare-for-save";
+import { removeTableEditingArtifacts, removeTableEditingMarkup } from "./prepare-for-save";
 import {
   getCellBackground,
   getColumnWidths,
@@ -215,6 +215,19 @@ describe("paint format mode", () => {
 
     enterPaintFormatMode(table, "cell", [cells[0]]);
     expect(document.head.querySelector(selector)).not.toBe(null);
+  });
+
+  it("cleaning a copy of the document leaves the mode running", () => {
+    const { table, cells } = makeTable();
+    enterPaintFormatMode(table, "cell", [cells[0]]);
+    expect(isPaintFormatModeActive()).toBe(true);
+
+    // A host saving a copy while the user goes on painting cleans the copy only.
+    const copy = document.body.cloneNode(true) as HTMLElement;
+    removeTableEditingMarkup(copy);
+
+    expect(isPaintFormatModeActive()).toBe(true);
+    expect(copy.querySelector("[data-table-overlay]")).toBe(null);
   });
 
   it("prepare-for-save exits the mode instead of leaving it armed and invisible", () => {

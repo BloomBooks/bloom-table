@@ -53,14 +53,17 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
   paintFormatExiter();
   borderBrushExiter();
 
-  stripEditTimeMarkup(root);
+  removeTableEditingMarkup(root);
 }
 
 /**
  * The markup part of removeTableEditingArtifacts: it rewrites `root`'s DOM and
- * changes no session state, so it is also safe to run on a detached clone.
+ * changes no session state, so it is also safe to run on a detached clone. A
+ * host that saves a copy of the document while the user goes on editing (Bloom
+ * does, on every change) calls this on the copy instead: it must not end Paint
+ * Format or Border Brush mode, which removeTableEditingArtifacts does.
  */
-function stripEditTimeMarkup(root: ParentNode): void {
+export function removeTableEditingMarkup(root: ParentNode): void {
   // Every piece of edit-time chrome outside the table is tagged
   // data-table-overlay at creation: the ProximityDiv wrappers appended to
   // <body> (which carry the "+" add buttons, the row/column/table menu pills
@@ -73,11 +76,11 @@ function stripEditTimeMarkup(root: ParentNode): void {
   // the document, the body itself, or a container above the table.
   const kModeClasses = ["bloom-paint-format", "bloom-border-brush"];
   root.querySelectorAll("body").forEach((b) => b.classList.remove(...kModeClasses));
-  if (root instanceof Element) root.classList.remove(...kModeClasses);
+  asElement(root)?.classList.remove(...kModeClasses);
 
   // Transient per-cell hint colors and selection classes left by the renderer
   // and the selection highlighter.
-  root.querySelectorAll<HTMLElement>(".bloom-cell").forEach((cell) => {
+  selfAndDescendants(root, ".bloom-cell").forEach((cell) => {
     kHintColorProps.forEach((p) => cell.style.removeProperty(p));
     cell.classList.remove("cell--selected", "bloom-pulse-fill", "bloom-pulse-border");
   });
@@ -86,13 +89,28 @@ function stripEditTimeMarkup(root: ParentNode): void {
   // meaningful within the session that minted them; saved copies collide with
   // the next session's names (its counter restarts), anchoring the pills to
   // the wrong cell.
-  root.querySelectorAll<HTMLElement>("[data-btable-anchor-name]").forEach((el) => {
+  selfAndDescendants(root, "[data-btable-anchor-name]").forEach((el) => {
     el.style.removeProperty("anchor-name");
     delete el.dataset.btableAnchorName;
   });
-  root.querySelectorAll<HTMLElement>(".bloom-table").forEach((table) => {
+  selfAndDescendants(root, ".bloom-table").forEach((table) => {
     table.classList.remove("table--selected", "bloom-pointer-near", "bloom-current-table");
   });
+}
+
+// The elements under `root` that match `selector`, and `root` itself if it does: a host may pass
+// the table, or a cell, as the root.
+function selfAndDescendants(root: ParentNode, selector: string): HTMLElement[] {
+  const found = Array.from(root.querySelectorAll<HTMLElement>(selector));
+  const rootElement = asElement(root);
+  if (rootElement?.matches(selector)) found.unshift(rootElement as HTMLElement);
+  return found;
+}
+
+// `root` as an Element, if it is one. By node type rather than instanceof, which is false for an
+// element from another frame (a host may clean a page in an iframe from its parent's module).
+function asElement(root: ParentNode): Element | undefined {
+  return (root as Node).nodeType === Node.ELEMENT_NODE ? (root as Element) : undefined;
 }
 
 /**
@@ -106,10 +124,10 @@ function stripEditTimeMarkup(root: ParentNode): void {
  * Paint Format mode.
  */
 export function tableMarkupForClipboard(table: HTMLElement): string {
-  // The strippers work on descendants of `root`, so the clone goes inside a
-  // holder; otherwise the table's own classes would survive.
+  // The clone goes inside a holder so that the holder's innerHTML is the
+  // cleaned table's own HTML.
   const holder = table.ownerDocument.createElement("div");
   holder.appendChild(table.cloneNode(true));
-  stripEditTimeMarkup(holder);
+  removeTableEditingMarkup(holder);
   return holder.innerHTML;
 }
