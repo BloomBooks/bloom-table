@@ -53,14 +53,17 @@ export function removeTableEditingArtifacts(root: ParentNode = document): void {
   paintFormatExiter();
   borderBrushExiter();
 
-  stripEditTimeMarkup(root);
+  removeTableEditingMarkup(root);
 }
 
 /**
  * The markup part of removeTableEditingArtifacts: it rewrites `root`'s DOM and
- * changes no session state, so it is also safe to run on a detached clone.
+ * changes no session state, so it is also safe to run on a detached clone. A
+ * host that saves a copy of the document while the user goes on editing (Bloom
+ * does, on every change) calls this on the copy instead: it must not end Paint
+ * Format or Border Brush mode, which removeTableEditingArtifacts does.
  */
-function stripEditTimeMarkup(root: ParentNode): void {
+export function removeTableEditingMarkup(root: ParentNode): void {
   // Every piece of edit-time chrome outside the table is tagged
   // data-table-overlay at creation: the ProximityDiv wrappers appended to
   // <body> (which carry the "+" add buttons, the row/column/table menu pills
@@ -110,6 +113,6 @@ export function tableMarkupForClipboard(table: HTMLElement): string {
   // holder; otherwise the table's own classes would survive.
   const holder = table.ownerDocument.createElement("div");
   holder.appendChild(table.cloneNode(true));
-  stripEditTimeMarkup(holder);
+  removeTableEditingMarkup(holder);
   return holder.innerHTML;
 }

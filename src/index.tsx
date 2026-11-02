@@ -53,7 +53,10 @@ export { CellMenuItems } from "./components/CellMenuItems";
 export type { CellMenuItemsProps } from "./components/CellMenuItems";
 
 // Prepare-for-save: strip transient edit-time artifacts before persisting HTML.
-export { removeTableEditingArtifacts } from "./prepare-for-save";
+export {
+  removeTableEditingArtifacts,
+  removeTableEditingMarkup,
+} from "./prepare-for-save";
 
 // React control panel (optional; requires the React/MUI peer dependencies).
 export { default as TableMenu } from "./components/TableMenu";

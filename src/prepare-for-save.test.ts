@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vite-plus/test";
-import { removeTableEditingArtifacts } from "./prepare-for-save";
+import { removeTableEditingArtifacts, removeTableEditingMarkup } from "./prepare-for-save";
 import { attachTable, detachTable } from "./attach";
 import { tableHistoryManager } from "./history";
 import {
@@ -15,6 +15,33 @@ describe("removeTableEditingArtifacts", () => {
     document.body.innerHTML = "";
     document.body.className = "";
     resetTableSizeButtons();
+  });
+
+  it("cleans a detached copy and leaves the live table as it is", () => {
+    document.body.innerHTML = `
+      <div class="bloom-table table--selected bloom-current-table"
+           data-column-widths="hug" data-row-heights="hug">
+        <div class="bloom-cell cell--selected" style="--hint-top-color: red; background: blue"
+             data-btable-anchor-name="--btable-cell-1"><div contenteditable>a</div></div>
+        <div data-table-overlay="pulse"></div>
+      </div>`;
+    const live = document.querySelector(".bloom-table") as HTMLElement;
+    const copy = document.body.cloneNode(true) as HTMLElement;
+
+    removeTableEditingMarkup(copy);
+
+    const copiedTable = copy.querySelector(".bloom-table") as HTMLElement;
+    const copiedCell = copiedTable.querySelector(".bloom-cell") as HTMLElement;
+    expect(copiedTable.classList.contains("table--selected")).toBe(false);
+    expect(copiedTable.classList.contains("bloom-current-table")).toBe(false);
+    expect(copiedCell.classList.contains("cell--selected")).toBe(false);
+    expect(copiedCell.style.getPropertyValue("--hint-top-color")).toBe("");
+    expect(copiedCell.getAttribute("data-btable-anchor-name")).toBe(null);
+    expect(copy.querySelector("[data-table-overlay]")).toBe(null);
+    // Durable styling survives, and the live table keeps its editing state.
+    expect(copiedCell.style.getPropertyValue("background")).toBe("blue");
+    expect(live.classList.contains("table--selected")).toBe(true);
+    expect(document.querySelector("[data-table-overlay]")).not.toBe(null);
   });
 
   it("strips minted anchor names along with selection classes", () => {
