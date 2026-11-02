@@ -124,8 +124,8 @@ function asElement(root: ParentNode): Element | undefined {
  * Paint Format mode.
  */
 export function tableMarkupForClipboard(table: HTMLElement): string {
-  // The strippers work on descendants of `root`, so the clone goes inside a
-  // holder; otherwise the table's own classes would survive.
+  // The clone goes inside a holder so that the holder's innerHTML is the
+  // cleaned table's own HTML.
   const holder = table.ownerDocument.createElement("div");
   holder.appendChild(table.cloneNode(true));
   removeTableEditingMarkup(holder);
