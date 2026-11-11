@@ -24,25 +24,23 @@ import { cellMenuItemsOfCell } from "../cell-menu-items-source";
 import type { CellMenuChoice, CellMenuCommand } from "../cell-menu-model";
 import { kItemIconColor, setIconSlot } from "../menu-widgets";
 import { kBloomBlue } from "../constants";
+import { localizeLabel, shownLabel, tableUiStrings, type TableLocalizer } from "../ui-strings";
 
 // The toggles' pressed look, and the gutter the labels line up against.
 const kPressedBackgroundColor = "#d7ecf1";
 const kPressedBorderColor = "#2d8294";
 const kIconGutterPx = 28;
 
-/** What the heading over these items says, and the id a host localizes it by. */
-export const kCellSectionHeadingLabel = "Table Cell";
-export const kCellSectionHeadingId = "tableCell";
-
 export interface CellMenuItemsProps {
   /** The cell whose menu this is. */
   cell: HTMLElement | null;
   /**
-   * Translate one label. `id` is the item's id (or `<choice id>:<option id>`), so a
-   * host can map ids to its own strings. The default returns the English label the
-   * library gives, because the library does not localize.
+   * Translate one label. `id` is the label's id in tableUiStrings (a content type
+   * the host registered comes as `ContentType.<type id>`). Without this the
+   * component uses the localizer installed with setTableLocalizer, which is English
+   * until a host installs one.
    */
-  localize?: (englishLabel: string, id: string) => string;
+  localize?: TableLocalizer;
   /**
    * Dismiss the menu this sits in. Called just before a command runs, which is what
    * the library's popup and Bloom's menu both want; choosing a content type leaves
@@ -104,18 +102,18 @@ const CommandRow: React.FunctionComponent<{
 // model's own icon field.
 const ChoiceRow: React.FunctionComponent<{
   item: CellMenuChoice;
-  localize: (englishLabel: string, id: string) => string;
+  localize: TableLocalizer;
   onChosen: () => void;
 }> = (props) => (
   // The display is spelled out: a host's menu may lay its own list items out as flex
   // rows, which would put the toggles beside the label rather than below it.
   <li style={{ display: "block", padding: "4px 14px", listStyle: "none" }}>
     <div style={{ fontSize: "13px", color: "#222" }}>
-      {props.localize(props.item.label, props.item.id)}
+      {shownLabel(props.item, props.localize)}
     </div>
     <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
       {props.item.options.map((option) => {
-        const label = props.localize(option.label, `${props.item.id}:${option.id}`);
+        const label = shownLabel(option, props.localize);
         return (
           <ToggleButton
             key={option.id}
@@ -205,7 +203,7 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
   // A content-type choice changes the cell, and the model must be asked again for
   // what the cell is now. Nothing else re-renders this, so ask for a render.
   const [, noteCellChanged] = useState(0);
-  const localize = props.localize ?? ((englishLabel: string) => englishLabel);
+  const localize = props.localize ?? localizeLabel;
   const rows: React.ReactNode[] = [];
   let groupOfPreviousItem: string | undefined;
   const items = props.cell ? cellMenuItemsOfCell(props.cell) : [];
@@ -215,7 +213,7 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
     rows.push(
       <SectionHeading
         key="heading"
-        label={localize(kCellSectionHeadingLabel, kCellSectionHeadingId)}
+        label={localize(tableUiStrings["CellMenu.Heading"], "CellMenu.Heading")}
       />,
     );
   }
@@ -240,7 +238,7 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
         rows.push(
           <FormatControls
             key={item.id}
-            label={localize(item.label, item.id)}
+            label={shownLabel(item, localize)}
             render={props.renderFormatControls}
           />,
         );
@@ -250,7 +248,7 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
         <CommandRow
           key={item.id}
           item={item}
-          label={localize(item.label, item.id)}
+          label={shownLabel(item, localize)}
           closeMenu={props.closeMenu}
         />,
       );

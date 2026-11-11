@@ -104,7 +104,7 @@ describe("the CellMenuItems component", () => {
   it("lets the host word the heading too", () => {
     const { cells } = makeTable();
     render(cells[0], {
-      localize: (englishLabel, id) => (id === "tableCell" ? "Cellule" : englishLabel),
+      localize: (englishLabel, id) => (id === "CellMenu.Heading" ? "Cellule" : englishLabel),
     });
 
     expect(container.firstElementChild?.textContent).toBe("Cellule");
@@ -184,7 +184,7 @@ describe("the CellMenuItems component", () => {
   it("uses the host's wording, item by item", () => {
     const { cells } = makeTable();
     render(cells[0], {
-      localize: (englishLabel, id) => (id === "split" ? "Diviser" : englishLabel),
+      localize: (englishLabel, id) => (id === "CellMenu.Split" ? "Diviser" : englishLabel),
     });
 
     expect(rows()).toContain("Diviser");

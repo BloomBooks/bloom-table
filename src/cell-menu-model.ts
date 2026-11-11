@@ -10,6 +10,10 @@
 // and Split. `group` marks those four runs, so a renderer that wants a divider
 // between them puts one wherever the group changes, and no renderer has to know
 // which items belong together.
+//
+// Every `label` is English, and `labelId` is its id in tableUiStrings
+// (ui-strings.ts), or `ContentType.<type id>` for a content type's name. A
+// renderer passes the two to the host's localizer.
 
 import type { CellMenuItemId } from "./cell-menu-host";
 
@@ -21,8 +25,8 @@ export interface CellMenuCommand {
   kind: "command";
   id: CellMenuItemId;
   group: CellMenuItemGroup;
-  /** English; the library does not localize. A host supplies its own wording. */
   label: string;
+  labelId: string;
   /** An inline SVG string, for a renderer that draws the library's own icons. */
   icon?: string;
   /** False when the command cannot act here, e.g. Split on an unspanned cell. */
@@ -34,6 +38,7 @@ export interface CellMenuCommand {
 export interface CellMenuChoiceOption {
   id: string;
   label: string;
+  labelId: string;
   /**
    * The option's icon: either inline SVG markup or a url (the library's build
    * makes its own icons data urls). setIconSlot paints either kind into an
@@ -60,6 +65,7 @@ export interface CellMenuChoice {
   id: CellMenuItemId;
   group: CellMenuItemGroup;
   label: string;
+  labelId: string;
   presentation: CellMenuChoicePresentation;
   options: CellMenuChoiceOption[];
 }
@@ -79,6 +85,7 @@ export interface CellMenuFormatControls {
   id: "format";
   group: "format";
   label: string;
+  labelId: string;
 }
 
 export type CellMenuItem = CellMenuCommand | CellMenuChoice | CellMenuFormatControls;

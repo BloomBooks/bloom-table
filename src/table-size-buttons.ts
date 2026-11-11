@@ -147,6 +147,7 @@ import {
   kIconSlotPx,
   kItemIconColor,
   makeGlyphPill,
+  setButtonLabel,
   makeMenuHeader,
   makeDivider,
   setIconSlot,
@@ -167,6 +168,14 @@ import {
   makeScopePanel,
   makeScopeGroup,
 } from "./menu-widgets";
+import {
+  contentTypeStringId,
+  onTableLocalizerChanged,
+  shownLabel,
+  tableUiStrings,
+  uiString,
+  type TableUiStringId,
+} from "./ui-strings";
 
 let installed = false;
 // Unique ID source for anchor names, plus the set of names minted this
@@ -400,19 +409,27 @@ html { anchor-scope: all; }
   overlayStylesInstalled = true;
 }
 
-type OverlaySide = "right" | "left" | "top" | "bottom";
+// The edge of the table a "+" button appends at. Only the right (a column) and
+// the bottom (a row) have a button.
+type OverlaySide = "right" | "bottom";
 
 // The accessible names of the on-canvas "+" buttons. They must differ from
 // every other button in the document that inserts a row or a column: the React
 // sidebar's buttons ("Insert Column Right" and the rest) and the pill menu's
 // items ("Add Column Right" and the rest). Each name says which edge of the
 // table the button appends at, which is also what the button does.
-const kAddOverlayLabel: Record<OverlaySide, string> = {
-  right: "Add column at the right edge",
-  left: "Add column at the left edge",
-  top: "Add row at the top edge",
-  bottom: "Add row at the bottom edge",
+const kAddOverlayLabelId: Record<OverlaySide, TableUiStringId> = {
+  right: "AddButton.ColumnAtRightEdge",
+  bottom: "AddButton.RowAtBottomEdge",
 };
+
+// Label a button with one of the library's strings, as its tooltip and its
+// accessible name. The id stays on the button, so relabelChrome can label it
+// again in a new language.
+function labelButton(btn: HTMLButtonElement, id: TableUiStringId): void {
+  btn.dataset.labelId = id;
+  setButtonLabel(btn, uiString(id));
+}
 
 function makeOverlay(
   onClick: () => void,
@@ -421,9 +438,7 @@ function makeOverlay(
 ): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.type = "button";
-  const label = kAddOverlayLabel[side];
-  btn.setAttribute("aria-label", label);
-  btn.title = label;
+  labelButton(btn, kAddOverlayLabelId[side]);
   // Edit-time chrome living outside the table; prepare-for-save strips it.
   btn.setAttribute("data-table-overlay", "add-button");
   Object.assign(btn.style, {
@@ -445,7 +460,7 @@ function makeOverlay(
   } as CSSStyleDeclaration);
 
   // Add buttons are bigger targets: a pill along the edge they insert on.
-  if (side === "right" || side === "left") {
+  if (side === "right") {
     // Tall rounded rectangle for columns
     btn.style.width = "24px";
     btn.style.height = `${kAddButtonLength}px`;
@@ -557,7 +572,8 @@ function ensureEdgeOverlays() {
 
 function ensureMenuPills(): void {
   if (!colMenuPill) {
-    colMenuPill = makeGlyphPill("Column menu", menuColumnIcon, "display:block;height:16px;width:auto");
+    colMenuPill = makeGlyphPill(menuColumnIcon, "display:block;height:16px;width:auto");
+    labelButton(colMenuPill, "Pill.ColumnMenu");
     colMenuPill.setAttribute("data-btable-menu-pill", "column");
     attachPillTargetPreview(colMenuPill, "column");
     colMenuPill.addEventListener("click", (e) => {
@@ -567,7 +583,8 @@ function ensureMenuPills(): void {
     });
   }
   if (!rowMenuPill) {
-    rowMenuPill = makeGlyphPill("Row menu", menuRowIcon, "display:block;width:16px;height:auto");
+    rowMenuPill = makeGlyphPill(menuRowIcon, "display:block;width:16px;height:auto");
+    labelButton(rowMenuPill, "Pill.RowMenu");
     rowMenuPill.setAttribute("data-btable-menu-pill", "row");
     attachPillTargetPreview(rowMenuPill, "row");
     rowMenuPill.addEventListener("click", (e) => {
@@ -580,7 +597,8 @@ function ensureMenuPills(): void {
 
 function ensureTablePills(): void {
   const make = (id: string) => {
-    const pill = makeGlyphPill("Table menu", cellContentTableIcon, "display:block;width:16px;height:16px");
+    const pill = makeGlyphPill(cellContentTableIcon, "display:block;width:16px;height:16px");
+    labelButton(pill, "Pill.TableMenu");
     pill.setAttribute("data-btable-menu-pill", "table");
     attachPillTargetPreview(pill, "table");
     pill.addEventListener("click", (e) => {
@@ -598,6 +616,16 @@ function ensureTablePills(): void {
     proxTablePillTL = new ProximityDiv(document.body, tablePillTL, { minOpacity: 0.6 });
   }
 }
+
+// The pills and "+" buttons are built once and kept, but a host's translations
+// usually arrive after the first table is attached, so a new localizer relabels
+// them where they stand.
+function relabelChrome(): void {
+  for (const btn of [colAddBtn, rowAddBtn, colMenuPill, rowMenuPill, tablePillTL]) {
+    if (btn) labelButton(btn, btn.dataset.labelId as TableUiStringId);
+  }
+}
+onTableLocalizerChanged(relabelChrome);
 
 // ===== "..." pill menus =====
 // A menu is composed of one or more of these sections. Pills open a single
@@ -718,15 +746,15 @@ function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
     } catch {}
   };
 
-  const grow = makeIconToggle(growIcon, "Grow", false, () => {
+  const grow = makeIconToggle(growIcon, uiString("Size.Grow"), false, () => {
     write("fill");
     refresh();
   });
-  const hug = makeIconToggle(hugIcon, "Hug", false, () => {
+  const hug = makeIconToggle(hugIcon, uiString("Size.Hug"), false, () => {
     write("hug");
     refresh();
   });
-  const fixed = makeTextToggle("mm", "Fixed size", false, () => {
+  const fixed = makeTextToggle(uiString("Size.FixedButton"), uiString("Size.Fixed"), false, () => {
     // Keep an existing fixed value if present; otherwise default to 10mm.
     const cur = read();
     write(cur && /(px|mm)$/i.test(cur) ? cur : "10mm");
@@ -741,8 +769,9 @@ function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
     const m = s.match(/^(-?\d+(?:\.\d+)?)(px|mm)$/i);
     if (!m) return s;
     const n = parseFloat(m[1]);
-    const isPx = m[2].toLowerCase() === "px";
-    return `${isPx ? Math.round(n) : Math.round(n * 10) / 10}${m[2]}`;
+    return m[2].toLowerCase() === "px"
+      ? uiString("Units.Pixels", Math.round(n))
+      : uiString("Units.Millimetres", Math.round(n * 10) / 10);
   };
 
   // Re-derive the active option (and the fixed-size label) from the table after
@@ -751,14 +780,14 @@ function buildSizeControl(ctx: MenuCtx, dim: "column" | "row"): HTMLElement {
     const current = read();
     const mode: "grow" | "hug" | "fixed" =
       current === "fill" ? "grow" : /(px|mm)$/i.test(current) ? "fixed" : "hug";
-    fixed.textContent = mode === "fixed" ? roundedLabel(current) : "mm";
+    fixed.textContent = mode === "fixed" ? roundedLabel(current) : uiString("Size.FixedButton");
     setToggleActive(grow, mode === "grow");
     setToggleActive(hug, mode === "hug");
     setToggleActive(fixed, mode === "fixed");
   };
   refresh();
 
-  return makeControlRow("Size", [grow, hug, fixed]);
+  return makeControlRow(uiString("Size.Label"), [grow, hug, fixed]);
 }
 
 // ----- Section builders -----
@@ -821,6 +850,7 @@ function contentTypeChoice(ctx: MenuCtx, scope: FormattingScope): CellMenuChoice
     .map((opt) => ({
       id: opt.id,
       label: opt.englishName,
+      labelId: contentTypeStringId(opt.id),
       icon: opt.icon,
       // Mixed content across the scope leaves every option unchosen.
       chosen: !!chosenId && chosenId === opt.id,
@@ -831,7 +861,8 @@ function contentTypeChoice(ctx: MenuCtx, scope: FormattingScope): CellMenuChoice
     kind: "choice",
     id: "contentType",
     group: "contentType",
-    label: "Content Type",
+    label: tableUiStrings["ContentType.Label"],
+    labelId: "ContentType.Label",
     presentation: "iconToggleRow",
     options,
   };
@@ -858,13 +889,14 @@ function renderChoiceRow(
       opt.choose();
       refresh();
     };
+    const label = shownLabel(opt);
     const b = opt.icon
-      ? makeIconToggle(opt.icon, opt.label, opt.chosen, choose)
-      : makeTextToggle(opt.label, opt.label, opt.chosen, choose);
+      ? makeIconToggle(opt.icon, label, opt.chosen, choose)
+      : makeTextToggle(label, label, opt.chosen, choose);
     b.dataset.ctId = opt.id;
     buttons.push(b);
   }
-  return makeControlRow(item.label, buttons);
+  return makeControlRow(shownLabel(item), buttons);
 }
 
 // The Content Type chooser: an icon toggle per registered type, applied to
@@ -893,31 +925,32 @@ type BorderScopeMode = BorderEdgeSet | "brush";
 let borderScopeMode: BorderScopeMode = "all";
 
 // What each tab means for the scope whose menu this is, in words. The Inner tab
-// is disabled where the scope has no interior, so its cell wording never shows.
-const kScopeCaptions: Record<BorderScopeMode, Record<FormattingScope, string>> = {
+// is disabled where the scope has no interior, so its cell wording never shows;
+// it shares the table's string, which says the same thing.
+const kScopeCaptionIds: Record<BorderScopeMode, Record<FormattingScope, TableUiStringId>> = {
   all: {
-    cell: "Every edge of this cell",
-    row: "Every edge in this row",
-    column: "Every edge in this column",
-    table: "Every edge in the table",
+    cell: "Border.ScopeCaption.All.Cell",
+    row: "Border.ScopeCaption.All.Row",
+    column: "Border.ScopeCaption.All.Column",
+    table: "Border.ScopeCaption.All.Table",
   },
   outer: {
-    cell: "The four edges of this cell",
-    row: "The outside edges of this row",
-    column: "The outside edges of this column",
-    table: "The four outside edges of the table",
+    cell: "Border.ScopeCaption.Outer.Cell",
+    row: "Border.ScopeCaption.Outer.Row",
+    column: "Border.ScopeCaption.Outer.Column",
+    table: "Border.ScopeCaption.Outer.Table",
   },
   inner: {
-    cell: "Only the edges between cells",
-    row: "Only the edges between cells in this row",
-    column: "Only the edges between cells in this column",
-    table: "Only the edges between cells",
+    cell: "Border.ScopeCaption.Inner.Table",
+    row: "Border.ScopeCaption.Inner.Row",
+    column: "Border.ScopeCaption.Inner.Column",
+    table: "Border.ScopeCaption.Inner.Table",
   },
   brush: {
-    cell: "Set the color, style and weight below, then click edges in the table",
-    row: "Set the color, style and weight below, then click edges in the table",
-    column: "Set the color, style and weight below, then click edges in the table",
-    table: "Set the color, style and weight below, then click edges in the table",
+    cell: "Border.ScopeCaption.Brush",
+    row: "Border.ScopeCaption.Brush",
+    column: "Border.ScopeCaption.Brush",
+    table: "Border.ScopeCaption.Brush",
   },
 };
 
@@ -1007,7 +1040,7 @@ function buildBorderScopeGroup(
   let brush: BorderBrush = { style: "solid", weight: 1, color: colorValue };
 
   const panel = makeScopePanel();
-  const caption = makeCaption(kScopeCaptions[mode][scope]);
+  const caption = makeCaption(uiString(kScopeCaptionIds[mode][scope]));
   panel.appendChild(caption);
 
   // Loading the brush, from the tab and from a menu that opens on a remembered
@@ -1056,7 +1089,7 @@ function buildBorderScopeGroup(
       ),
     );
     colorValue = shown.color;
-    if (colorRow) setColorInputValue(colorRow, "Border color", colorValue);
+    if (colorRow) setColorInputValue(colorRow, "borderColor", colorValue);
   };
 
   // Border color sits to the right of Border Style on one line: both describe
@@ -1065,7 +1098,8 @@ function buildBorderScopeGroup(
     ? makeColorRow(
         [
           {
-            label: "Border color",
+            id: "borderColor",
+            label: uiString("Border.Color"),
             value: colorValue,
             onInput: (color) => {
               colorValue = color;
@@ -1097,7 +1131,7 @@ function buildBorderScopeGroup(
     styleButtons.push(b);
   }
   const styleRow = offersStyle
-    ? makeControlRow("Border Style", styleButtons, { inset: false })
+    ? makeControlRow(uiString("Border.Style.Label"), styleButtons, { inset: false })
     : null;
   if (styleRow || colorRow) {
     const line = document.createElement("div");
@@ -1125,14 +1159,19 @@ function buildBorderScopeGroup(
     weightButtons.push(b);
   }
   if (offersWeight)
-    panel.appendChild(makeControlRow("Border Weight", weightButtons, { inset: false }));
+    panel.appendChild(makeControlRow(uiString("Border.Weight.Label"), weightButtons, { inset: false }));
 
   const tabs = makeScopeTabs(
     [
-      { id: "all", label: "All", icon: kScopeAllIconSvg },
-      { id: "outer", label: "Outer", icon: kScopeOuterIconSvg },
-      { id: "inner", label: "Inner", icon: kScopeInnerIconSvg, disabled: !hasInner },
-      { id: "brush", label: "Border Brush", icon: kScopeBrushIconSvg },
+      { id: "all", label: uiString("Border.Scope.All"), icon: kScopeAllIconSvg },
+      { id: "outer", label: uiString("Border.Scope.Outer"), icon: kScopeOuterIconSvg },
+      {
+        id: "inner",
+        label: uiString("Border.Scope.Inner"),
+        icon: kScopeInnerIconSvg,
+        disabled: !hasInner,
+      },
+      { id: "brush", label: uiString("Border.Scope.Brush"), icon: kScopeBrushIconSvg },
     ],
     mode,
     (id) => {
@@ -1145,7 +1184,7 @@ function buildBorderScopeGroup(
       }
       borderScopeMode = chosen;
       mode = chosen;
-      caption.textContent = kScopeCaptions[chosen][scope];
+      caption.textContent = uiString(kScopeCaptionIds[chosen][scope]);
       // Choosing a tab changes no border; it only says which ones the next
       // choice writes.
       refreshBorderToggles();
@@ -1175,10 +1214,10 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   // glyphs are thin outlined frames, which the menu's blue washes out; they are
   // drawn black so they can be read.
   const kAlignIconColor = "#000";
-  const aligns: { id: CellAlign; icon: string; title: string }[] = [
-    { id: "start", icon: alignLeftIcon, title: "Left" },
-    { id: "center", icon: alignCenterIcon, title: "Center" },
-    { id: "end", icon: alignRightIcon, title: "Right" },
+  const aligns: { id: CellAlign; icon: string; title: TableUiStringId }[] = [
+    { id: "start", icon: alignLeftIcon, title: "Format.Align.Left" },
+    { id: "center", icon: alignCenterIcon, title: "Format.Align.Center" },
+    { id: "end", icon: alignRightIcon, title: "Format.Align.Right" },
   ];
   const alignButtons: HTMLButtonElement[] = [];
   const refreshAlign = () => {
@@ -1188,7 +1227,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   for (const a of aligns) {
     const b = makeIconToggle(
       a.icon,
-      a.title,
+      uiString(a.title),
       false,
       () => {
         applyAlignment(table, scope, cells(), a.id);
@@ -1201,10 +1240,10 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   }
   // Vertical alignment: three more toggles, on the same row to the right of the
   // horizontal ones.
-  const vAligns: { id: CellVAlign; icon: string; title: string }[] = [
-    { id: "top", icon: alignTopIcon, title: "Top" },
-    { id: "center", icon: alignMiddleIcon, title: "Middle" },
-    { id: "bottom", icon: alignBottomIcon, title: "Bottom" },
+  const vAligns: { id: CellVAlign; icon: string; title: TableUiStringId }[] = [
+    { id: "top", icon: alignTopIcon, title: "Format.VAlign.Top" },
+    { id: "center", icon: alignMiddleIcon, title: "Format.VAlign.Middle" },
+    { id: "bottom", icon: alignBottomIcon, title: "Format.VAlign.Bottom" },
   ];
   const vAlignButtons: HTMLButtonElement[] = [];
   const refreshVAlign = () => {
@@ -1214,7 +1253,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
   for (const a of vAligns) {
     const b = makeIconToggle(
       a.icon,
-      a.title,
+      uiString(a.title),
       false,
       () => {
         applyVerticalAlignment(table, scope, cells(), a.id);
@@ -1236,7 +1275,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
       controls.push(gap);
     }
     if (offersVAlign) controls.push(...vAlignButtons);
-    els.push(makeControlRow("Alignment", controls));
+    els.push(makeControlRow(uiString("Format.Alignment"), controls));
     if (offersAlign) refreshAlign();
     if (offersVAlign) refreshVAlign();
   }
@@ -1250,7 +1289,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
       0,
       40,
       common((c) => effectivePaddingPx(c)) ?? effectivePaddingPx(seed),
-      "px",
+      formatPixels,
       (v) => applyPadding(table, scope, cells(), v),
     ),
   );
@@ -1268,7 +1307,8 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     els.push(
       makeColorRow([
         {
-          label: "Fill",
+          id: "fill",
+          label: uiString("Format.Fill"),
           value: fillValue,
           onInput: (color) => applyFill(table, scope, cells(), color || null),
         },
@@ -1293,7 +1333,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
     cornerButtons.push(b);
   }
   if (menuOffers(ctx, "corners")) {
-    els.push(makeControlRow("Corners", cornerButtons));
+    els.push(makeControlRow(uiString("Format.Corners"), cornerButtons));
     refreshCorners();
   }
 
@@ -1305,7 +1345,7 @@ function buildFormattingControls(ctx: MenuCtx, scope: FormattingScope): HTMLElem
 function buildFormattingSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   const controls = buildFormattingControls(ctx, scope);
   if (!controls.length) return [];
-  return [makeDivider(), makeMenuHeader("Format"), ...controls];
+  return [makeDivider(), makeMenuHeader(uiString("Format.Heading")), ...controls];
 }
 
 // Format transfer, per scope. The Table menu keeps Copy/Paste properties (the
@@ -1320,12 +1360,12 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
     const items: HTMLElement[] = [];
     if (menuOffers(ctx, "copyProperties"))
       items.push(
-        makeMenuItem("Copy properties", () => copyProperties(cells()), undefined, false, kCopyIconSvg),
+        makeMenuItem(uiString("TableMenu.CopyProperties"), () => copyProperties(cells()), undefined, false, kCopyIconSvg),
       );
     if (menuOffers(ctx, "pasteProperties"))
       items.push(
         makeMenuItem(
-          "Paste properties",
+          uiString("TableMenu.PasteProperties"),
           () => pasteProperties(table, scope, cells()),
           undefined,
           !hasCopiedProperties(),
@@ -1338,7 +1378,7 @@ function buildCopyPasteSection(ctx: MenuCtx, scope: FormattingScope): HTMLElemen
   return [
     makeDivider(),
     makeMenuItem(
-      "Paint format",
+      uiString("PaintFormat.Command"),
       () => enterPaintFormatMode(table, scope, cells()),
       undefined,
       false,
@@ -1403,14 +1443,21 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
   if (choice) items.push(choice);
 
   if (kFormatRowIds.some((id) => menuOffers(ctx, id)))
-    items.push({ kind: "formatControls", id: "format", group: "format", label: "Format" });
+    items.push({
+      kind: "formatControls",
+      id: "format",
+      group: "format",
+      label: tableUiStrings["Format.Heading"],
+      labelId: "Format.Heading",
+    });
 
   if (menuOffers(ctx, "paintFormat"))
     items.push({
       kind: "command",
       id: "paintFormat",
       group: "transfer",
-      label: "Paint format",
+      label: tableUiStrings["PaintFormat.Command"],
+      labelId: "PaintFormat.Command",
       icon: kPaintIconSvg,
       enabled: true,
       invoke: () => enterPaintFormatMode(table, "cell", cells()),
@@ -1429,7 +1476,8 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
       kind: "command",
       id: "merge",
       group: "span",
-      label: "Merge with cell to the right",
+      label: tableUiStrings["CellMenu.MergeRight"],
+      labelId: "CellMenu.MergeRight",
       icon: cellMergeIcon,
       enabled: canGrowSpan(cell, 1, 0),
       invoke: () => menuMergeCell(cell),
@@ -1439,7 +1487,8 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
       kind: "command",
       id: "mergeDown",
       group: "span",
-      label: "Merge with cell below",
+      label: tableUiStrings["CellMenu.MergeDown"],
+      labelId: "CellMenu.MergeDown",
       icon: cellMergeDownIcon,
       enabled: canGrowSpan(cell, 0, 1),
       invoke: () => menuMergeCellDown(cell),
@@ -1449,7 +1498,8 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
       kind: "command",
       id: "split",
       group: "span",
-      label: "Split",
+      label: tableUiStrings["CellMenu.Split"],
+      labelId: "CellMenu.Split",
       icon: cellSplitIcon,
       enabled: spanX > 1 || spanY > 1,
       invoke: () => menuSplitCell(cell),
@@ -1478,14 +1528,14 @@ function buildCellSection(ctx: MenuCtx): HTMLElement[] {
 
 function buildRowSection(ctx: MenuCtx): HTMLElement[] {
   return [
-    makeMenuHeader("Row"),
+    makeMenuHeader(uiString("RowMenu.Heading")),
     // 1) adds
-    makeMenuItem("Add Row Above", () => menuAddRow(0), undefined, false, kAddRowAboveIconSvg),
-    makeMenuItem("Add Row Below", () => menuAddRow(1), undefined, false, kAddRowBelowIconSvg),
+    makeMenuItem(uiString("RowMenu.AddAbove"), () => menuAddRow(0), undefined, false, kAddRowAboveIconSvg),
+    makeMenuItem(uiString("RowMenu.AddBelow"), () => menuAddRow(1), undefined, false, kAddRowBelowIconSvg),
     // 2) moves
-    makeMenuItem("Move Row Up", () => menuMoveRow(-1), undefined, ctx.row <= 0, kMoveUpIconSvg),
+    makeMenuItem(uiString("RowMenu.MoveUp"), () => menuMoveRow(-1), undefined, ctx.row <= 0, kMoveUpIconSvg),
     makeMenuItem(
-      "Move Row Down",
+      uiString("RowMenu.MoveDown"),
       () => menuMoveRow(1),
       undefined,
       ctx.row >= ctx.rowCount - 1,
@@ -1500,26 +1550,26 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
     ...buildCopyPasteSection(ctx, "row"),
     // 5) duplicate/delete, the last commands in the menu
     makeDivider(),
-    makeMenuItem("Duplicate Row", menuDuplicateRow, undefined, false, kCopyIconSvg),
+    makeMenuItem(uiString("RowMenu.Duplicate"), menuDuplicateRow, undefined, false, kCopyIconSvg),
     // A table must keep one row, so on a one-row table the command is disabled
     // rather than silently refused (removeRowAt asserts, and tryRemoveRow
     // swallows the throw).
-    makeMenuItem("Delete Row", tryRemoveRow, "row", ctx.rowCount <= 1, kTrashIconSvg),
+    makeMenuItem(uiString("RowMenu.Delete"), tryRemoveRow, "row", ctx.rowCount <= 1, kTrashIconSvg),
     // 6) hint
-    makeInfoNote("Right click on a cell for Cell menu"),
+    makeInfoNote(uiString("Menu.CellMenuNote")),
   ];
 }
 
 function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
   return [
-    makeMenuHeader("Column"),
+    makeMenuHeader(uiString("ColumnMenu.Heading")),
     // 1) adds
-    makeMenuItem("Add Column Left", () => menuAddColumn(0), undefined, false, kAddColumnLeftIconSvg),
-    makeMenuItem("Add Column Right", () => menuAddColumn(1), undefined, false, kAddColumnRightIconSvg),
+    makeMenuItem(uiString("ColumnMenu.AddLeft"), () => menuAddColumn(0), undefined, false, kAddColumnLeftIconSvg),
+    makeMenuItem(uiString("ColumnMenu.AddRight"), () => menuAddColumn(1), undefined, false, kAddColumnRightIconSvg),
     // 2) moves
-    makeMenuItem("Move Left", () => menuMoveColumn(-1), undefined, ctx.col <= 0, kMoveLeftIconSvg),
+    makeMenuItem(uiString("ColumnMenu.MoveLeft"), () => menuMoveColumn(-1), undefined, ctx.col <= 0, kMoveLeftIconSvg),
     makeMenuItem(
-      "Move Right",
+      uiString("ColumnMenu.MoveRight"),
       () => menuMoveColumn(1),
       undefined,
       ctx.col >= ctx.colCount - 1,
@@ -1534,16 +1584,16 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
     ...buildCopyPasteSection(ctx, "column"),
     // 5) duplicate/delete, the last commands in the menu
     makeDivider(),
-    makeMenuItem("Duplicate Column", menuDuplicateColumn, undefined, false, kCopyIconSvg),
+    makeMenuItem(uiString("ColumnMenu.Duplicate"), menuDuplicateColumn, undefined, false, kCopyIconSvg),
     // See Delete Row: a table must keep one column.
-    makeMenuItem("Delete Column", tryRemoveColumn, "column", ctx.colCount <= 1, columnDeleteIcon),
+    makeMenuItem(uiString("ColumnMenu.Delete"), tryRemoveColumn, "column", ctx.colCount <= 1, columnDeleteIcon),
     // 6) hint
-    makeInfoNote("Right click on a cell for Cell menu"),
+    makeInfoNote(uiString("Menu.CellMenuNote")),
   ];
 }
 
 function buildTableSection(ctx: MenuCtx): HTMLElement[] {
-  const els: HTMLElement[] = [makeMenuHeader("Table")];
+  const els: HTMLElement[] = [makeMenuHeader(uiString("TableMenu.Heading"))];
   const table = ctx.table;
   if (table) {
     // Content type + formatting, applied to every cell in the table (the
@@ -1555,11 +1605,11 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
     // Spacing sliders follow the Format section (right after Corners).
     els.push(
       makeSliderRow(
-        "Horizontal space between cells",
+        uiString("TableMenu.HorizontalSpace"),
         0,
         40,
         firstPx(getGapX(table)[0]),
-        "px",
+        formatPixels,
         (v) => {
           setGapX(table, `${v}px`);
           render(table);
@@ -1568,11 +1618,11 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
     );
     els.push(
       makeSliderRow(
-        "Vertical space between cells",
+        uiString("TableMenu.VerticalSpace"),
         0,
         40,
         firstPx(getGapY(table)[0]),
-        "px",
+        formatPixels,
         (v) => {
           setGapY(table, `${v}px`);
           render(table);
@@ -1583,10 +1633,10 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
     els.push(...buildCopyPasteSection(ctx, "table"));
   }
   els.push(makeDivider());
-  els.push(makeMenuItem("Copy Table", menuCopyTable, undefined, false, kCopyIconSvg));
-  els.push(makeMenuItem("Cut Table", menuCutTable, undefined, false, kCutIconSvg));
+  els.push(makeMenuItem(uiString("TableMenu.CopyTable"), menuCopyTable, undefined, false, kCopyIconSvg));
+  els.push(makeMenuItem(uiString("TableMenu.CutTable"), menuCutTable, undefined, false, kCutIconSvg));
   els.push(makeDivider());
-  els.push(makeMenuItem("Delete Table", menuDeleteTable, undefined, false, kTrashIconSvg));
+  els.push(makeMenuItem(uiString("TableMenu.DeleteTable"), menuDeleteTable, undefined, false, kTrashIconSvg));
   return els;
 }
 
@@ -2742,14 +2792,19 @@ function attachPillTargetPreview(pill: HTMLButtonElement, kind: MenuKind): void 
 
 /** What the padding slider is called, given the content type every selected cell shares. */
 export function paddingLabel(contentTypeId: string | undefined): string {
-  const inside: Record<string, string> = {
-    text: "text",
-    image: "image",
-    video: "video",
-    table: "table",
+  const byContentType: Record<string, TableUiStringId> = {
+    text: "Format.Padding.Text",
+    image: "Format.Padding.Image",
+    video: "Format.Padding.Video",
+    table: "Format.Padding.Table",
   };
-  const what = contentTypeId ? inside[contentTypeId] : undefined;
-  return what ? `Padding between border and ${what}` : "Padding inside the cell";
+  const id = contentTypeId ? byContentType[contentTypeId] : undefined;
+  return uiString(id ?? "Format.Padding.Cell");
+}
+
+// A slider readout in pixels.
+function formatPixels(value: number): string {
+  return uiString("Units.Pixels", value);
 }
 
 /**

@@ -7,6 +7,7 @@
 
 import { kBloomBlue } from "./constants";
 import { kInfoIconSvg } from "./menu-icons";
+import { uiString, type TableUiStringId } from "./ui-strings";
 
 export const kIconSlotPx = 22; // reserved left gutter so labels align with/without icons
 
@@ -38,14 +39,18 @@ export function stylePill(btn: HTMLButtonElement): void {
   btn.addEventListener("mousedown", (e) => e.preventDefault());
 }
 
-// A pill showing an orientation glyph (table / row / column). `iconStyle` lets
-// each caller preserve its glyph's aspect ratio (the row glyph is wide, the
-// column glyph is tall).
-export function makeGlyphPill(label: string, iconSrc: string, iconStyle: string): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.type = "button";
+// Give a button its tooltip and accessible name, both the same string.
+export function setButtonLabel(btn: HTMLButtonElement, label: string): void {
   btn.setAttribute("aria-label", label);
   btn.title = label;
+}
+
+// A pill showing an orientation glyph (table / row / column). `iconStyle` lets
+// each caller preserve its glyph's aspect ratio (the row glyph is wide, the
+// column glyph is tall). The caller labels it.
+export function makeGlyphPill(iconSrc: string, iconStyle: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
   // Build the image with the DOM rather than an HTML string: the bundler can
   // inline an .svg as a `data:image/svg+xml,` URL that still contains double
   // quotes, and those end the src attribute early and spill the rest of the
@@ -350,6 +355,14 @@ export function makeNoneSample(width: number, height: number): HTMLElement {
   return box;
 }
 
+const kBorderStyleNameIds: Record<string, TableUiStringId> = {
+  none: "Border.Style.None",
+  solid: "Border.Style.Solid",
+  dashed: "Border.Style.Dashed",
+  dotted: "Border.Style.Dotted",
+  double: "Border.Style.Double",
+};
+
 // A border-style toggle showing a sample line in that style ("none" shows the
 // crossed-out box), mirroring the sidebar's Style choices.
 export function makeBorderStyleToggle(style: string, onClick: () => void): HTMLButtonElement {
@@ -365,8 +378,7 @@ export function makeBorderStyleToggle(style: string, onClick: () => void): HTMLB
       display: "block",
     } as CSSStyleDeclaration);
   }
-  const title = style === "none" ? "None" : style[0].toUpperCase() + style.slice(1);
-  const b = makeSampleToggle(title, sample, onClick);
+  const b = makeSampleToggle(uiString(kBorderStyleNameIds[style]), sample, onClick);
   b.dataset.style = style;
   return b;
 }
@@ -386,7 +398,7 @@ export function makeBorderWeightToggle(weight: number, onClick: () => void): HTM
   } else {
     sample = makeNoneSample(22, 14);
   }
-  const b = makeSampleToggle(weight ? `${weight}` : "0 (None)", sample, onClick);
+  const b = makeSampleToggle(weight ? `${weight}` : uiString("Border.Weight.None"), sample, onClick);
   b.dataset.weight = String(weight);
   return b;
 }
@@ -397,7 +409,7 @@ export function makeCornerToggle(radius: number, active: boolean, onClick: () =>
   const b = document.createElement("button");
   b.type = "button";
   b.title = `${radius}`;
-  b.setAttribute("aria-label", `Corner radius ${radius}`);
+  b.setAttribute("aria-label", uiString("Format.CornerRadius", radius));
   Object.assign(b.style, {
     width: "28px",
     height: "24px",
@@ -440,12 +452,13 @@ export function firstPx(s: string | null | undefined): number {
 
 // A labeled range slider on its own row. Interacting with it does not close the
 // menu (the slider lives inside the popup, which the outside-click guard skips).
+// `formatValue` writes the readout beside the slider, unit and all.
 export function makeSliderRow(
   label: string,
   min: number,
   max: number,
   value: number,
-  unit: string,
+  formatValue: (v: number) => string,
   onInput: (v: number) => void,
 ): HTMLDivElement {
   const input = document.createElement("input");
@@ -459,7 +472,7 @@ export function makeSliderRow(
   input.style.accentColor = kBloomBlue;
 
   const readout = document.createElement("span");
-  readout.textContent = `${value}${unit}`;
+  readout.textContent = formatValue(value);
   Object.assign(readout.style, {
     fontSize: "12px",
     color: "#555",
@@ -469,7 +482,7 @@ export function makeSliderRow(
 
   input.addEventListener("input", () => {
     const v = Number(input.value);
-    readout.textContent = `${v}${unit}`;
+    readout.textContent = formatValue(v);
     onInput(v);
   });
   return makeControlRow(label, [input, readout]);
@@ -479,12 +492,20 @@ export function makeSliderRow(
 // cannot display "no color", so when the value is unset (empty or non-hex)
 // the swatch is covered with the classic no-color indicator — white with a
 // red diagonal line — until the user picks a color.
-export function makeColorInput(label: string, value: string, onInput: (v: string) => void): HTMLElement {
+export function makeColorInput(
+  id: string,
+  label: string,
+  value: string,
+  onInput: (v: string) => void,
+): HTMLElement {
   const isSet = /^#[0-9a-fA-F]{6}$/.test(value);
   const input = document.createElement("input");
   input.type = "color";
   input.value = isSet ? value : "#ffffff";
   input.setAttribute("aria-label", label);
+  // setColorInputValue finds the input by this, not by its label, which a host
+  // translates.
+  input.setAttribute("data-color-input", id);
   Object.assign(input.style, {
     width: "40px",
     height: "24px",
@@ -520,12 +541,12 @@ export function makeColorInput(label: string, value: string, onInput: (v: string
 }
 
 // Point a color input made by makeColorInput (or a row holding one, found by
-// its aria-label) at a new value. Anything but a six-digit hex shows the
+// the id it was made with) at a new value. Anything but a six-digit hex shows the
 // crossed-out swatch, which is how a picker says it has no selection: the
 // border scope panel uses it when the edges in scope disagree about color.
-export function setColorInputValue(root: HTMLElement, label: string, value: string): void {
+export function setColorInputValue(root: HTMLElement, id: string, value: string): void {
   const input = root.querySelector<HTMLInputElement>(
-    `input[type="color"][aria-label="${label}"]`,
+    `input[type="color"][data-color-input="${id}"]`,
   );
   if (!input) return;
   const isSet = /^#[0-9a-fA-F]{6}$/.test(value);
@@ -538,7 +559,13 @@ export function setColorInputValue(root: HTMLElement, label: string, value: stri
   if (noColor) noColor.style.display = isSet ? "none" : "block";
 }
 
-export type ColorEntry = { label: string; value: string; onInput: (v: string) => void };
+// `id` names the picker for setColorInputValue; `label` is what the user reads.
+export type ColorEntry = {
+  id: string;
+  label: string;
+  value: string;
+  onInput: (v: string) => void;
+};
 
 // One or more labeled color pickers side by side on one row. Fill stands alone
 // above the border scope group; Border color sits inside the panel, where it
@@ -565,7 +592,7 @@ export function makeColorRow(entries: ColorEntry[], opts: RowOptions = {}): HTML
     caption.textContent = e.label;
     Object.assign(caption.style, { fontSize: "13px", color: "#222" } as CSSStyleDeclaration);
     col.appendChild(caption);
-    col.appendChild(makeColorInput(e.label, e.value, e.onInput));
+    col.appendChild(makeColorInput(e.id, e.label, e.value, e.onInput));
     line.appendChild(col);
   }
   wrap.appendChild(line);
@@ -593,7 +620,7 @@ export function makeScopeTabs(
 ): { root: HTMLDivElement; select(id: string): void } {
   const root = document.createElement("div");
   root.setAttribute("role", "tablist");
-  root.setAttribute("aria-label", "Which borders to change");
+  root.setAttribute("aria-label", uiString("Border.ScopeTabs"));
   Object.assign(root.style, {
     display: "flex",
     paddingLeft: "1px",

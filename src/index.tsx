@@ -52,6 +52,11 @@ export { openCellMenu } from "./table-size-buttons";
 export { CellMenuItems } from "./components/CellMenuItems";
 export type { CellMenuItemsProps } from "./components/CellMenuItems";
 
+// Localization: every string the library's own menus, pills and buttons show, by
+// id, and the hook a host installs to translate them.
+export { tableUiStrings, setTableLocalizer } from "./ui-strings";
+export type { TableLocalizer, TableUiStringId } from "./ui-strings";
+
 // Prepare-for-save: strip transient edit-time artifacts before persisting HTML.
 export {
   removeTableEditingArtifacts,

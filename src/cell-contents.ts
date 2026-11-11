@@ -9,6 +9,7 @@ import imageIcon from "./components/icons/cell-content-image.svg";
 import videoIcon from "./components/icons/cell-content-video.svg";
 import { tableHistoryManager } from "./history";
 import { attachTable } from "./attach";
+import { tableUiStrings } from "./ui-strings";
 
 export function contentTypeOptions(): {
   id: string;
@@ -24,7 +25,7 @@ export function contentTypeOptions(): {
 export const defaultCellContentsForEachType: CellContentType[] = [
   {
     id: "text",
-    englishName: "Text",
+    englishName: tableUiStrings["ContentType.Text"],
     icon: textIcon,
     // About the "_": I couldn't get the the browser to honor the contenteditable at runtime if it was empty.
     templateHtml: "<div contenteditable='true'></div>",
@@ -32,7 +33,7 @@ export const defaultCellContentsForEachType: CellContentType[] = [
   },
   {
     id: "table",
-    englishName: "Table",
+    englishName: tableUiStrings["ContentType.Table"],
     icon: tableIcon,
     templateHtml: `<div class='bloom-table' data-column-widths='fill,fill' data-row-heights='fill,fill'>
             <div class='bloom-cell' data-content-type='text'></div>
@@ -47,7 +48,7 @@ export const defaultCellContentsForEachType: CellContentType[] = [
   },
   {
     id: "image",
-    englishName: "Image",
+    englishName: tableUiStrings["ContentType.Image"],
     icon: imageIcon,
     // Bundled inline SVG placeholder (light gray frame with a picture glyph), so an
     // offline machine shows a clean placeholder instead of broken-asset chrome.
@@ -57,7 +58,7 @@ export const defaultCellContentsForEachType: CellContentType[] = [
   },
   {
     id: "video",
-    englishName: "Video",
+    englishName: tableUiStrings["ContentType.Video"],
     icon: videoIcon,
     // Basic HTML5 video tag with controls but no source: a bundled inline SVG
     // poster (gray frame with a play glyph) stands in until the host supplies real

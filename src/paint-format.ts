@@ -22,6 +22,7 @@ import {
   pulseRow,
 } from "./pulse-highlight";
 import { setPaintFormatExiter } from "./prepare-for-save";
+import { onTableLocalizerChanged, uiString } from "./ui-strings";
 
 let paintMode: {
   scope: "cell" | "row" | "column";
@@ -78,9 +79,7 @@ function makePaintFormatBadge(): HTMLDivElement {
   badge.className = "bloom-paint-format-badge";
   // Appended to <body>; tag it so prepare-for-save strips it.
   badge.setAttribute("data-table-overlay", "paint-format-badge");
-  badge.title = "End format painting (Esc)";
   badge.setAttribute("role", "button");
-  badge.setAttribute("aria-label", "End format painting");
   Object.assign(badge.style, {
     position: "absolute",
     height: "28px",
@@ -105,7 +104,8 @@ function makePaintFormatBadge(): HTMLDivElement {
     `<svg viewBox="0 0 24 24" width="18" height="18" style="display:block;flex:none">` +
     `<path d="${kPaintRollerPath}" fill="#444"/>` +
     `<line x1="3" y1="3" x2="21" y2="21" stroke="#d32f2f" stroke-width="2.5" stroke-linecap="round"/>` +
-    `</svg><span>End format painting</span>`;
+    `</svg><span data-paint-format-label></span>`;
+  labelPaintFormatBadge(badge);
   badge.addEventListener("mousedown", (e) => e.preventDefault());
   badge.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -113,6 +113,17 @@ function makePaintFormatBadge(): HTMLDivElement {
   });
   return badge;
 }
+
+// The badge's tooltip, accessible name and visible text. Also run when the host
+// installs a localizer while the badge is showing.
+function labelPaintFormatBadge(badge: HTMLDivElement): void {
+  badge.title = uiString("PaintFormat.EndWithShortcut");
+  badge.setAttribute("aria-label", uiString("PaintFormat.End"));
+  badge.querySelector("[data-paint-format-label]")!.textContent = uiString("PaintFormat.End");
+}
+onTableLocalizerChanged(() => {
+  if (paintMode) labelPaintFormatBadge(paintMode.badge);
+});
 
 // The badge sits just above the source table, aligned with its left edge
 // (clamped to the viewport when the table touches the page edge). It is a
