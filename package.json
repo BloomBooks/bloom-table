@@ -1,6 +1,6 @@
 {
   "name": "bloom-table",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A TypeScript library for editing tables/grids in pure html",
   "keywords": [
     "grid",
