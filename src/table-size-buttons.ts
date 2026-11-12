@@ -13,6 +13,7 @@
 
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
+import { createElement, Fragment } from "react";
 import { BloomTable } from "./BloomTable";
 import { getTableInfo, getRowAndColumn, canGrowSpan } from "./structure";
 import { visibleCellBounds } from "./resize-boundary-highlight";
@@ -936,10 +937,14 @@ function buildHostSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   const container = document.createElement("div");
   container.setAttribute("data-btable-host-section", scope);
   const root = createRoot(container);
+  // Each drawing gets a key of its own, so the host's controls mount afresh for
+  // the cells as they now are rather than keeping state from before.
+  let drawing = 0;
   // Rendered synchronously: the menu is measured as soon as it is built.
   const draw = () => {
     const section = hostMenuSectionFor(scope, cells(), table);
-    flushSync(() => root.render(section ?? null));
+    drawing++;
+    flushSync(() => root.render(createElement(Fragment, { key: drawing }, section)));
     container.style.display = section === undefined ? "none" : "";
   };
   draw();

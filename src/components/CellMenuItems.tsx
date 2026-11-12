@@ -226,7 +226,7 @@ const FormatControls: React.FunctionComponent<{
 export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props) => {
   // A content-type choice changes the cell, and the model must be asked again for
   // what the cell is now. Nothing else re-renders this, so ask for a render.
-  const [, noteCellChanged] = useState(0);
+  const [contentTypeChoices, noteCellChanged] = useState(0);
   // Nothing shows while the host's translations are on their way, so a host that
   // renders this early never shows the English first.
   const [ready, setReady] = useState(translationsAreReady);
@@ -265,8 +265,10 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
         />,
       );
     } else if (item.kind === "hostSection") {
+      // Keyed by the content-type choices made so far, so the host's controls
+      // mount afresh for the cell as it now is rather than keeping state from before.
       rows.push(
-        <li key={item.id} style={{ display: "block", listStyle: "none" }}>
+        <li key={`${item.id}-${contentTypeChoices}`} style={{ display: "block", listStyle: "none" }}>
           {item.content}
         </li>,
       );

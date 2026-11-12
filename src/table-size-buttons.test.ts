@@ -1379,12 +1379,17 @@ describe("the host's own menu section", () => {
   // React logged. Each test gets its own tally, because a menu that an earlier
   // test left open unmounts on a timer that can fire during a later test.
   let asked: Array<{ scope: HostMenuSectionScope; cells: HTMLElement[] }>;
-  let tally: { mounted: number };
+  let tally: { mounted: number; mounts: number };
   let reactErrors: unknown[];
   const originalError = console.error;
 
-  const Languages = (props: { scope: string; count: number; tally: { mounted: number } }) => {
+  const Languages = (props: {
+    scope: string;
+    count: number;
+    tally: { mounted: number; mounts: number };
+  }) => {
     useLayoutEffect(() => {
+      props.tally.mounts++;
       props.tally.mounted++;
       return () => {
         props.tally.mounted--;
@@ -1395,7 +1400,7 @@ describe("the host's own menu section", () => {
 
   beforeEach(() => {
     asked = [];
-    tally = { mounted: 0 };
+    tally = { mounted: 0, mounts: 0 };
     reactErrors = [];
     console.error = (...args: unknown[]) => reactErrors.push(args[0]);
     setHostMenuSectionProvider((scope, cells) => {
@@ -1491,6 +1496,41 @@ describe("the host's own menu section", () => {
 
     expect(hostSection()?.textContent).toBe(`Call ${calls}`);
     expect(calls).toBeGreaterThan(1);
+  });
+
+  // A cell's type that the cell does not have yet, from the open menu.
+  const otherContentType = () => {
+    const button = Array.from(menuPopup()!.querySelectorAll<HTMLElement>("[data-ct-id]")).find(
+      (b) => b.getAttribute("aria-pressed") !== "true",
+    );
+    // Sanity check: the menu offers a type the cell does not have yet.
+    expect(button).toBeDefined();
+    return button!;
+  };
+
+  it("mounts the host's controls afresh after a content-type change in the Row menu", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+    expect(tally.mounts).toBe(1);
+
+    click(otherContentType());
+
+    expect(tally.mounts).toBe(2);
+    expect(tally.mounted).toBe(1);
+  });
+
+  it("mounts the host's controls afresh after a content-type change in the Cell menu", async () => {
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+    expect(tally.mounts).toBe(1);
+
+    click(otherContentType());
+    // React renders the click's state change in a microtask.
+    await Promise.resolve();
+
+    expect(tally.mounts).toBe(2);
+    expect(tally.mounted).toBe(1);
   });
 
   it("brings a menu that grows past the window's bottom back inside it", () => {

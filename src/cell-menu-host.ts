@@ -171,11 +171,13 @@ let sectionProvider: HostMenuSectionProvider | undefined;
  * remove the provider.
  *
  * The library renders the element itself: as a child of the Cell menu's React
- * tree, and in a React root of its own in the Row, Column and Table menus. So
- * the element sees none of the host's React context; a host that needs some,
- * such as its theme, wraps the element in that context's provider. After a
- * content-type choice in the menu the library asks again and renders the new
- * element in place of the old one.
+ * tree, and in a React root of its own in the Row, Column and Table menus. In
+ * the menus the library opens, the element sees none of the host's React
+ * context, so a host that needs some, such as its theme, wraps the element in
+ * that context's provider. (A host that renders CellMenuItems in its own tree
+ * passes its context through there.) After a content-type choice in the menu
+ * the library asks again and mounts the new element in place of the old one,
+ * so a control that took its starting state from the cells starts afresh.
  *
  * Bloom uses it for the languages of a text cell, a setting the library knows
  * nothing about but that belongs beside the content type in all four menus.
