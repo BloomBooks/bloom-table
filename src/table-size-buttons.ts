@@ -170,7 +170,8 @@ import {
 } from "./menu-widgets";
 import {
   contentTypeStringId,
-  onTableLocalizerChanged,
+  onTranslationsArrived,
+  translationsAreReady,
   shownLabel,
   tableUiStrings,
   uiString,
@@ -617,15 +618,19 @@ function ensureTablePills(): void {
   }
 }
 
-// The pills and "+" buttons are built once and kept, but a host's translations
-// usually arrive after the first table is attached, so a new localizer relabels
-// them where they stand.
 function relabelChrome(): void {
   for (const btn of [colAddBtn, rowAddBtn, colMenuPill, rowMenuPill, tablePillTL]) {
     if (btn) labelButton(btn, btn.dataset.labelId as TableUiStringId);
   }
 }
-onTableLocalizerChanged(relabelChrome);
+// The pills and "+" buttons are built once and kept, and a host's translations
+// usually arrive after the first table is attached, so the chrome is built in
+// English and held back until they come. Then it is relabelled where it stands,
+// and shown if the pointer is already on a table.
+onTranslationsArrived(() => {
+  relabelChrome();
+  refreshStructuralChrome();
+});
 
 // ===== "..." pill menus =====
 // A menu is composed of one or more of these sections. Pills open a single
@@ -1715,6 +1720,9 @@ function openMenu(
   id: string,
   targetCell: HTMLElement | null,
 ): void {
+  // Every menu opens here. None does while the host's translations are on their
+  // way, so its English never shows first.
+  if (!translationsAreReady()) return;
   closeMenuPopup();
   menuTargetCell = targetCell;
   const ctx = buildMenuCtx(targetCell);
@@ -2072,8 +2080,10 @@ function showEdgeOverlays(table: HTMLElement) {
   ensureEdgeOverlays();
   // A table whose rows and columns the host fixes gets none of this chrome; the
   // pointer-near class above is still wanted, because that is what shows the
-  // selected cell and the table's outline while the user works in it.
-  const structural = structuralChromeAllowed(table);
+  // selected cell and the table's outline while the user works in it. No table
+  // gets it while the host's translations are on their way, so its English never
+  // shows first.
+  const structural = translationsAreReady() && structuralChromeAllowed(table);
   // The clusters target the current row/column, so they only make sense when
   // one of THIS table's own cells is selected (a nested table's selection
   // doesn't count — its own overlays handle it).
@@ -2322,8 +2332,8 @@ function applyAnchorPositioning(table: HTMLElement) {
     return;
   }
   // A reposition re-decides visibility, so the host's answer for this table has
-  // to be asked here as well as in showEdgeOverlays.
-  const structural = structuralChromeAllowed(table);
+  // to be asked here as well as in showEdgeOverlays, and so do the translations.
+  const structural = translationsAreReady() && structuralChromeAllowed(table);
   const gap = 8; // px
   let rows = 0,
     cols = 0;

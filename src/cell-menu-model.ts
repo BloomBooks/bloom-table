@@ -13,7 +13,7 @@
 //
 // Every `label` is English, and `labelId` is its id in tableUiStrings
 // (ui-strings.ts), or `ContentType.<type id>` for a content type's name. A
-// renderer passes the two to the host's localizer.
+// renderer shows the host's translation of that id, or the English.
 
 import type { CellMenuItemId } from "./cell-menu-host";
 

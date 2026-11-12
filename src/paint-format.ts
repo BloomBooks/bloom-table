@@ -22,7 +22,7 @@ import {
   pulseRow,
 } from "./pulse-highlight";
 import { setPaintFormatExiter } from "./prepare-for-save";
-import { onTableLocalizerChanged, uiString } from "./ui-strings";
+import { onTranslationsArrived, uiString } from "./ui-strings";
 
 let paintMode: {
   scope: "cell" | "row" | "column";
@@ -114,14 +114,14 @@ function makePaintFormatBadge(): HTMLDivElement {
   return badge;
 }
 
-// The badge's tooltip, accessible name and visible text. Also run when the host
-// installs a localizer while the badge is showing.
+// The badge's tooltip, accessible name and visible text. Also run when the host's
+// translations arrive while the badge is showing.
 function labelPaintFormatBadge(badge: HTMLDivElement): void {
   badge.title = uiString("PaintFormat.EndWithShortcut");
   badge.setAttribute("aria-label", uiString("PaintFormat.End"));
   badge.querySelector("[data-paint-format-label]")!.textContent = uiString("PaintFormat.End");
 }
-onTableLocalizerChanged(() => {
+onTranslationsArrived(() => {
   if (paintMode) labelPaintFormatBadge(paintMode.badge);
 });
 

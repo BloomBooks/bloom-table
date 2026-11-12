@@ -53,9 +53,12 @@ export { CellMenuItems } from "./components/CellMenuItems";
 export type { CellMenuItemsProps } from "./components/CellMenuItems";
 
 // Localization: every string the library's own menus, pills and buttons show, by
-// id, and the hook a host installs to translate them.
-export { tableUiStrings, setTableLocalizer } from "./ui-strings";
-export type { TableLocalizer, TableUiStringId } from "./ui-strings";
+// the id a host translates it under, and the way a host hands over its
+// translations (the same getLocalizations shape bloom-image-gallery and
+// bloom-ai-image-tools take).
+export { ALL_TABLE_UI_STRINGS } from "./ui-strings";
+export type { GetLocalizations } from "./ui-strings";
+export { setGetLocalizations } from "./host-localization";
 
 // Prepare-for-save: strip transient edit-time artifacts before persisting HTML.
 export {

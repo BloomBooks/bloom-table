@@ -8,7 +8,9 @@ import { tableHistoryManager } from "../history";
 import { setCellMenuItemFilter } from "../cell-menu-host";
 import { getCurrentContentTypeId } from "../cell-contents";
 import { removeTable, resetTableSizeButtons } from "../table-size-buttons";
-import { setTableLocalizer } from "../ui-strings";
+import { resetTranslationsForTests } from "../ui-strings";
+import { translateForTests } from "../test-support/translate-for-tests";
+import { setGetLocalizations } from "../host-localization";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -33,7 +35,7 @@ describe("the CellMenuItems component", () => {
     act(() => root.unmount());
     container.remove();
     setCellMenuItemFilter(undefined);
-    setTableLocalizer(undefined);
+    resetTranslationsForTests();
     document.querySelectorAll<HTMLElement>(".bloom-table").forEach((t) => removeTable(t));
   });
 
@@ -103,12 +105,32 @@ describe("the CellMenuItems component", () => {
     expect(heading.style.paddingLeft).toBe("14px");
   });
 
-  it("lets the host word the heading too", () => {
+  it("lets the host word the heading too", async () => {
     const { cells } = makeTable();
-    setTableLocalizer((englishLabel, id) => (id === "CellMenu.Heading" ? "Cellule" : englishLabel));
+    await translateForTests((englishLabel, id) => (id === "CellMenu.Heading" ? "Cellule" : englishLabel));
     render(cells[0]);
 
     expect(container.firstElementChild?.textContent).toBe("Cellule");
+  });
+
+  it("shows nothing until the host's translations arrive, then shows them", async () => {
+    const { cells } = makeTable();
+    let answer!: () => void;
+    const arrived = setGetLocalizations(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve({ "EditTab.Table.CellMenu.Split": "Diviser" });
+        }),
+    );
+    render(cells[0]);
+    expect(container.textContent).toBe("");
+
+    await act(async () => {
+      answer();
+      await arrived;
+    });
+
+    expect(rows()).toContain("Diviser");
   });
 
   it("shows no heading when the host's filter leaves no items", () => {
@@ -182,9 +204,9 @@ describe("the CellMenuItems component", () => {
     expect(container.querySelectorAll("hr").length).toBe(0);
   });
 
-  it("uses the host's wording, item by item", () => {
+  it("uses the host's wording, item by item", async () => {
     const { cells } = makeTable();
-    setTableLocalizer((englishLabel, id) => (id === "CellMenu.Split" ? "Diviser" : englishLabel));
+    await translateForTests((englishLabel, id) => (id === "CellMenu.Split" ? "Diviser" : englishLabel));
     render(cells[0]);
 
     expect(rows()).toContain("Diviser");

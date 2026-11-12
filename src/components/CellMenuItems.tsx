@@ -24,7 +24,12 @@ import { cellMenuItemsOfCell } from "../cell-menu-items-source";
 import type { CellMenuChoice, CellMenuCommand } from "../cell-menu-model";
 import { kItemIconColor, setIconSlot } from "../menu-widgets";
 import { kBloomBlue } from "../constants";
-import { shownLabel, uiString } from "../ui-strings";
+import {
+  onTranslationsArrived,
+  shownLabel,
+  translationsAreReady,
+  uiString,
+} from "../ui-strings";
 
 // The toggles' pressed look, and the gutter the labels line up against.
 const kPressedBackgroundColor = "#d7ecf1";
@@ -195,9 +200,13 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
   // A content-type choice changes the cell, and the model must be asked again for
   // what the cell is now. Nothing else re-renders this, so ask for a render.
   const [, noteCellChanged] = useState(0);
+  // Nothing shows while the host's translations are on their way, so a host that
+  // renders this early never shows the English first.
+  const [ready, setReady] = useState(translationsAreReady);
+  useEffect(() => (ready ? undefined : onTranslationsArrived(() => setReady(true))), [ready]);
   const rows: React.ReactNode[] = [];
   let groupOfPreviousItem: string | undefined;
-  const items = props.cell ? cellMenuItemsOfCell(props.cell) : [];
+  const items = props.cell && ready ? cellMenuItemsOfCell(props.cell) : [];
 
   // A cell whose host refuses every item has no section, so no heading either.
   if (items.length > 0) {

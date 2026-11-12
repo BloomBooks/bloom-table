@@ -1,14 +1,16 @@
 // Every string the library's own DOM-built UI shows a user: the pills, the "+"
 // buttons, the Row, Column, Table and Cell menus, and the Paint Format badge.
 //
-// A host translates them by installing a localizer with setTableLocalizer. The
-// localizer is handed each string's English and its id from tableUiStrings, and
-// returns the text to show. Placeholders `{0}` and `{1}` are filled after the
-// localizer runs, so a translation can put them wherever its grammar wants.
+// A host translates them by handing the library a getLocalizations function
+// (setGetLocalizations in host-localization.ts). The library asks it once for
+// every string, by id with its English, and shows none of its UI until the
+// answer arrives. Placeholders `{0}` and `{1}` are filled after translating, so
+// a translation can put them wherever its grammar wants.
 
 /**
- * The library's UI strings, by id. The ids are stable: a host maps them to its
- * own translations. The English is what the library shows with no localizer.
+ * The library's UI strings, by id. The ids are stable; a host translates each
+ * under kTableUiStringIdPrefix + id (see ALL_TABLE_UI_STRINGS). The English is
+ * what the library shows when the host has no translation.
  */
 export const tableUiStrings = {
   // The pills that open the Column, Row and Table menus (tooltip and accessible name).
@@ -132,37 +134,85 @@ export const tableUiStrings = {
   "Border.Weight.None": "0 (None)",
 } as const;
 
-/** The id of one of the library's UI strings. */
+/** The id of one of the library's UI strings, as a key of tableUiStrings. */
 export type TableUiStringId = keyof typeof tableUiStrings;
 
 /**
- * Turns one of the library's strings into the text to show. `englishLabel` is
- * the string's English, placeholders and all; `id` is its key in tableUiStrings,
- * or `ContentType.<type id>` for a content type the host registered itself.
+ * What the host's translation files call the library's strings: each key of
+ * tableUiStrings with this in front, so `RowMenu.AddAbove` is
+ * `EditTab.Table.RowMenu.AddAbove`.
  */
-export type TableLocalizer = (englishLabel: string, id: string) => string;
-
-let localizer: TableLocalizer | undefined;
-const localizerChangeListeners: Array<() => void> = [];
+export const kTableUiStringIdPrefix = "EditTab.Table.";
 
 /**
- * Install the host's localizer, or pass undefined to go back to English. The
- * chrome that already exists on the page (the pills and the "+" buttons, and the
- * Paint Format badge while it shows) is relabelled at once, because a host's
- * translations usually arrive after the tables are attached. Menus are built
- * each time they open, so they pick the localizer up on their own.
+ * Every string the library's UI shows, by the id the host translates it under,
+ * with its English. A host can use it to check that its translation files have
+ * all of them.
  */
-export function setTableLocalizer(fn: TableLocalizer | undefined): void {
-  localizer = fn;
-  for (const listener of localizerChangeListeners) listener();
+export const ALL_TABLE_UI_STRINGS: Record<string, string> = Object.fromEntries(
+  Object.entries(tableUiStrings).map(([id, english]) => [kTableUiStringIdPrefix + id, english]),
+);
+
+/**
+ * The host's way to translate strings, the same shape bloom-image-gallery and
+ * bloom-ai-image-tools take: it is handed ids with their English and answers
+ * with the text to show for each. An id missing from the answer shows in
+ * English.
+ */
+export type GetLocalizations = (
+  strings: Record<string, string>,
+) => Promise<Record<string, string>>;
+
+// The host's translations by id, or undefined while they are on their way. Empty
+// until a host hands over a getLocalizations, so a host that never does gets the
+// English at once.
+let translations: Record<string, string> | undefined = {};
+const translationsArrivedListeners: Array<() => void> = [];
+
+/**
+ * Library-internal: start waiting for the host's translations of `strings`
+ * (ids as the host knows them, with their English). Until they arrive,
+ * translationsAreReady is false and the library shows none of its UI, so the
+ * user never sees the English first. See setGetLocalizations in
+ * host-localization.ts, which is the public entry point.
+ */
+export function awaitTranslations(
+  getLocalizations: GetLocalizations,
+  strings: Record<string, string>,
+): Promise<void> {
+  translations = undefined;
+  const arrived = (answer: Record<string, string>) => {
+    translations = answer;
+    for (const listener of [...translationsArrivedListeners]) listener();
+  };
+  return getLocalizations(strings).then(arrived, (error: unknown) => {
+    // Better the English than no table UI at all; the host still hears of it.
+    arrived({});
+    throw error;
+  });
+}
+
+/** Library-internal: false while the host's translations are on their way. */
+export function translationsAreReady(): boolean {
+  return translations !== undefined;
 }
 
 /**
- * Library-internal: run `listener` whenever setTableLocalizer is called, so a
- * module that keeps labelled elements between menus can relabel them.
+ * Library-internal: run `listener` when the host's translations arrive, so a
+ * module that keeps labelled elements between menus can relabel them and show
+ * what it held back. Returns a function that stops listening.
  */
-export function onTableLocalizerChanged(listener: () => void): void {
-  localizerChangeListeners.push(listener);
+export function onTranslationsArrived(listener: () => void): () => void {
+  translationsArrivedListeners.push(listener);
+  return () => {
+    const index = translationsArrivedListeners.indexOf(listener);
+    if (index >= 0) translationsArrivedListeners.splice(index, 1);
+  };
+}
+
+/** For tests: forget the host's translations and go back to English. */
+export function resetTranslationsForTests(): void {
+  translations = {};
 }
 
 /** Library-internal: one of the library's strings, localized, with {0}, {1}… filled. */
@@ -170,14 +220,10 @@ export function uiString(id: TableUiStringId, ...args: (string | number)[]): str
   return fillPlaceholders(localizeLabel(tableUiStrings[id], id), args);
 }
 
-/**
- * Library-internal: pass an English label and its id through the host's
- * localizer. For strings that are not in tableUiStrings, such as the name of a
- * content type the host registered; everything in the catalog goes through
- * uiString instead.
- */
-export function localizeLabel(englishLabel: string, id: string): string {
-  return localizer ? localizer(englishLabel, id) : englishLabel;
+// The translation of an English label whose id (without kTableUiStringIdPrefix)
+// is `id`, or the English when the host has none.
+function localizeLabel(englishLabel: string, id: string): string {
+  return translations?.[kTableUiStringIdPrefix + id] ?? englishLabel;
 }
 
 function fillPlaceholders(text: string, args: (string | number)[]): string {
@@ -202,10 +248,11 @@ export function contentTypeStringId(contentTypeId: string): string {
   return kBuiltInContentTypeStringIds[contentTypeId] ?? `ContentType.${contentTypeId}`;
 }
 
-/** Library-internal: the text to show for a label of the Cell menu model. */
-export function shownLabel(
-  item: { label: string; labelId: string },
-  localize: TableLocalizer = localizeLabel,
-): string {
-  return localize(item.label, item.labelId);
+/**
+ * Library-internal: the text to show for a label of the Cell menu model. Its
+ * `labelId` may be outside tableUiStrings, as the name of a content type the
+ * host registered is.
+ */
+export function shownLabel(item: { label: string; labelId: string }): string {
+  return localizeLabel(item.label, item.labelId);
 }

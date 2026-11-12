@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
-import { removeTable, resetTableSizeButtons } from "./table-size-buttons";
+import { openCellMenu, removeTable, resetTableSizeButtons } from "./table-size-buttons";
 import { registerCellContentType, unregisterCellContentType } from "./cell-contents";
-import { setTableLocalizer, tableUiStrings, uiString } from "./ui-strings";
+import { resetTranslationsForTests, tableUiStrings, uiString } from "./ui-strings";
+import { translateForTests } from "./test-support/translate-for-tests";
+import { setGetLocalizations } from "./host-localization";
 
-// The host translates the library's UI by installing a localizer. These tests put
-// in one that wraps every string in ⟦…⟧, walk every menu and every mode the
-// library draws, and look for English that escaped it.
+// The host translates the library's UI by handing over getLocalizations. These
+// tests hand over translations that wrap every string in ⟦…⟧, walk every menu and
+// every mode the library draws, and look for English that escaped them.
 
 function stubGrid(table: HTMLElement, size = 50) {
   const cells = Array.from(table.children).filter(
@@ -106,25 +108,22 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  setTableLocalizer(undefined);
+  resetTranslationsForTests();
   closeAnyMenu();
   resetTableSizeButtons();
   document.querySelectorAll<HTMLElement>(".bloom-table").forEach((t) => removeTable(t));
   (globalThis as any).requestAnimationFrame = (globalThis as any).__realRaf;
 });
 
-describe("the host's localizer", () => {
-  it("reaches every string the pills, buttons, menus and badge show", () => {
+describe("the host's translations", () => {
+  it("reach every string the pills, buttons, menus and badge show", async () => {
     const { cells } = makeTable();
-    // The chrome exists before the localizer arrives, as it does in a host whose
+    // The chrome exists before the translations arrive, as it does in a host whose
     // translations load after the tables are attached.
     focusCell(cells[0]);
     const idsSeen = new Set<string>();
-    setTableLocalizer((english, id) => {
-      idsSeen.add(id);
-      return wrap(english);
-    });
-    // Sanity check: the localizer is in force, so a clean audit means something.
+    await translateForTests((english) => wrap(english), idsSeen);
+    // Sanity check: the translations are in force, so a clean audit means something.
     expect(pill("row").getAttribute("aria-label")).toBe(wrapped("Pill.RowMenu"));
 
     const problems: string[] = [];
@@ -190,54 +189,92 @@ describe("the host's localizer", () => {
     expect(problems).toEqual([]);
     const idsNeverAsked = Object.keys(tableUiStrings).filter((id) => !idsSeen.has(id));
     expect(idsNeverAsked).toEqual([]);
-    // Everything the localizer is handed is a catalog id.
+    // Everything the library looks up is a catalog id.
     const notInCatalog = [...idsSeen].filter((id) => !(id in tableUiStrings));
     expect(notInCatalog).toEqual([]);
   });
 
-  it("relabels the Paint format badge that is already showing", () => {
+  it("relabel the Paint format badge that is already showing", async () => {
     const { cells } = makeTable();
     focusCell(cells[0]);
     rightClick(cells[0]);
     click(byLabel(tableUiStrings["PaintFormat.Command"]));
     const badge = document.querySelector<HTMLElement>(".bloom-paint-format-badge")!;
-    // Sanity check: English until a localizer arrives.
+    // Sanity check: English until the translations arrive.
     expect(badge.textContent).toBe("End format painting");
 
-    setTableLocalizer((english) => wrap(english));
+    await translateForTests((english) => wrap(english));
 
     expect(badge.textContent).toBe(wrapped("PaintFormat.End"));
     expect(badge.title).toBe(wrapped("PaintFormat.EndWithShortcut"));
     expect(badge.getAttribute("aria-label")).toBe(wrapped("PaintFormat.End"));
   });
 
-  it("goes back to English when the host removes it", () => {
+  it("hold back the chrome and the Cell menu until they arrive", async () => {
     const { cells } = makeTable();
+    let answer!: () => void;
+    const arrived = setGetLocalizations(
+      (strings) =>
+        new Promise((resolve) => {
+          answer = () =>
+            resolve(Object.fromEntries(Object.entries(strings).map(([id, en]) => [id, wrap(en)])));
+        }),
+    );
     focusCell(cells[0]);
-    setTableLocalizer((english) => wrap(english));
-    // Sanity check: the pills took the localizer.
+    // Sanity check: the chrome exists, so "hidden" below is the library holding it back.
+    expect(pill("table")).not.toBe(null);
+    expect(pill("table").style.display).toBe("none");
+    expect(byLabel(tableUiStrings["AddButton.ColumnAtRightEdge"]).style.display).toBe("none");
+    rightClick(cells[0]);
+    expect(menuPopup()).toBe(null);
+
+    answer();
+    await arrived;
+
+    // The pointer is still on the table, so the chrome shows, already translated.
+    expect(pill("table").style.display).toBe("flex");
     expect(pill("table").title).toBe(wrapped("Pill.TableMenu"));
-
-    setTableLocalizer(undefined);
-
-    expect(pill("table").title).toBe("Table menu");
-    expect(
-      document.querySelector('button[aria-label="Add row at the bottom edge"]'),
-    ).not.toBe(null);
-    click(pill("row"));
-    expect(menuPopup()!.textContent).toContain("Add Row Above");
-    expect(englishThatEscaped("Row menu").length).toBeGreaterThan(0);
-    expect(menuPopup()!.textContent).not.toContain("⟦");
+    expect(byLabel(wrapped("AddButton.ColumnAtRightEdge")).style.display).toBe("flex");
+    rightClick(cells[0]);
+    expect(menuPopup()).not.toBe(null);
+    expect(englishThatEscaped("Cell menu")).toEqual([]);
   });
 
-  it("fills placeholders after translating, so a translation can move them", () => {
-    setTableLocalizer((english, id) => (id === "Format.CornerRadius" ? "Rayon {0} (coin)" : english));
+  it("hold back a Cell menu that the host opens itself", async () => {
+    const { cells } = makeTable();
+    let answer!: () => void;
+    const arrived = setGetLocalizations(
+      () => new Promise((resolve) => (answer = () => resolve({}))),
+    );
+    focusCell(cells[0]);
+    openCellMenu(cells[0], { x: 120, y: 120 });
+    expect(menuPopup()).toBe(null);
+
+    answer();
+    await arrived;
+    openCellMenu(cells[0], { x: 120, y: 120 });
+    expect(menuPopup()).not.toBe(null);
+  });
+
+  it("give way to the English when the host fails to answer, and the host hears of it", async () => {
+    const { cells } = makeTable();
+    const failure = new Error("no server");
+    const arrived = setGetLocalizations(() => Promise.reject(failure));
+    await expect(arrived).rejects.toBe(failure);
+
+    focusCell(cells[0]);
+    expect(pill("table").style.display).toBe("flex");
+    expect(pill("table").title).toBe("Table menu");
+  });
+
+  it("have their placeholders filled afterwards, so a translation can move them", async () => {
+    await translateForTests((english, id) => (id === "Format.CornerRadius" ? "Rayon {0} (coin)" : english));
 
     expect(uiString("Format.CornerRadius", 8)).toBe("Rayon 8 (coin)");
     expect(uiString("Units.Pixels", 12)).toBe("12px");
   });
 
-  it("names a content type the host registered under ContentType.<its id>", () => {
+  it("name a content type the host registered under ContentType.<its id>", async () => {
     registerCellContentType({
       id: "calendarPicture",
       englishName: "Calendar picture",
@@ -248,7 +285,7 @@ describe("the host's localizer", () => {
     try {
       const { cells } = makeTable();
       const asked: Array<[string, string]> = [];
-      setTableLocalizer((english, id) => {
+      await translateForTests((english, id) => {
         asked.push([english, id]);
         return wrap(english);
       });
