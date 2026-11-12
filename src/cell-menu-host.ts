@@ -143,3 +143,54 @@ export function cellMenuOpenedByHost(
 ): boolean {
   return openHandler ? openHandler(cell, table, position) : false;
 }
+
+import type { ReactNode } from "react";
+
+/** Which menu a host section is being drawn into. */
+export type HostMenuSectionScope = "cell" | "row" | "column" | "table";
+
+/**
+ * Answers, for one menu, with the React element of the host's section there, or
+ * undefined for none; see setHostMenuSectionProvider.
+ */
+export type HostMenuSectionProvider = (
+  scope: HostMenuSectionScope,
+  cells: HTMLElement[],
+  table: HTMLElement,
+) => ReactNode | undefined;
+
+let sectionProvider: HostMenuSectionProvider | undefined;
+
+/**
+ * Install the host's section for the Cell, Row, Column and Table menus. As each
+ * menu is built it asks this with the menu's scope, the cells the menu acts on
+ * (one for the Cell menu, every cell of the row, column or table for the
+ * others) and their table. A host that answers with a React element gets a
+ * section of its own directly after Content Type, with no divider between them;
+ * a host that answers undefined gets none in that menu. Pass undefined to
+ * remove the provider.
+ *
+ * The library renders the element itself: as a child of the Cell menu's React
+ * tree, and in a React root of its own in the Row, Column and Table menus. In
+ * the menus the library opens, the element sees none of the host's React
+ * context, so a host that needs some, such as its theme, wraps the element in
+ * that context's provider. (A host that renders CellMenuItems in its own tree
+ * passes its context through there.) After a content-type choice in the menu
+ * the library asks again and mounts the new element in place of the old one,
+ * so a control that took its starting state from the cells starts afresh.
+ *
+ * Bloom uses it for the languages of a text cell, a setting the library knows
+ * nothing about but that belongs beside the content type in all four menus.
+ */
+export function setHostMenuSectionProvider(fn: HostMenuSectionProvider | undefined): void {
+  sectionProvider = fn;
+}
+
+/** The host's section for this menu, or undefined when it adds nothing here. */
+export function hostMenuSectionFor(
+  scope: HostMenuSectionScope,
+  cells: HTMLElement[],
+  table: HTMLElement,
+): ReactNode | undefined {
+  return sectionProvider?.(scope, cells, table) ?? undefined;
+}

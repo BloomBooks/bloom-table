@@ -11,6 +11,9 @@
 // makeMenuItem), the menu command handlers (menuAddRow etc.), and the
 // delete/add hover previews.
 
+import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
+import { createElement, Fragment } from "react";
 import { BloomTable } from "./BloomTable";
 import { getTableInfo, getRowAndColumn, canGrowSpan } from "./structure";
 import { visibleCellBounds } from "./resize-boundary-highlight";
@@ -35,7 +38,11 @@ import {
 } from "./current-table";
 import { tableHistoryManager } from "./history";
 import { structuralChromeAllowed } from "./structural-chrome";
-import { cellMenuOffersItem, cellMenuOpenedByHost } from "./cell-menu-host";
+import {
+  cellMenuOffersItem,
+  cellMenuOpenedByHost,
+  hostMenuSectionFor,
+} from "./cell-menu-host";
 import { setCellMenuItemsSource } from "./cell-menu-items-source";
 import { mountCellMenuItems } from "./components/CellMenuItems";
 import type {
@@ -217,12 +224,7 @@ export function resetTableSizeButtons(): void {
   proxRowAdd = null;
   tablePillTL = null;
   proxTablePillTL = null;
-  if (menuPopup) {
-    menuPopup.remove();
-    menuPopup = null;
-  }
-  menuOpenId = null;
-  menuTargetCell = null;
+  closeMenuPopup();
 
   // The hover previews are cached DOM nodes; keeping them across a reset means
   // a host that replaced the body content gets a detached div forever after.
@@ -379,6 +381,11 @@ let menuTargetCell: HTMLElement | null = null;
 // Set while a popup shows the Cell section, whose items are a mounted React
 // component; closing the popup takes the component down with it.
 let unmountCellSection: (() => void) | null = null;
+// The open Row, Column or Table menu's host section: what draws it again, after a
+// content-type change, and what tears it down when the menu closes.
+let hostSectionInMenu: { redraw: () => void; tearDown: () => void } | null = null;
+// Keeps the open menu inside the window when its height changes.
+let menuResizeObserver: ResizeObserver | null = null;
 
 let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
@@ -893,6 +900,8 @@ function renderChoiceRow(
     const choose = () => {
       opt.choose();
       refresh();
+      // The host's section may depend on what the cells hold now.
+      hostSectionInMenu?.redraw();
     };
     const label = shownLabel(opt);
     const b = opt.icon
@@ -915,6 +924,37 @@ function buildContentTypeControls(ctx: MenuCtx, scope: FormattingScope): HTMLEle
 function buildContentTypeSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   const controls = buildContentTypeControls(ctx, scope);
   return controls.length ? [makeDivider(), ...controls] : [];
+}
+
+// The host's own section in the Row, Column or Table menu, directly after Content
+// Type, with no divider of its own; see setHostMenuSectionProvider in
+// cell-menu-host.ts. The host is asked again whenever a content-type choice in
+// this menu changes the cells. (The Cell menu gets its host section through the
+// model instead; see cellMenuItems.)
+function buildHostSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const { table, cells, seed } = scopeCells(ctx, scope);
+  if (!table || !seed) return [];
+  const container = document.createElement("div");
+  container.setAttribute("data-btable-host-section", scope);
+  const root = createRoot(container);
+  // Each drawing gets a key of its own, so the host's controls mount afresh for
+  // the cells as they now are rather than keeping state from before.
+  let drawing = 0;
+  // Rendered synchronously: the menu is measured as soon as it is built.
+  const draw = () => {
+    const section = hostMenuSectionFor(scope, cells(), table);
+    drawing++;
+    flushSync(() => root.render(createElement(Fragment, { key: drawing }, section)));
+    container.style.display = section === undefined ? "none" : "";
+  };
+  draw();
+  hostSectionInMenu = {
+    redraw: draw,
+    // Unmounting inside the event that closed the menu could land in the middle
+    // of a React host's own work, so let that finish first.
+    tearDown: () => setTimeout(() => root.unmount(), 0),
+  };
+  return [container];
 }
 
 // ===== The border scope chooser =====
@@ -1447,6 +1487,10 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
   const choice = contentTypeChoice(ctx, "cell");
   if (choice) items.push(choice);
 
+  const hostSection = hostMenuSectionFor("cell", [cell], table);
+  if (hostSection !== undefined)
+    items.push({ kind: "hostSection", id: "hostSection", group: "contentType", content: hostSection });
+
   if (kFormatRowIds.some((id) => menuOffers(ctx, id)))
     items.push({
       kind: "formatControls",
@@ -1551,6 +1595,7 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
     buildSizeControl(ctx, "row"),
     // 4) content type + formatting, applied to every cell in the row
     ...buildContentTypeSection(ctx, "row"),
+    ...buildHostSection(ctx, "row"),
     ...buildFormattingSection(ctx, "row"),
     ...buildCopyPasteSection(ctx, "row"),
     // 5) duplicate/delete, the last commands in the menu
@@ -1585,6 +1630,7 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
     buildSizeControl(ctx, "column"),
     // 4) content type + formatting, applied to every cell in the column
     ...buildContentTypeSection(ctx, "column"),
+    ...buildHostSection(ctx, "column"),
     ...buildFormattingSection(ctx, "column"),
     ...buildCopyPasteSection(ctx, "column"),
     // 5) duplicate/delete, the last commands in the menu
@@ -1605,6 +1651,7 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
     // Format section includes the Fill and Border color controls that used to
     // live directly in this section).
     els.push(...buildContentTypeSection(ctx, "table"));
+    els.push(...buildHostSection(ctx, "table"));
     els.push(...buildFormattingSection(ctx, "table"));
 
     // Spacing sliders follow the Format section (right after Corners).
@@ -1687,6 +1734,12 @@ function closeMenuPopup(): void {
     unmountCellSection();
     unmountCellSection = null;
   }
+  if (hostSectionInMenu) {
+    hostSectionInMenu.tearDown();
+    hostSectionInMenu = null;
+  }
+  menuResizeObserver?.disconnect();
+  menuResizeObserver = null;
   if (menuPopup) {
     menuPopup.remove();
     menuPopup = null;
@@ -1770,6 +1823,13 @@ function openMenu(
   menuOpenId = id;
   if ("pill" in anchor) positionMenuAtPill(popup, anchor.pill, anchor.kind);
   else positionMenuAtPoint(popup, anchor.x, anchor.y);
+  // A choice in the menu can change its height (a host's section redrawn for a
+  // new content type), so keep it inside the window from where it now stands.
+  menuResizeObserver = new ResizeObserver(() => {
+    const r = popup.getBoundingClientRect();
+    positionMenuAtPoint(popup, r.left, r.top);
+  });
+  menuResizeObserver.observe(popup);
 
   document.addEventListener("mousedown", onDocMouseDownForMenu, true);
   document.addEventListener("keydown", onKeyDownForMenu, true);

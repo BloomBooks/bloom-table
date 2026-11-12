@@ -22,7 +22,7 @@ import MenuItem from "@mui/material/MenuItem";
 import ToggleButton from "@mui/material/ToggleButton";
 import { cellMenuItemsOfCell } from "../cell-menu-items-source";
 import type { CellMenuChoice, CellMenuCommand } from "../cell-menu-model";
-import { kItemIconColor, setIconSlot } from "../menu-widgets";
+import { kIconSlotPx, kItemIconColor, kLabelIndentPx, setIconSlot } from "../menu-widgets";
 import { kBloomBlue } from "../constants";
 import {
   onTranslationsArrived,
@@ -31,10 +31,16 @@ import {
   uiString,
 } from "../ui-strings";
 
-// The toggles' pressed look, and the gutter the labels line up against.
+// The toggles' pressed look.
 const kPressedBackgroundColor = "#d7ecf1";
 const kPressedBorderColor = "#2d8294";
-const kIconGutterPx = 28;
+
+// The rows' metrics are the Row, Column and Table menus' own (makeMenuItem and
+// makeControlRow): 13px text in the popup's font, 14px from the menu's edge, then
+// an icon gutter, so every label in all four menus starts the same distance in.
+// They are spelled out because MUI's MenuItem would otherwise bring its theme's
+// larger type and its own padding.
+const kRowFontSize = "13px";
 
 export interface CellMenuItemsProps {
   /** The cell whose menu this is. */
@@ -81,6 +87,18 @@ const CommandRow: React.FunctionComponent<{
   <MenuItem
     aria-label={props.label}
     disabled={!props.item.enabled}
+    sx={{
+      padding: "6px 14px",
+      minHeight: 0,
+      fontFamily: "inherit",
+      fontSize: kRowFontSize,
+      lineHeight: "normal",
+      color: "#222",
+      "&:hover": { backgroundColor: "#eef6f8" },
+      // MenuItem gives any ListItemIcon inside it a wider minimum of its own, and
+      // that rule outranks one set on the ListItemIcon.
+      "& .MuiListItemIcon-root": { minWidth: kIconSlotPx },
+    }}
     onClick={() => {
       // The action holds the cell it was built for, so closing first is safe and
       // keeps the menu from sitting over whatever the command changes.
@@ -88,10 +106,16 @@ const CommandRow: React.FunctionComponent<{
       props.item.invoke();
     }}
   >
-    <ListItemIcon sx={{ minWidth: kIconGutterPx, width: kIconGutterPx }}>
+    <ListItemIcon
+      sx={{ width: kIconSlotPx, justifyContent: "center" }}
+    >
       <IconSlot icon={props.item.icon} color={kItemIconColor} />
     </ListItemIcon>
-    <ListItemText primary={props.label} primaryTypographyProps={{ variant: "inherit" }} />
+    <ListItemText
+      sx={{ margin: 0 }}
+      primary={props.label}
+      primaryTypographyProps={{ variant: "inherit" }}
+    />
   </MenuItem>
 );
 
@@ -104,8 +128,14 @@ const ChoiceRow: React.FunctionComponent<{
 }> = (props) => (
   // The display is spelled out: a host's menu may lay its own list items out as flex
   // rows, which would put the toggles beside the label rather than below it.
-  <li style={{ display: "block", padding: "4px 14px", listStyle: "none" }}>
-    <div style={{ fontSize: "13px", color: "#222" }}>
+  <li
+    style={{
+      display: "block",
+      padding: `4px 14px 4px ${kLabelIndentPx}px`,
+      listStyle: "none",
+    }}
+  >
+    <div style={{ fontSize: kRowFontSize, color: "#222" }}>
       {shownLabel(props.item)}
     </div>
     <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
@@ -152,24 +182,21 @@ const ChoiceRow: React.FunctionComponent<{
   </li>
 );
 
-// The heading over the items, saying what they act on. It is small, grey and
-// upper case like the library's other section headings, but it starts at the left
-// edge of the menu's content rather than at the icon gutter, so the eye finds it.
+// The look of a heading over a run of items. It is small, grey and upper case
+// like the library's other section headings, but it starts at the left edge of
+// the menu's content rather than at the icon gutter, so the eye finds it.
+const kHeadingStyle: React.CSSProperties = {
+  padding: "8px 14px 3px",
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
+  color: "#888",
+};
+
+// The heading over the items, saying what they act on.
 const SectionHeading: React.FunctionComponent<{ label: string }> = (props) => (
-  <li
-    style={{
-      display: "block",
-      listStyle: "none",
-      padding: "8px 14px 3px",
-      fontSize: "11px",
-      fontWeight: 700,
-      textTransform: "uppercase",
-      letterSpacing: "0.5px",
-      color: "#888",
-    }}
-  >
-    {props.label}
-  </li>
+  <li style={{ display: "block", listStyle: "none", ...kHeadingStyle }}>{props.label}</li>
 );
 
 // The Format section's own rows, drawn by whoever passed renderFormatControls.
@@ -190,7 +217,7 @@ const FormatControls: React.FunctionComponent<{
   }, []);
   return (
     <li style={{ display: "block", listStyle: "none" }}>
-      <div style={{ padding: "8px 14px 3px", fontSize: "13px", color: "#666" }}>{props.label}</div>
+      <div style={kHeadingStyle}>{props.label}</div>
       <div ref={container} />
     </li>
   );
@@ -199,7 +226,7 @@ const FormatControls: React.FunctionComponent<{
 export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props) => {
   // A content-type choice changes the cell, and the model must be asked again for
   // what the cell is now. Nothing else re-renders this, so ask for a render.
-  const [, noteCellChanged] = useState(0);
+  const [contentTypeChoices, noteCellChanged] = useState(0);
   // Nothing shows while the host's translations are on their way, so a host that
   // renders this early never shows the English first.
   const [ready, setReady] = useState(translationsAreReady);
@@ -220,7 +247,12 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
 
   for (const item of items) {
     if (groupOfPreviousItem && item.group !== groupOfPreviousItem) {
-      rows.push(<Divider key={`divider-before-${item.id}`} />);
+      rows.push(
+        <Divider
+          key={`divider-before-${item.id}`}
+          sx={{ margin: "4px 0", borderColor: "rgba(0,0,0,0.1)" }}
+        />,
+      );
     }
     groupOfPreviousItem = item.group;
 
@@ -231,6 +263,14 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
           item={item}
           onChosen={() => noteCellChanged((count) => count + 1)}
         />,
+      );
+    } else if (item.kind === "hostSection") {
+      // Keyed by the content-type choices made so far, so the host's controls
+      // mount afresh for the cell as it now is rather than keeping state from before.
+      rows.push(
+        <li key={`${item.id}-${contentTypeChoices}`} style={{ display: "block", listStyle: "none" }}>
+          {item.content}
+        </li>,
       );
     } else if (item.kind === "formatControls") {
       if (props.renderFormatControls) {

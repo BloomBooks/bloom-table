@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
+import { createElement, useLayoutEffect } from "react";
 import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
 import {
@@ -12,7 +13,18 @@ import {
   resetTableSizeButtons,
 } from "./table-size-buttons";
 import { setStructuralChromeGate } from "./structural-chrome";
-import { setCellMenuItemFilter, setCellMenuOpenHandler } from "./cell-menu-host";
+import {
+  setCellMenuItemFilter,
+  setCellMenuOpenHandler,
+  setHostMenuSectionProvider,
+  type HostMenuSectionScope,
+} from "./cell-menu-host";
+import {
+  addRow,
+  applyCellSettings,
+  setHostCellSettings,
+  snapshotCellSettings,
+} from "./structure";
 import { getCurrentContentTypeId } from "./cell-contents";
 import { withClipboardStub } from "./test-support/clipboard-stub";
 import type { CellMenuChoice, CellMenuCommand } from "./cell-menu-model";
@@ -1348,5 +1360,274 @@ describe("the padding slider", () => {
     document.body.appendChild(cell);
     expect(effectivePaddingPx(cell)).toBe(3);
     cell.remove();
+  });
+});
+
+describe("the host's own menu section", () => {
+  const openCellMenuOn = (cell: HTMLElement) => {
+    focusCell(cell);
+    cell.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }),
+    );
+    // Sanity check: every assertion below reads this popup.
+    expect(menuPopup()).not.toBe(null);
+  };
+  const hostSection = () => menuPopup()?.querySelector<HTMLElement>("[data-host-section]") ?? null;
+  // A deferred unmount runs on a timer.
+  const afterTimers = () => new Promise((resolve) => setTimeout(resolve, 20));
+  // Every call the provider got, how many of its sections are mounted, and what
+  // React logged. Each test gets its own tally, because a menu that an earlier
+  // test left open unmounts on a timer that can fire during a later test.
+  let asked: Array<{ scope: HostMenuSectionScope; cells: HTMLElement[] }>;
+  let tally: { mounted: number; mounts: number };
+  let reactErrors: unknown[];
+  const originalError = console.error;
+
+  const Languages = (props: {
+    scope: string;
+    count: number;
+    tally: { mounted: number; mounts: number };
+  }) => {
+    useLayoutEffect(() => {
+      props.tally.mounts++;
+      props.tally.mounted++;
+      return () => {
+        props.tally.mounted--;
+      };
+    }, []);
+    return createElement("div", { "data-host-section": props.scope }, `Languages for ${props.count}`);
+  };
+
+  beforeEach(() => {
+    asked = [];
+    tally = { mounted: 0, mounts: 0 };
+    reactErrors = [];
+    console.error = (...args: unknown[]) => reactErrors.push(args[0]);
+    setHostMenuSectionProvider((scope, cells) => {
+      asked.push({ scope, cells });
+      return createElement(Languages, { scope, count: cells.length, tally });
+    });
+  });
+  afterEach(() => {
+    setHostMenuSectionProvider(undefined);
+    console.error = originalError;
+  });
+
+  it("is asked about the row's cells and drawn after Content Type in the Row menu", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+
+    expect(asked.map((a) => a.scope)).toEqual(["row"]);
+    expect(asked[0].cells).toEqual([cells[0], cells[1]]);
+    const section = hostSection();
+    expect(section?.textContent).toBe("Languages for 2");
+    // It comes after the Content Type row and before the Format section.
+    const text = menuPopup()!.textContent!;
+    expect(text.indexOf("Content Type")).toBeLessThan(text.indexOf("Languages for 2"));
+    expect(text.indexOf("Languages for 2")).toBeLessThan(text.indexOf("Format"));
+  });
+
+  it("is asked about every cell for the Table menu and the column's cells for the Column menu", () => {
+    const { cells } = makeTable();
+    focusCell(cells[1]);
+    click(pill("table"));
+    expect(asked[asked.length - 1]?.scope).toBe("table");
+    expect(asked[asked.length - 1]?.cells.length).toBe(4);
+
+    click(pill("column"));
+    expect(asked[asked.length - 1]?.scope).toBe("column");
+    expect(asked[asked.length - 1]?.cells).toEqual([cells[1], cells[3]]);
+  });
+
+  it("is asked about the one cell for the Cell menu", () => {
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+
+    expect(asked[asked.length - 1]?.scope).toBe("cell");
+    expect(asked[asked.length - 1]?.cells).toEqual([cells[2]]);
+    expect(hostSection()?.textContent).toBe("Languages for 1");
+  });
+
+  it("mounts and unmounts in the Cell menu with no React warnings", async () => {
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+    expect(tally.mounted).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await afterTimers();
+
+    expect(tally.mounted).toBe(0);
+    expect(reactErrors).toEqual([]);
+  });
+
+  it("mounts and unmounts in the Row menu with no React warnings", async () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+    expect(tally.mounted).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(menuPopup()).toBe(null);
+    await afterTimers();
+
+    expect(tally.mounted).toBe(0);
+    expect(reactErrors).toEqual([]);
+  });
+
+  it("is asked again and shows the new section after a content-type change in the Cell menu", async () => {
+    let calls = 0;
+    setHostMenuSectionProvider(() => {
+      calls++;
+      return createElement("div", { "data-host-section": "cell" }, `Call ${calls}`);
+    });
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+    expect(hostSection()?.textContent).toBe("Call 1");
+
+    const otherType = Array.from(
+      menuPopup()!.querySelectorAll<HTMLElement>("[data-ct-id]"),
+    ).find((b) => b.getAttribute("aria-pressed") !== "true");
+    // Sanity check: the menu offers a type the cell does not have yet.
+    expect(otherType).toBeDefined();
+    click(otherType!);
+    // React renders the click's state change in a microtask.
+    await Promise.resolve();
+
+    expect(hostSection()?.textContent).toBe(`Call ${calls}`);
+    expect(calls).toBeGreaterThan(1);
+  });
+
+  // A cell's type that the cell does not have yet, from the open menu.
+  const otherContentType = () => {
+    const button = Array.from(menuPopup()!.querySelectorAll<HTMLElement>("[data-ct-id]")).find(
+      (b) => b.getAttribute("aria-pressed") !== "true",
+    );
+    // Sanity check: the menu offers a type the cell does not have yet.
+    expect(button).toBeDefined();
+    return button!;
+  };
+
+  it("mounts the host's controls afresh after a content-type change in the Row menu", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+    expect(tally.mounts).toBe(1);
+
+    click(otherContentType());
+
+    expect(tally.mounts).toBe(2);
+    expect(tally.mounted).toBe(1);
+  });
+
+  it("mounts the host's controls afresh after a content-type change in the Cell menu", async () => {
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+    expect(tally.mounts).toBe(1);
+
+    click(otherContentType());
+    // React renders the click's state change in a microtask.
+    await Promise.resolve();
+
+    expect(tally.mounts).toBe(2);
+    expect(tally.mounted).toBe(1);
+  });
+
+  it("brings a menu that grows past the window's bottom back inside it", () => {
+    const original = globalThis.ResizeObserver;
+    let notifyResize: (() => void) | undefined;
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this as unknown as ResizeObserver);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const { cells } = makeTable();
+      focusCell(cells[0]);
+      click(pill("row"));
+      const popup = menuPopup()!;
+      // The menu sits 100px above the window's bottom, then grows to 300px.
+      const top = window.innerHeight - 100;
+      popup.getBoundingClientRect = () => ({ left: 10, top }) as DOMRect;
+      Object.defineProperty(popup, "offsetHeight", { value: 300, configurable: true });
+
+      notifyResize!();
+
+      expect(popup.style.top).toBe(`${window.innerHeight - 300 - 4}px`);
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
+  });
+
+  it("leaves no section where the host answers undefined", () => {
+    setHostMenuSectionProvider(() => undefined);
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+
+    expect(menuPopup()).not.toBe(null);
+    expect(hostSection()).toBe(null);
+    expect(menuPopup()!.querySelector<HTMLElement>('[data-btable-host-section="row"]')?.style.display).toBe(
+      "none",
+    );
+  });
+});
+
+describe("the host's own cell setting", () => {
+  afterEach(() => setHostCellSettings(undefined));
+
+  it("is copied into a new row's cells from the row it was inserted beside", () => {
+    const { table, cells } = makeTable();
+    cells[0].setAttribute("data-host-languages", "V,N1");
+    cells[1].setAttribute("data-host-languages", "N1");
+    setHostCellSettings({
+      snapshot: (cell) => cell.getAttribute("data-host-languages") ?? undefined,
+      apply: (cell, value) =>
+        value === undefined
+          ? cell.removeAttribute("data-host-languages")
+          : cell.setAttribute("data-host-languages", value),
+    });
+
+    addRow(table, false, 0);
+
+    const all = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    expect(all.length).toBe(6);
+    expect(all.slice(4).map((c) => c.getAttribute("data-host-languages"))).toEqual(["V,N1", "N1"]);
+  });
+
+  it("is cleared where the source cell has none", () => {
+    const { cells } = makeTable();
+    cells[1].setAttribute("data-host-languages", "V");
+    setHostCellSettings({
+      snapshot: (cell) => cell.getAttribute("data-host-languages") ?? undefined,
+      apply: (cell, value) =>
+        value === undefined
+          ? cell.removeAttribute("data-host-languages")
+          : cell.setAttribute("data-host-languages", value),
+    });
+    // Sanity check: only the second cell has a setting to copy.
+    expect(cells[0].hasAttribute("data-host-languages")).toBe(false);
+
+    // Paste properties from the first cell, which has none, onto the second.
+    applyCellSettings(cells[1], snapshotCellSettings(cells[0]));
+
+    expect(cells[1].hasAttribute("data-host-languages")).toBe(false);
+  });
+
+  it("is left alone by a snapshot taken before any host installed one", () => {
+    const { cells } = makeTable();
+    const snap = snapshotCellSettings(cells[0]);
+    cells[1].setAttribute("data-host-languages", "V");
+    setHostCellSettings({
+      snapshot: () => undefined,
+      apply: (cell) => cell.removeAttribute("data-host-languages"),
+    });
+
+    applyCellSettings(cells[1], snap);
+
+    expect(cells[1].getAttribute("data-host-languages")).toBe("V");
   });
 });

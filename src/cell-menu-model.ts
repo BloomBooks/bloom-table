@@ -6,15 +6,18 @@
 // what a host renders and what the library renders cannot drift apart.
 //
 // The items keep the order and the grouping the library's menu has always had:
-// the content type first, then the Format rows, then Paint format, then Merge
-// and Split. `group` marks those four runs, so a renderer that wants a divider
-// between them puts one wherever the group changes, and no renderer has to know
-// which items belong together.
+// the content type first, then the host's own section if it has one, then the
+// Format rows, then Paint format, then Merge and Split. `group` marks those runs,
+// so a renderer that wants a divider between them puts one wherever the group
+// changes, and no renderer has to know which items belong together. The host's
+// section is in the content type's group, so it sits against the content type
+// with no divider between them.
 //
 // Every `label` is English, and `labelId` is its id in tableUiStrings
 // (ui-strings.ts), or `ContentType.<type id>` for a content type's name. A
 // renderer shows the host's translation of that id, or the English.
 
+import type { ReactNode } from "react";
 import type { CellMenuItemId } from "./cell-menu-host";
 
 /** The runs of items the menu falls into, in the order the menu shows them. */
@@ -88,4 +91,19 @@ export interface CellMenuFormatControls {
   labelId: string;
 }
 
-export type CellMenuItem = CellMenuCommand | CellMenuChoice | CellMenuFormatControls;
+/**
+ * The host's own section: the React element that the host's provider
+ * (setHostMenuSectionProvider, cell-menu-host.ts) answered with.
+ */
+export interface CellMenuHostSection {
+  kind: "hostSection";
+  id: "hostSection";
+  group: "contentType";
+  content: ReactNode;
+}
+
+export type CellMenuItem =
+  | CellMenuCommand
+  | CellMenuChoice
+  | CellMenuHostSection
+  | CellMenuFormatControls;
