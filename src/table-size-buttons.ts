@@ -35,7 +35,7 @@ import {
 } from "./current-table";
 import { tableHistoryManager } from "./history";
 import { structuralChromeAllowed } from "./structural-chrome";
-import { cellMenuOffersItem, cellMenuOpenedByHost } from "./cell-menu-host";
+import { cellMenuOffersItem, cellMenuOpenedByHost, hostMenuSectionFor } from "./cell-menu-host";
 import { setCellMenuItemsSource } from "./cell-menu-items-source";
 import { mountCellMenuItems } from "./components/CellMenuItems";
 import type {
@@ -379,6 +379,9 @@ let menuTargetCell: HTMLElement | null = null;
 // Set while a popup shows the Cell section, whose items are a mounted React
 // component; closing the popup takes the component down with it.
 let unmountCellSection: (() => void) | null = null;
+// The open Row, Column or Table menu's host section: what draws it again, after a
+// content-type change, and what tears it down when the menu closes.
+let hostSectionInMenu: { redraw: () => void; tearDown: () => void } | null = null;
 
 let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
@@ -893,6 +896,8 @@ function renderChoiceRow(
     const choose = () => {
       opt.choose();
       refresh();
+      // The host's section may depend on what the cells hold now.
+      hostSectionInMenu?.redraw();
     };
     const label = shownLabel(opt);
     const b = opt.icon
@@ -915,6 +920,36 @@ function buildContentTypeControls(ctx: MenuCtx, scope: FormattingScope): HTMLEle
 function buildContentTypeSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   const controls = buildContentTypeControls(ctx, scope);
   return controls.length ? [makeDivider(), ...controls] : [];
+}
+
+// The host's own section in the Row, Column or Table menu, directly after Content
+// Type, with no divider of its own; see setHostMenuSectionProvider in
+// cell-menu-host.ts. The host is asked again whenever a content-type choice in
+// this menu changes the cells. (The Cell menu gets its host section through the
+// model instead; see cellMenuItems.)
+function buildHostSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
+  const { table, cells, seed } = scopeCells(ctx, scope);
+  if (!table || !seed) return [];
+  const container = document.createElement("div");
+  container.setAttribute("data-btable-host-section", scope);
+  let tearDownDrawing: (() => void) | undefined;
+  const draw = () => {
+    tearDownDrawing?.();
+    tearDownDrawing = undefined;
+    container.innerHTML = "";
+    const renderer = hostMenuSectionFor(scope, cells(), table);
+    if (renderer) tearDownDrawing = renderer(container);
+    container.style.display = renderer ? "" : "none";
+  };
+  draw();
+  hostSectionInMenu = {
+    redraw: draw,
+    tearDown: () => {
+      tearDownDrawing?.();
+      tearDownDrawing = undefined;
+    },
+  };
+  return [container];
 }
 
 // ===== The border scope chooser =====
@@ -1447,6 +1482,10 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
   const choice = contentTypeChoice(ctx, "cell");
   if (choice) items.push(choice);
 
+  const hostRenderer = hostMenuSectionFor("cell", [cell], table);
+  if (hostRenderer)
+    items.push({ kind: "hostSection", id: "hostSection", group: "host", render: hostRenderer });
+
   if (kFormatRowIds.some((id) => menuOffers(ctx, id)))
     items.push({
       kind: "formatControls",
@@ -1551,6 +1590,7 @@ function buildRowSection(ctx: MenuCtx): HTMLElement[] {
     buildSizeControl(ctx, "row"),
     // 4) content type + formatting, applied to every cell in the row
     ...buildContentTypeSection(ctx, "row"),
+    ...buildHostSection(ctx, "row"),
     ...buildFormattingSection(ctx, "row"),
     ...buildCopyPasteSection(ctx, "row"),
     // 5) duplicate/delete, the last commands in the menu
@@ -1585,6 +1625,7 @@ function buildColumnSection(ctx: MenuCtx): HTMLElement[] {
     buildSizeControl(ctx, "column"),
     // 4) content type + formatting, applied to every cell in the column
     ...buildContentTypeSection(ctx, "column"),
+    ...buildHostSection(ctx, "column"),
     ...buildFormattingSection(ctx, "column"),
     ...buildCopyPasteSection(ctx, "column"),
     // 5) duplicate/delete, the last commands in the menu
@@ -1605,6 +1646,7 @@ function buildTableSection(ctx: MenuCtx): HTMLElement[] {
     // Format section includes the Fill and Border color controls that used to
     // live directly in this section).
     els.push(...buildContentTypeSection(ctx, "table"));
+    els.push(...buildHostSection(ctx, "table"));
     els.push(...buildFormattingSection(ctx, "table"));
 
     // Spacing sliders follow the Format section (right after Corners).
@@ -1686,6 +1728,10 @@ function closeMenuPopup(): void {
   if (unmountCellSection) {
     unmountCellSection();
     unmountCellSection = null;
+  }
+  if (hostSectionInMenu) {
+    hostSectionInMenu.tearDown();
+    hostSectionInMenu = null;
   }
   if (menuPopup) {
     menuPopup.remove();

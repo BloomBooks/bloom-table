@@ -143,3 +143,56 @@ export function cellMenuOpenedByHost(
 ): boolean {
   return openHandler ? openHandler(cell, table, position) : false;
 }
+
+/** Which menu a host section is being drawn into. */
+export type HostMenuSectionScope = "cell" | "row" | "column" | "table";
+
+/**
+ * Draws a host's section into `container`, synchronously, and returns the
+ * function that tears it down. The library calls that function when the menu
+ * closes, or before it asks again because the cells changed under the menu.
+ */
+export type HostMenuSectionRenderer = (container: HTMLElement) => () => void;
+
+let sectionProvider:
+  | ((
+      scope: HostMenuSectionScope,
+      cells: HTMLElement[],
+      table: HTMLElement,
+    ) => HostMenuSectionRenderer | undefined)
+  | undefined;
+
+/**
+ * Install the host's section for the Cell, Row, Column and Table menus. As each
+ * menu is built it asks this with the menu's scope, the cells the menu acts on
+ * (one for the Cell menu, every cell of the row, column or table for the
+ * others) and their table. A host that answers with a renderer gets a section
+ * of its own directly after Content Type, with no divider between them; a host that answers
+ * undefined gets none in that menu. Pass undefined to remove the provider.
+ *
+ * Bloom uses it for the languages of a text cell, a setting the library knows
+ * nothing about but that belongs beside the content type in all four menus.
+ *
+ * The menu is measured and positioned as soon as it is built, so the renderer
+ * must draw before it returns (a React host renders with flushSync).
+ */
+export function setHostMenuSectionProvider(
+  fn:
+    | ((
+        scope: HostMenuSectionScope,
+        cells: HTMLElement[],
+        table: HTMLElement,
+      ) => HostMenuSectionRenderer | undefined)
+    | undefined,
+): void {
+  sectionProvider = fn;
+}
+
+/** The host's renderer for this menu, or undefined when it adds nothing here. */
+export function hostMenuSectionFor(
+  scope: HostMenuSectionScope,
+  cells: HTMLElement[],
+  table: HTMLElement,
+): HostMenuSectionRenderer | undefined {
+  return sectionProvider ? sectionProvider(scope, cells, table) : undefined;
+}

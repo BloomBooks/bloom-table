@@ -12,7 +12,13 @@ import {
   resetTableSizeButtons,
 } from "./table-size-buttons";
 import { setStructuralChromeGate } from "./structural-chrome";
-import { setCellMenuItemFilter, setCellMenuOpenHandler } from "./cell-menu-host";
+import {
+  setCellMenuItemFilter,
+  setCellMenuOpenHandler,
+  setHostMenuSectionProvider,
+  type HostMenuSectionScope,
+} from "./cell-menu-host";
+import { addRow, setHostCellSettings } from "./structure";
 import { getCurrentContentTypeId } from "./cell-contents";
 import { withClipboardStub } from "./test-support/clipboard-stub";
 import type { CellMenuChoice, CellMenuCommand } from "./cell-menu-model";
@@ -1348,5 +1354,128 @@ describe("the padding slider", () => {
     document.body.appendChild(cell);
     expect(effectivePaddingPx(cell)).toBe(3);
     cell.remove();
+  });
+});
+
+describe("the host's own menu section", () => {
+  const openCellMenuOn = (cell: HTMLElement) => {
+    focusCell(cell);
+    cell.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }),
+    );
+    // Sanity check: every assertion below reads this popup.
+    expect(menuPopup()).not.toBe(null);
+  };
+  const hostSection = () => menuPopup()?.querySelector<HTMLElement>("[data-host-section]") ?? null;
+  // Every call the provider got, and how many of its drawings are still up.
+  let asked: Array<{ scope: HostMenuSectionScope; cells: HTMLElement[] }>;
+  let drawingsUp: number;
+
+  beforeEach(() => {
+    asked = [];
+    drawingsUp = 0;
+    setHostMenuSectionProvider((scope, cells) => {
+      asked.push({ scope, cells });
+      return (container) => {
+        const div = document.createElement("div");
+        div.setAttribute("data-host-section", scope);
+        div.textContent = `Languages for ${cells.length}`;
+        container.appendChild(div);
+        drawingsUp++;
+        return () => drawingsUp--;
+      };
+    });
+  });
+  afterEach(() => setHostMenuSectionProvider(undefined));
+
+  it("is asked about the row's cells and drawn after Content Type in the Row menu", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+
+    expect(asked.map((a) => a.scope)).toEqual(["row"]);
+    expect(asked[0].cells).toEqual([cells[0], cells[1]]);
+    const section = hostSection();
+    expect(section?.textContent).toBe("Languages for 2");
+    // It comes after the Content Type row and before the Format section.
+    const text = menuPopup()!.textContent!;
+    expect(text.indexOf("Content Type")).toBeLessThan(text.indexOf("Languages for 2"));
+    expect(text.indexOf("Languages for 2")).toBeLessThan(text.indexOf("Format"));
+  });
+
+  it("is asked about every cell for the Table menu and the column's cells for the Column menu", () => {
+    const { cells } = makeTable();
+    focusCell(cells[1]);
+    click(pill("table"));
+    expect(asked[asked.length - 1]?.scope).toBe("table");
+    expect(asked[asked.length - 1]?.cells.length).toBe(4);
+
+    click(pill("column"));
+    expect(asked[asked.length - 1]?.scope).toBe("column");
+    expect(asked[asked.length - 1]?.cells).toEqual([cells[1], cells[3]]);
+  });
+
+  it("is asked about the one cell for the Cell menu", () => {
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+
+    expect(asked[asked.length - 1]?.scope).toBe("cell");
+    expect(asked[asked.length - 1]?.cells).toEqual([cells[2]]);
+    expect(hostSection()?.textContent).toBe("Languages for 1");
+  });
+
+  it("is torn down when the menu closes", () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+    expect(drawingsUp).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+
+    expect(menuPopup()).toBe(null);
+    expect(drawingsUp).toBe(0);
+  });
+
+  it("leaves no section where the host answers undefined", () => {
+    setHostMenuSectionProvider(() => undefined);
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+
+    expect(menuPopup()).not.toBe(null);
+    expect(hostSection()).toBe(null);
+    expect(menuPopup()!.querySelector<HTMLElement>('[data-btable-host-section="row"]')?.style.display).toBe(
+      "none",
+    );
+  });
+});
+
+describe("the host's own cell setting", () => {
+  afterEach(() => setHostCellSettings(undefined));
+
+  it("is copied into a new row's cells from the row it was inserted beside", () => {
+    const { table, cells } = makeTable();
+    cells[0].setAttribute("data-host-languages", "V,N1");
+    cells[1].setAttribute("data-host-languages", "N1");
+    setHostCellSettings({
+      snapshot: (cell) => cell.getAttribute("data-host-languages") ?? undefined,
+      apply: (cell, value) => cell.setAttribute("data-host-languages", value),
+    });
+
+    addRow(table, false, 0);
+
+    const all = Array.from(table.querySelectorAll<HTMLElement>(".bloom-cell"));
+    expect(all.length).toBe(6);
+    expect(all.slice(4).map((c) => c.getAttribute("data-host-languages"))).toEqual(["V,N1", "N1"]);
+  });
+
+  it("is left alone where the source cell has none", () => {
+    const { table } = makeTable();
+    let applied = 0;
+    setHostCellSettings({ snapshot: () => undefined, apply: () => applied++ });
+
+    addRow(table, false, 0);
+
+    expect(applied).toBe(0);
   });
 });
