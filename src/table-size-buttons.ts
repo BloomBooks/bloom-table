@@ -35,7 +35,12 @@ import {
 } from "./current-table";
 import { tableHistoryManager } from "./history";
 import { structuralChromeAllowed } from "./structural-chrome";
-import { cellMenuOffersItem, cellMenuOpenedByHost, hostMenuSectionFor } from "./cell-menu-host";
+import {
+  cellMenuOffersItem,
+  cellMenuOpenedByHost,
+  drawHostMenuSection,
+  hostMenuSectionFor,
+} from "./cell-menu-host";
 import { setCellMenuItemsSource } from "./cell-menu-items-source";
 import { mountCellMenuItems } from "./components/CellMenuItems";
 import type {
@@ -933,21 +938,20 @@ function buildHostSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   const container = document.createElement("div");
   container.setAttribute("data-btable-host-section", scope);
   let tearDownDrawing: (() => void) | undefined;
-  const draw = () => {
+  const clear = () => {
     tearDownDrawing?.();
     tearDownDrawing = undefined;
-    container.innerHTML = "";
+  };
+  const draw = () => {
+    clear();
     const renderer = hostMenuSectionFor(scope, cells(), table);
-    if (renderer) tearDownDrawing = renderer(container);
+    if (renderer) tearDownDrawing = drawHostMenuSection(container, renderer);
     container.style.display = renderer ? "" : "none";
   };
   draw();
   hostSectionInMenu = {
     redraw: draw,
-    tearDown: () => {
-      tearDownDrawing?.();
-      tearDownDrawing = undefined;
-    },
+    tearDown: clear,
   };
   return [container];
 }
@@ -1484,7 +1488,7 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
 
   const hostRenderer = hostMenuSectionFor("cell", [cell], table);
   if (hostRenderer)
-    items.push({ kind: "hostSection", id: "hostSection", group: "host", render: hostRenderer });
+    items.push({ kind: "hostSection", id: "hostSection", group: "contentType", render: hostRenderer });
 
   if (kFormatRowIds.some((id) => menuOffers(ctx, id)))
     items.push({

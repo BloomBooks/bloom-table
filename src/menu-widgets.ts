@@ -10,6 +10,8 @@ import { kInfoIconSvg } from "./menu-icons";
 import { uiString, type TableUiStringId } from "./ui-strings";
 
 export const kIconSlotPx = 22; // reserved left gutter so labels align with/without icons
+// Where a menu row's label starts: the menu's 14px edge padding, then the icon gutter.
+export const kLabelIndentPx = 14 + kIconSlotPx;
 
 // Base pill styling shared by the row/column "..." pills and the table pill.
 export function stylePill(btn: HTMLButtonElement): void {
@@ -71,7 +73,7 @@ export function makeMenuHeader(text: string): HTMLDivElement {
   const h = document.createElement("div");
   h.textContent = text;
   Object.assign(h.style, {
-    padding: `8px 14px 3px ${14 + kIconSlotPx}px`,
+    padding: `8px 14px 3px ${kLabelIndentPx}px`,
     fontSize: "11px",
     fontWeight: "700",
     textTransform: "uppercase",
@@ -743,7 +745,7 @@ export function makeScopePanel(): HTMLDivElement {
 export function makeScopeGroup(tabs: HTMLElement, panel: HTMLElement): HTMLDivElement {
   const group = document.createElement("div");
   Object.assign(group.style, {
-    padding: `4px 14px 4px ${14 + kIconSlotPx}px`,
+    padding: `4px 14px 4px ${kLabelIndentPx}px`,
     boxSizing: "border-box",
   } as CSSStyleDeclaration);
   group.appendChild(tabs);

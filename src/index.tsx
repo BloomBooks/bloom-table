@@ -48,6 +48,7 @@ export type {
   CellMenuItemId,
   HostMenuSectionScope,
   HostMenuSectionRenderer,
+  HostMenuSectionProvider,
 } from "./cell-menu-host";
 export { openCellMenu, refreshStructuralChrome } from "./table-size-buttons";
 // The Cell menu's items as a React component, for a host that has to show them

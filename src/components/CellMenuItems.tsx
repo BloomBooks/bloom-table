@@ -22,8 +22,8 @@ import MenuItem from "@mui/material/MenuItem";
 import ToggleButton from "@mui/material/ToggleButton";
 import { cellMenuItemsOfCell } from "../cell-menu-items-source";
 import type { CellMenuChoice, CellMenuCommand } from "../cell-menu-model";
-import type { HostMenuSectionRenderer } from "../cell-menu-host";
-import { kIconSlotPx, kItemIconColor, setIconSlot } from "../menu-widgets";
+import { drawHostMenuSection, type HostMenuSectionRenderer } from "../cell-menu-host";
+import { kIconSlotPx, kItemIconColor, kLabelIndentPx, setIconSlot } from "../menu-widgets";
 import { kBloomBlue } from "../constants";
 import {
   onTranslationsArrived,
@@ -42,7 +42,6 @@ const kPressedBorderColor = "#2d8294";
 // They are spelled out because MUI's MenuItem would otherwise bring its theme's
 // larger type and its own padding.
 const kRowFontSize = "13px";
-const kLabelIndent = `${14 + kIconSlotPx}px`;
 
 export interface CellMenuItemsProps {
   /** The cell whose menu this is. */
@@ -133,7 +132,7 @@ const ChoiceRow: React.FunctionComponent<{
   <li
     style={{
       display: "block",
-      padding: `4px 14px 4px ${kLabelIndent}`,
+      padding: `4px 14px 4px ${kLabelIndentPx}px`,
       listStyle: "none",
     }}
   >
@@ -234,11 +233,7 @@ const HostSection: React.FunctionComponent<{ render: HostMenuSectionRenderer }> 
   useLayoutEffect(() => {
     const element = container.current;
     if (!element) return;
-    const tearDown = props.render(element);
-    return () => {
-      tearDown();
-      element.innerHTML = "";
-    };
+    return drawHostMenuSection(element, props.render);
   }, [props.render]);
   return (
     <li style={{ display: "block", listStyle: "none" }}>
@@ -270,12 +265,7 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
   }
 
   for (const item of items) {
-    // The host's section follows the content type with no divider between them.
-    if (
-      groupOfPreviousItem &&
-      item.group !== groupOfPreviousItem &&
-      item.kind !== "hostSection"
-    ) {
+    if (groupOfPreviousItem && item.group !== groupOfPreviousItem) {
       rows.push(
         <Divider
           key={`divider-before-${item.id}`}

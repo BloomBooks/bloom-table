@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
+import { createRoot } from "react-dom/client";
+import { createElement } from "react";
+import { flushSync } from "react-dom";
 import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
 import {
@@ -1422,6 +1425,44 @@ describe("the host's own menu section", () => {
     expect(asked[asked.length - 1]?.scope).toBe("cell");
     expect(asked[asked.length - 1]?.cells).toEqual([cells[2]]);
     expect(hostSection()?.textContent).toBe("Languages for 1");
+  });
+
+  it("lets a React host draw the Cell menu's section with flushSync and unmount it", async () => {
+    const uncaught: string[] = [];
+    const onError = (e: ErrorEvent) => uncaught.push(e.message);
+    window.addEventListener("error", onError);
+    // React warns about the host's flushSync and unmount, which the Cell menu calls
+    // from inside its own commit. Keep that noise out of the test output.
+    const originalError = console.error;
+    console.error = () => {};
+    let mounted = 0;
+    try {
+      setHostMenuSectionProvider((_scope, cells) => (container) => {
+        const root = createRoot(container);
+        flushSync(() =>
+          root.render(
+            createElement("div", { "data-host-section": "cell" }, `Languages for ${cells.length}`),
+          ),
+        );
+        mounted++;
+        return () => {
+          root.unmount();
+          mounted--;
+        };
+      });
+      const { cells } = makeTable();
+      openCellMenuOn(cells[2]);
+      expect(hostSection()?.textContent).toBe("Languages for 1");
+
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      // The Cell menu's own React root unmounts on a timer.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      console.error = originalError;
+      window.removeEventListener("error", onError);
+    }
+    expect(uncaught).toEqual([]);
+    expect(mounted).toBe(0);
   });
 
   it("is torn down when the menu closes", () => {

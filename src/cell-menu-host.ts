@@ -154,13 +154,17 @@ export type HostMenuSectionScope = "cell" | "row" | "column" | "table";
  */
 export type HostMenuSectionRenderer = (container: HTMLElement) => () => void;
 
-let sectionProvider:
-  | ((
-      scope: HostMenuSectionScope,
-      cells: HTMLElement[],
-      table: HTMLElement,
-    ) => HostMenuSectionRenderer | undefined)
-  | undefined;
+/**
+ * Answers, for one menu, with the host's renderer for its section there, or
+ * undefined for none; see setHostMenuSectionProvider.
+ */
+export type HostMenuSectionProvider = (
+  scope: HostMenuSectionScope,
+  cells: HTMLElement[],
+  table: HTMLElement,
+) => HostMenuSectionRenderer | undefined;
+
+let sectionProvider: HostMenuSectionProvider | undefined;
 
 /**
  * Install the host's section for the Cell, Row, Column and Table menus. As each
@@ -176,16 +180,27 @@ let sectionProvider:
  * The menu is measured and positioned as soon as it is built, so the renderer
  * must draw before it returns (a React host renders with flushSync).
  */
-export function setHostMenuSectionProvider(
-  fn:
-    | ((
-        scope: HostMenuSectionScope,
-        cells: HTMLElement[],
-        table: HTMLElement,
-      ) => HostMenuSectionRenderer | undefined)
-    | undefined,
-): void {
+export function setHostMenuSectionProvider(fn: HostMenuSectionProvider | undefined): void {
   sectionProvider = fn;
+}
+
+/**
+ * Draw a host's section into a new element at the end of `container`, and return
+ * what tears it down. Tearing down detaches that element rather than emptying it:
+ * a React host's root.unmount() called during the Cell menu's own React commit
+ * runs only after the commit ends, and it must still find its nodes then.
+ */
+export function drawHostMenuSection(
+  container: HTMLElement,
+  renderer: HostMenuSectionRenderer,
+): () => void {
+  const drawing = document.createElement("div");
+  container.appendChild(drawing);
+  const tearDown = renderer(drawing);
+  return () => {
+    tearDown();
+    drawing.remove();
+  };
 }
 
 /** The host's renderer for this menu, or undefined when it adds nothing here. */

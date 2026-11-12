@@ -9,9 +9,9 @@
 // the content type first, then the host's own section if it has one, then the
 // Format rows, then Paint format, then Merge and Split. `group` marks those runs,
 // so a renderer that wants a divider between them puts one wherever the group
-// changes, and no renderer has to know which items belong together. The one
-// exception is the host's section, which sits against the content type with no
-// divider before it.
+// changes, and no renderer has to know which items belong together. The host's
+// section is in the content type's group, so it sits against the content type
+// with no divider between them.
 //
 // Every `label` is English, and `labelId` is its id in tableUiStrings
 // (ui-strings.ts), or `ContentType.<type id>` for a content type's name. A
@@ -20,7 +20,7 @@
 import type { CellMenuItemId, HostMenuSectionRenderer } from "./cell-menu-host";
 
 /** The runs of items the menu falls into, in the order the menu shows them. */
-export type CellMenuItemGroup = "contentType" | "host" | "format" | "transfer" | "span";
+export type CellMenuItemGroup = "contentType" | "format" | "transfer" | "span";
 
 /** One thing the user can do, once. */
 export interface CellMenuCommand {
@@ -97,7 +97,7 @@ export interface CellMenuFormatControls {
 export interface CellMenuHostSection {
   kind: "hostSection";
   id: "hostSection";
-  group: "host";
+  group: "contentType";
   render: HostMenuSectionRenderer;
 }
 
