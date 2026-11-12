@@ -2095,6 +2095,17 @@ function showEdgeOverlays(table: HTMLElement) {
 // scope is safe.
 setPaintFormatOverlayHider(hideEdgeOverlays);
 
+/**
+ * Ask the gate installed with setStructuralChromeGate again about the table the
+ * pointer is near, and show or hide its structural chrome to match. The library
+ * asks only as the pointer arrives or the chrome moves, so a host whose answer
+ * changes while the pointer rests on a table (one that learns the answer
+ * asynchronously, after the page has loaded) calls this.
+ */
+export function refreshStructuralChrome(): void {
+  if (overlayTable) showEdgeOverlays(overlayTable);
+}
+
 function hideEdgeOverlays() {
   overlayTable?.classList.remove(kPointerNearClass);
   if (colCluster) colCluster.style.display = "none";

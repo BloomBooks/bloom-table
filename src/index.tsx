@@ -44,7 +44,7 @@ export {
   setCellMenuOpenHandler,
 } from "./cell-menu-host";
 export type { CellMenuItemId } from "./cell-menu-host";
-export { openCellMenu } from "./table-size-buttons";
+export { openCellMenu, refreshStructuralChrome } from "./table-size-buttons";
 // The Cell menu's items as a React component, for a host that has to show them
 // beside items of its own. It is the same component the library's own popup mounts,
 // so there is one renderer of these items and the two menus cannot come to differ.

@@ -8,6 +8,7 @@ import { tableHistoryManager } from "../history";
 import { setCellMenuItemFilter } from "../cell-menu-host";
 import { getCurrentContentTypeId } from "../cell-contents";
 import { removeTable, resetTableSizeButtons } from "../table-size-buttons";
+import { setTableLocalizer } from "../ui-strings";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -32,6 +33,7 @@ describe("the CellMenuItems component", () => {
     act(() => root.unmount());
     container.remove();
     setCellMenuItemFilter(undefined);
+    setTableLocalizer(undefined);
     document.querySelectorAll<HTMLElement>(".bloom-table").forEach((t) => removeTable(t));
   });
 
@@ -103,9 +105,8 @@ describe("the CellMenuItems component", () => {
 
   it("lets the host word the heading too", () => {
     const { cells } = makeTable();
-    render(cells[0], {
-      localize: (englishLabel, id) => (id === "CellMenu.Heading" ? "Cellule" : englishLabel),
-    });
+    setTableLocalizer((englishLabel, id) => (id === "CellMenu.Heading" ? "Cellule" : englishLabel));
+    render(cells[0]);
 
     expect(container.firstElementChild?.textContent).toBe("Cellule");
   });
@@ -183,9 +184,8 @@ describe("the CellMenuItems component", () => {
 
   it("uses the host's wording, item by item", () => {
     const { cells } = makeTable();
-    render(cells[0], {
-      localize: (englishLabel, id) => (id === "CellMenu.Split" ? "Diviser" : englishLabel),
-    });
+    setTableLocalizer((englishLabel, id) => (id === "CellMenu.Split" ? "Diviser" : englishLabel));
+    render(cells[0]);
 
     expect(rows()).toContain("Diviser");
     expect(rows()).not.toContain("Split");

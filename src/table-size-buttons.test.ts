@@ -7,6 +7,7 @@ import {
   isBorderBrushModeActive,
   paddingLabel,
   openCellMenu,
+  refreshStructuralChrome,
   removeTable,
   resetTableSizeButtons,
 } from "./table-size-buttons";
@@ -667,6 +668,19 @@ describe("the host's structural chrome gate", () => {
     window.dispatchEvent(new Event("scroll"));
 
     expect(visible()).toBe(0);
+  });
+
+  it("shows the chrome when the host's answer turns to yes while the pointer is on the table", () => {
+    const { cells } = makeTable();
+    let allowed = false;
+    setStructuralChromeGate(() => allowed);
+    focusCell(cells[0]);
+    expect(visible()).toBe(0);
+
+    allowed = true;
+    refreshStructuralChrome();
+
+    expect(visible()).toBe(structuralChrome().length);
   });
 
   it("asks per table, so a plain table beside a refused one keeps its chrome", () => {
