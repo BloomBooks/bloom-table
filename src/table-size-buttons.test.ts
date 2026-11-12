@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
-import { createRoot } from "react-dom/client";
-import { createElement } from "react";
-import { flushSync } from "react-dom";
+import { createElement, useLayoutEffect } from "react";
 import { attachTable } from "./attach";
 import { tableHistoryManager } from "./history";
 import {
@@ -1375,26 +1373,40 @@ describe("the host's own menu section", () => {
     expect(menuPopup()).not.toBe(null);
   };
   const hostSection = () => menuPopup()?.querySelector<HTMLElement>("[data-host-section]") ?? null;
-  // Every call the provider got, and how many of its drawings are still up.
+  // A deferred unmount runs on a timer.
+  const afterTimers = () => new Promise((resolve) => setTimeout(resolve, 20));
+  // Every call the provider got, how many of its sections are mounted, and what
+  // React logged. Each test gets its own tally, because a menu that an earlier
+  // test left open unmounts on a timer that can fire during a later test.
   let asked: Array<{ scope: HostMenuSectionScope; cells: HTMLElement[] }>;
-  let drawingsUp: number;
+  let tally: { mounted: number };
+  let reactErrors: unknown[];
+  const originalError = console.error;
+
+  const Languages = (props: { scope: string; count: number; tally: { mounted: number } }) => {
+    useLayoutEffect(() => {
+      props.tally.mounted++;
+      return () => {
+        props.tally.mounted--;
+      };
+    }, []);
+    return createElement("div", { "data-host-section": props.scope }, `Languages for ${props.count}`);
+  };
 
   beforeEach(() => {
     asked = [];
-    drawingsUp = 0;
+    tally = { mounted: 0 };
+    reactErrors = [];
+    console.error = (...args: unknown[]) => reactErrors.push(args[0]);
     setHostMenuSectionProvider((scope, cells) => {
       asked.push({ scope, cells });
-      return (container) => {
-        const div = document.createElement("div");
-        div.setAttribute("data-host-section", scope);
-        div.textContent = `Languages for ${cells.length}`;
-        container.appendChild(div);
-        drawingsUp++;
-        return () => drawingsUp--;
-      };
+      return createElement(Languages, { scope, count: cells.length, tally });
     });
   });
-  afterEach(() => setHostMenuSectionProvider(undefined));
+  afterEach(() => {
+    setHostMenuSectionProvider(undefined);
+    console.error = originalError;
+  });
 
   it("is asked about the row's cells and drawn after Content Type in the Row menu", () => {
     const { cells } = makeTable();
@@ -1432,55 +1444,41 @@ describe("the host's own menu section", () => {
     expect(hostSection()?.textContent).toBe("Languages for 1");
   });
 
-  it("lets a React host draw the Cell menu's section with flushSync and unmount it", async () => {
-    const uncaught: string[] = [];
-    const onError = (e: ErrorEvent) => uncaught.push(e.message);
-    window.addEventListener("error", onError);
-    // React warns about the host's flushSync and unmount, which the Cell menu calls
-    // from inside its own commit. Keep that noise out of the test output.
-    const originalError = console.error;
-    console.error = () => {};
-    let mounted = 0;
-    try {
-      setHostMenuSectionProvider((_scope, cells) => (container) => {
-        const root = createRoot(container);
-        flushSync(() =>
-          root.render(
-            createElement("div", { "data-host-section": "cell" }, `Languages for ${cells.length}`),
-          ),
-        );
-        mounted++;
-        return () => {
-          root.unmount();
-          mounted--;
-        };
-      });
-      const { cells } = makeTable();
-      openCellMenuOn(cells[2]);
-      expect(hostSection()?.textContent).toBe("Languages for 1");
-
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-      // The Cell menu's own React root unmounts on a timer.
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    } finally {
-      console.error = originalError;
-      window.removeEventListener("error", onError);
-    }
-    expect(uncaught).toEqual([]);
-    expect(mounted).toBe(0);
-  });
-
-  it("is drawn again in the Cell menu after a content-type change, from the same renderer", async () => {
-    let draws = 0;
-    const renderer = (container: HTMLElement) => {
-      draws++;
-      container.textContent = "Languages";
-      return () => {};
-    };
-    setHostMenuSectionProvider(() => renderer);
+  it("mounts and unmounts in the Cell menu with no React warnings", async () => {
     const { cells } = makeTable();
     openCellMenuOn(cells[2]);
-    expect(draws).toBe(1);
+    expect(tally.mounted).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await afterTimers();
+
+    expect(tally.mounted).toBe(0);
+    expect(reactErrors).toEqual([]);
+  });
+
+  it("mounts and unmounts in the Row menu with no React warnings", async () => {
+    const { cells } = makeTable();
+    focusCell(cells[0]);
+    click(pill("row"));
+    expect(tally.mounted).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(menuPopup()).toBe(null);
+    await afterTimers();
+
+    expect(tally.mounted).toBe(0);
+    expect(reactErrors).toEqual([]);
+  });
+
+  it("is asked again and shows the new section after a content-type change in the Cell menu", async () => {
+    let calls = 0;
+    setHostMenuSectionProvider(() => {
+      calls++;
+      return createElement("div", { "data-host-section": "cell" }, `Call ${calls}`);
+    });
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+    expect(hostSection()?.textContent).toBe("Call 1");
 
     const otherType = Array.from(
       menuPopup()!.querySelectorAll<HTMLElement>("[data-ct-id]"),
@@ -1491,7 +1489,8 @@ describe("the host's own menu section", () => {
     // React renders the click's state change in a microtask.
     await Promise.resolve();
 
-    expect(draws).toBe(2);
+    expect(hostSection()?.textContent).toBe(`Call ${calls}`);
+    expect(calls).toBeGreaterThan(1);
   });
 
   it("brings a menu that grows past the window's bottom back inside it", () => {
@@ -1521,18 +1520,6 @@ describe("the host's own menu section", () => {
     } finally {
       globalThis.ResizeObserver = original;
     }
-  });
-
-  it("is torn down when the menu closes", () => {
-    const { cells } = makeTable();
-    focusCell(cells[0]);
-    click(pill("row"));
-    expect(drawingsUp).toBe(1);
-
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-
-    expect(menuPopup()).toBe(null);
-    expect(drawingsUp).toBe(0);
   });
 
   it("leaves no section where the host answers undefined", () => {

@@ -11,6 +11,8 @@
 // makeMenuItem), the menu command handlers (menuAddRow etc.), and the
 // delete/add hover previews.
 
+import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import { BloomTable } from "./BloomTable";
 import { getTableInfo, getRowAndColumn, canGrowSpan } from "./structure";
 import { visibleCellBounds } from "./resize-boundary-highlight";
@@ -38,7 +40,6 @@ import { structuralChromeAllowed } from "./structural-chrome";
 import {
   cellMenuOffersItem,
   cellMenuOpenedByHost,
-  drawHostMenuSection,
   hostMenuSectionFor,
 } from "./cell-menu-host";
 import { setCellMenuItemsSource } from "./cell-menu-items-source";
@@ -934,21 +935,19 @@ function buildHostSection(ctx: MenuCtx, scope: FormattingScope): HTMLElement[] {
   if (!table || !seed) return [];
   const container = document.createElement("div");
   container.setAttribute("data-btable-host-section", scope);
-  let tearDownDrawing: (() => void) | undefined;
-  const clear = () => {
-    tearDownDrawing?.();
-    tearDownDrawing = undefined;
-  };
+  const root = createRoot(container);
+  // Rendered synchronously: the menu is measured as soon as it is built.
   const draw = () => {
-    clear();
-    const renderer = hostMenuSectionFor(scope, cells(), table);
-    if (renderer) tearDownDrawing = drawHostMenuSection(container, renderer);
-    container.style.display = renderer ? "" : "none";
+    const section = hostMenuSectionFor(scope, cells(), table);
+    flushSync(() => root.render(section ?? null));
+    container.style.display = section === undefined ? "none" : "";
   };
   draw();
   hostSectionInMenu = {
     redraw: draw,
-    tearDown: clear,
+    // Unmounting inside the event that closed the menu could land in the middle
+    // of a React host's own work, so let that finish first.
+    tearDown: () => setTimeout(() => root.unmount(), 0),
   };
   return [container];
 }
@@ -1483,9 +1482,9 @@ function cellMenuItems(ctx: MenuCtx): CellMenuItem[] {
   const choice = contentTypeChoice(ctx, "cell");
   if (choice) items.push(choice);
 
-  const hostRenderer = hostMenuSectionFor("cell", [cell], table);
-  if (hostRenderer)
-    items.push({ kind: "hostSection", id: "hostSection", group: "contentType", render: hostRenderer });
+  const hostSection = hostMenuSectionFor("cell", [cell], table);
+  if (hostSection !== undefined)
+    items.push({ kind: "hostSection", id: "hostSection", group: "contentType", content: hostSection });
 
   if (kFormatRowIds.some((id) => menuOffers(ctx, id)))
     items.push({

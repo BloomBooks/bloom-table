@@ -17,7 +17,8 @@
 // (ui-strings.ts), or `ContentType.<type id>` for a content type's name. A
 // renderer shows the host's translation of that id, or the English.
 
-import type { CellMenuItemId, HostMenuSectionRenderer } from "./cell-menu-host";
+import type { ReactNode } from "react";
+import type { CellMenuItemId } from "./cell-menu-host";
 
 /** The runs of items the menu falls into, in the order the menu shows them. */
 export type CellMenuItemGroup = "contentType" | "format" | "transfer" | "span";
@@ -91,14 +92,14 @@ export interface CellMenuFormatControls {
 }
 
 /**
- * The host's own section, which the host supplied through
- * setHostMenuSectionProvider (cell-menu-host.ts) and draws itself.
+ * The host's own section: the React element that the host's provider
+ * (setHostMenuSectionProvider, cell-menu-host.ts) answered with.
  */
 export interface CellMenuHostSection {
   kind: "hostSection";
   id: "hostSection";
   group: "contentType";
-  render: HostMenuSectionRenderer;
+  content: ReactNode;
 }
 
 export type CellMenuItem =

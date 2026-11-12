@@ -47,7 +47,6 @@ export {
 export type {
   CellMenuItemId,
   HostMenuSectionScope,
-  HostMenuSectionRenderer,
   HostMenuSectionProvider,
 } from "./cell-menu-host";
 export { openCellMenu, refreshStructuralChrome } from "./table-size-buttons";

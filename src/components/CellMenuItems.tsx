@@ -12,7 +12,7 @@
 // commands as MenuItems with their icons, the content-type choice as a row of icon
 // toggles with the chosen one pressed, and a divider wherever the item group changes.
 import * as React from "react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import Divider from "@mui/material/Divider";
@@ -22,7 +22,6 @@ import MenuItem from "@mui/material/MenuItem";
 import ToggleButton from "@mui/material/ToggleButton";
 import { cellMenuItemsOfCell } from "../cell-menu-items-source";
 import type { CellMenuChoice, CellMenuCommand } from "../cell-menu-model";
-import { drawHostMenuSection, type HostMenuSectionRenderer } from "../cell-menu-host";
 import { kIconSlotPx, kItemIconColor, kLabelIndentPx, setIconSlot } from "../menu-widgets";
 import { kBloomBlue } from "../constants";
 import {
@@ -224,32 +223,10 @@ const FormatControls: React.FunctionComponent<{
   );
 };
 
-// The host's own section. The host draws it into a plain container; it is drawn
-// in a layout effect so that it is in place before the popup measures itself, and
-// it is drawn again after a content-type change, when the cell may need other
-// controls even from the same renderer.
-const HostSection: React.FunctionComponent<{
-  render: HostMenuSectionRenderer;
-  /** Counts the content-type choices made in this menu. */
-  cellVersion: number;
-}> = (props) => {
-  const container = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const element = container.current;
-    if (!element) return;
-    return drawHostMenuSection(element, props.render);
-  }, [props.render, props.cellVersion]);
-  return (
-    <li style={{ display: "block", listStyle: "none" }}>
-      <div ref={container} />
-    </li>
-  );
-};
-
 export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props) => {
   // A content-type choice changes the cell, and the model must be asked again for
   // what the cell is now. Nothing else re-renders this, so ask for a render.
-  const [cellVersion, noteCellChanged] = useState(0);
+  const [, noteCellChanged] = useState(0);
   // Nothing shows while the host's translations are on their way, so a host that
   // renders this early never shows the English first.
   const [ready, setReady] = useState(translationsAreReady);
@@ -288,7 +265,11 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
         />,
       );
     } else if (item.kind === "hostSection") {
-      rows.push(<HostSection key={item.id} render={item.render} cellVersion={cellVersion} />);
+      rows.push(
+        <li key={item.id} style={{ display: "block", listStyle: "none" }}>
+          {item.content}
+        </li>,
+      );
     } else if (item.kind === "formatControls") {
       if (props.renderFormatControls) {
         rows.push(

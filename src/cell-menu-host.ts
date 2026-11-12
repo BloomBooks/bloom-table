@@ -144,25 +144,20 @@ export function cellMenuOpenedByHost(
   return openHandler ? openHandler(cell, table, position) : false;
 }
 
+import type { ReactNode } from "react";
+
 /** Which menu a host section is being drawn into. */
 export type HostMenuSectionScope = "cell" | "row" | "column" | "table";
 
 /**
- * Draws a host's section into `container`, synchronously, and returns the
- * function that tears it down. The library calls that function when the menu
- * closes, or before it asks again because the cells changed under the menu.
- */
-export type HostMenuSectionRenderer = (container: HTMLElement) => () => void;
-
-/**
- * Answers, for one menu, with the host's renderer for its section there, or
+ * Answers, for one menu, with the React element of the host's section there, or
  * undefined for none; see setHostMenuSectionProvider.
  */
 export type HostMenuSectionProvider = (
   scope: HostMenuSectionScope,
   cells: HTMLElement[],
   table: HTMLElement,
-) => HostMenuSectionRenderer | undefined;
+) => ReactNode | undefined;
 
 let sectionProvider: HostMenuSectionProvider | undefined;
 
@@ -170,44 +165,30 @@ let sectionProvider: HostMenuSectionProvider | undefined;
  * Install the host's section for the Cell, Row, Column and Table menus. As each
  * menu is built it asks this with the menu's scope, the cells the menu acts on
  * (one for the Cell menu, every cell of the row, column or table for the
- * others) and their table. A host that answers with a renderer gets a section
- * of its own directly after Content Type, with no divider between them; a host that answers
- * undefined gets none in that menu. Pass undefined to remove the provider.
+ * others) and their table. A host that answers with a React element gets a
+ * section of its own directly after Content Type, with no divider between them;
+ * a host that answers undefined gets none in that menu. Pass undefined to
+ * remove the provider.
+ *
+ * The library renders the element itself: as a child of the Cell menu's React
+ * tree, and in a React root of its own in the Row, Column and Table menus. So
+ * the element sees none of the host's React context; a host that needs some,
+ * such as its theme, wraps the element in that context's provider. After a
+ * content-type choice in the menu the library asks again and renders the new
+ * element in place of the old one.
  *
  * Bloom uses it for the languages of a text cell, a setting the library knows
  * nothing about but that belongs beside the content type in all four menus.
- *
- * The menu is measured and positioned as soon as it is built, so the renderer
- * must draw before it returns (a React host renders with flushSync).
  */
 export function setHostMenuSectionProvider(fn: HostMenuSectionProvider | undefined): void {
   sectionProvider = fn;
 }
 
-/**
- * Draw a host's section into a new element at the end of `container`, and return
- * what tears it down. Tearing down detaches that element rather than emptying it:
- * a React host's root.unmount() called during the Cell menu's own React commit
- * runs only after the commit ends, and it must still find its nodes then.
- */
-export function drawHostMenuSection(
-  container: HTMLElement,
-  renderer: HostMenuSectionRenderer,
-): () => void {
-  const drawing = document.createElement("div");
-  container.appendChild(drawing);
-  const tearDown = renderer(drawing);
-  return () => {
-    tearDown();
-    drawing.remove();
-  };
-}
-
-/** The host's renderer for this menu, or undefined when it adds nothing here. */
+/** The host's section for this menu, or undefined when it adds nothing here. */
 export function hostMenuSectionFor(
   scope: HostMenuSectionScope,
   cells: HTMLElement[],
   table: HTMLElement,
-): HostMenuSectionRenderer | undefined {
-  return sectionProvider ? sectionProvider(scope, cells, table) : undefined;
+): ReactNode | undefined {
+  return sectionProvider?.(scope, cells, table) ?? undefined;
 }
