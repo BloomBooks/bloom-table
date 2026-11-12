@@ -21,7 +21,12 @@ import {
   setHostMenuSectionProvider,
   type HostMenuSectionScope,
 } from "./cell-menu-host";
-import { addRow, setHostCellSettings } from "./structure";
+import {
+  addRow,
+  applyCellSettings,
+  setHostCellSettings,
+  snapshotCellSettings,
+} from "./structure";
 import { getCurrentContentTypeId } from "./cell-contents";
 import { withClipboardStub } from "./test-support/clipboard-stub";
 import type { CellMenuChoice, CellMenuCommand } from "./cell-menu-model";
@@ -1465,6 +1470,59 @@ describe("the host's own menu section", () => {
     expect(mounted).toBe(0);
   });
 
+  it("is drawn again in the Cell menu after a content-type change, from the same renderer", async () => {
+    let draws = 0;
+    const renderer = (container: HTMLElement) => {
+      draws++;
+      container.textContent = "Languages";
+      return () => {};
+    };
+    setHostMenuSectionProvider(() => renderer);
+    const { cells } = makeTable();
+    openCellMenuOn(cells[2]);
+    expect(draws).toBe(1);
+
+    const otherType = Array.from(
+      menuPopup()!.querySelectorAll<HTMLElement>("[data-ct-id]"),
+    ).find((b) => b.getAttribute("aria-pressed") !== "true");
+    // Sanity check: the menu offers a type the cell does not have yet.
+    expect(otherType).toBeDefined();
+    click(otherType!);
+    // React renders the click's state change in a microtask.
+    await Promise.resolve();
+
+    expect(draws).toBe(2);
+  });
+
+  it("brings a menu that grows past the window's bottom back inside it", () => {
+    const original = globalThis.ResizeObserver;
+    let notifyResize: (() => void) | undefined;
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this as unknown as ResizeObserver);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    try {
+      const { cells } = makeTable();
+      focusCell(cells[0]);
+      click(pill("row"));
+      const popup = menuPopup()!;
+      // The menu sits 100px above the window's bottom, then grows to 300px.
+      const top = window.innerHeight - 100;
+      popup.getBoundingClientRect = () => ({ left: 10, top }) as DOMRect;
+      Object.defineProperty(popup, "offsetHeight", { value: 300, configurable: true });
+
+      notifyResize!();
+
+      expect(popup.style.top).toBe(`${window.innerHeight - 300 - 4}px`);
+    } finally {
+      globalThis.ResizeObserver = original;
+    }
+  });
+
   it("is torn down when the menu closes", () => {
     const { cells } = makeTable();
     focusCell(cells[0]);
@@ -1500,7 +1558,10 @@ describe("the host's own cell setting", () => {
     cells[1].setAttribute("data-host-languages", "N1");
     setHostCellSettings({
       snapshot: (cell) => cell.getAttribute("data-host-languages") ?? undefined,
-      apply: (cell, value) => cell.setAttribute("data-host-languages", value),
+      apply: (cell, value) =>
+        value === undefined
+          ? cell.removeAttribute("data-host-languages")
+          : cell.setAttribute("data-host-languages", value),
     });
 
     addRow(table, false, 0);
@@ -1510,13 +1571,36 @@ describe("the host's own cell setting", () => {
     expect(all.slice(4).map((c) => c.getAttribute("data-host-languages"))).toEqual(["V,N1", "N1"]);
   });
 
-  it("is left alone where the source cell has none", () => {
-    const { table } = makeTable();
-    let applied = 0;
-    setHostCellSettings({ snapshot: () => undefined, apply: () => applied++ });
+  it("is cleared where the source cell has none", () => {
+    const { cells } = makeTable();
+    cells[1].setAttribute("data-host-languages", "V");
+    setHostCellSettings({
+      snapshot: (cell) => cell.getAttribute("data-host-languages") ?? undefined,
+      apply: (cell, value) =>
+        value === undefined
+          ? cell.removeAttribute("data-host-languages")
+          : cell.setAttribute("data-host-languages", value),
+    });
+    // Sanity check: only the second cell has a setting to copy.
+    expect(cells[0].hasAttribute("data-host-languages")).toBe(false);
 
-    addRow(table, false, 0);
+    // Paste properties from the first cell, which has none, onto the second.
+    applyCellSettings(cells[1], snapshotCellSettings(cells[0]));
 
-    expect(applied).toBe(0);
+    expect(cells[1].hasAttribute("data-host-languages")).toBe(false);
+  });
+
+  it("is left alone by a snapshot taken before any host installed one", () => {
+    const { cells } = makeTable();
+    const snap = snapshotCellSettings(cells[0]);
+    cells[1].setAttribute("data-host-languages", "V");
+    setHostCellSettings({
+      snapshot: () => undefined,
+      apply: (cell) => cell.removeAttribute("data-host-languages"),
+    });
+
+    applyCellSettings(cells[1], snap);
+
+    expect(cells[1].getAttribute("data-host-languages")).toBe("V");
   });
 });

@@ -105,8 +105,11 @@ const CELL_SETTING_ATTRS = [
 
 export type CellSettings = Partial<Record<(typeof CELL_SETTING_ATTRS)[number], string | null>> & {
   contentType?: string;
-  /** The host's own part of the settings; see setHostCellSettings. */
-  host?: string;
+  /**
+   * The host's own part of the settings; see setHostCellSettings. Null when the
+   * source cell had none, and absent when no host had installed any.
+   */
+  host?: string | null;
 };
 
 /**
@@ -122,10 +125,12 @@ export interface HostCellSettings {
    */
   snapshot: (cell: HTMLElement) => string | undefined;
   /**
-   * Give `cell` the setting. Called after the cell has been given the content
-   * type of the cell it copies, so the host finds its own content in place.
+   * Give `cell` the setting, or clear the cell's own when `value` is undefined
+   * because the cell it copies had none. Called after the cell has been given
+   * the content type of the cell it copies, so the host finds its own content
+   * in place.
    */
-  apply: (cell: HTMLElement, value: string) => void;
+  apply: (cell: HTMLElement, value: string | undefined) => void;
 }
 
 let hostCellSettings: HostCellSettings | undefined;
@@ -144,8 +149,7 @@ export function snapshotCellSettings(cell: HTMLElement): CellSettings {
   const snap: CellSettings = {};
   for (const attr of CELL_SETTING_ATTRS) snap[attr] = cell.getAttribute(attr);
   snap.contentType = getCurrentContentTypeId(cell);
-  const host = hostCellSettings?.snapshot(cell);
-  if (host !== undefined) snap.host = host;
+  if (hostCellSettings) snap.host = hostCellSettings.snapshot(cell) ?? null;
   return snap;
 }
 
@@ -161,7 +165,7 @@ export function applyCellSettings(cell: HTMLElement, snap: CellSettings): void {
   // callers run this inside their own history entry and dispatch the
   // content-changed event themselves after it closes.
   if (snap.contentType) setupContentsOfCell(cell, snap.contentType, false, false);
-  if (snap.host !== undefined) hostCellSettings?.apply(cell, snap.host);
+  if (snap.host !== undefined) hostCellSettings?.apply(cell, snap.host ?? undefined);
 }
 
 // Clamp a caller-supplied source index to a valid row/column, or null when no

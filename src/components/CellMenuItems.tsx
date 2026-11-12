@@ -226,15 +226,19 @@ const FormatControls: React.FunctionComponent<{
 
 // The host's own section. The host draws it into a plain container; it is drawn
 // in a layout effect so that it is in place before the popup measures itself, and
-// it is torn down when the row unmounts or the model hands over a new renderer
-// (after a content-type change, when the model is asked again).
-const HostSection: React.FunctionComponent<{ render: HostMenuSectionRenderer }> = (props) => {
+// it is drawn again after a content-type change, when the cell may need other
+// controls even from the same renderer.
+const HostSection: React.FunctionComponent<{
+  render: HostMenuSectionRenderer;
+  /** Counts the content-type choices made in this menu. */
+  cellVersion: number;
+}> = (props) => {
   const container = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = container.current;
     if (!element) return;
     return drawHostMenuSection(element, props.render);
-  }, [props.render]);
+  }, [props.render, props.cellVersion]);
   return (
     <li style={{ display: "block", listStyle: "none" }}>
       <div ref={container} />
@@ -245,7 +249,7 @@ const HostSection: React.FunctionComponent<{ render: HostMenuSectionRenderer }> 
 export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props) => {
   // A content-type choice changes the cell, and the model must be asked again for
   // what the cell is now. Nothing else re-renders this, so ask for a render.
-  const [, noteCellChanged] = useState(0);
+  const [cellVersion, noteCellChanged] = useState(0);
   // Nothing shows while the host's translations are on their way, so a host that
   // renders this early never shows the English first.
   const [ready, setReady] = useState(translationsAreReady);
@@ -284,7 +288,7 @@ export const CellMenuItems: React.FunctionComponent<CellMenuItemsProps> = (props
         />,
       );
     } else if (item.kind === "hostSection") {
-      rows.push(<HostSection key={item.id} render={item.render} />);
+      rows.push(<HostSection key={item.id} render={item.render} cellVersion={cellVersion} />);
     } else if (item.kind === "formatControls") {
       if (props.renderFormatControls) {
         rows.push(

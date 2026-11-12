@@ -222,12 +222,7 @@ export function resetTableSizeButtons(): void {
   proxRowAdd = null;
   tablePillTL = null;
   proxTablePillTL = null;
-  if (menuPopup) {
-    menuPopup.remove();
-    menuPopup = null;
-  }
-  menuOpenId = null;
-  menuTargetCell = null;
+  closeMenuPopup();
 
   // The hover previews are cached DOM nodes; keeping them across a reset means
   // a host that replaced the body content gets a detached div forever after.
@@ -387,6 +382,8 @@ let unmountCellSection: (() => void) | null = null;
 // The open Row, Column or Table menu's host section: what draws it again, after a
 // content-type change, and what tears it down when the menu closes.
 let hostSectionInMenu: { redraw: () => void; tearDown: () => void } | null = null;
+// Keeps the open menu inside the window when its height changes.
+let menuResizeObserver: ResizeObserver | null = null;
 
 let overlayTable: HTMLElement | null = null;
 let repositionRaf = 0;
@@ -1737,6 +1734,8 @@ function closeMenuPopup(): void {
     hostSectionInMenu.tearDown();
     hostSectionInMenu = null;
   }
+  menuResizeObserver?.disconnect();
+  menuResizeObserver = null;
   if (menuPopup) {
     menuPopup.remove();
     menuPopup = null;
@@ -1820,6 +1819,13 @@ function openMenu(
   menuOpenId = id;
   if ("pill" in anchor) positionMenuAtPill(popup, anchor.pill, anchor.kind);
   else positionMenuAtPoint(popup, anchor.x, anchor.y);
+  // A choice in the menu can change its height (a host's section redrawn for a
+  // new content type), so keep it inside the window from where it now stands.
+  menuResizeObserver = new ResizeObserver(() => {
+    const r = popup.getBoundingClientRect();
+    positionMenuAtPoint(popup, r.left, r.top);
+  });
+  menuResizeObserver.observe(popup);
 
   document.addEventListener("mousedown", onDocMouseDownForMenu, true);
   document.addEventListener("keydown", onKeyDownForMenu, true);
