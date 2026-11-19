@@ -17,7 +17,7 @@ import { createElement, Fragment } from "react";
 import { BloomTable } from "./BloomTable";
 import { getTableInfo, getRowAndColumn, canGrowSpan } from "./structure";
 import { visibleCellBounds } from "./resize-boundary-highlight";
-import { buildGrid } from "./grid";
+import { buildGrid, type SpanCover } from "./grid";
 import { ProximityDiv } from "./ProximityDiv";
 import { kBloomBlue } from "./constants";
 import { render } from "./table-renderer";
@@ -2434,14 +2434,25 @@ function applyAnchorPositioning(table: HTMLElement) {
       selCol = pos.column;
     } catch {}
   }
-  // The cell that covers the slot, not the one in it: under a span the slot holds a
-  // hidden .bloom-skip cell, which anchor() cannot resolve against.
-  let colAnchorCell: HTMLElement | null = null;
-  let rowAnchorCell: HTMLElement | null = null;
+  // Each pill takes two cells along its line. `edge` covers the slot at the
+  // table's edge, the one the pill sits outside: the cell that covers the slot,
+  // not the one in it, since under a span the slot holds a hidden .bloom-skip
+  // cell, which anchor() cannot resolve against. `center` covers the selected
+  // line alone and the pill is centred on it: a cell merged across several rows
+  // (columns) would centre it on all of them, away from the line its menu acts on.
+  // `covers` runs along the line starting at the edge.
+  type PillCells = { edge: HTMLElement; center: HTMLElement } | null;
+  const pillCells = (covers: (SpanCover | null)[], span: "spanX" | "spanY"): PillCells => {
+    const edge = covers[0]?.anchor;
+    if (!edge) return null;
+    return { edge, center: covers.find((cover) => cover?.[span] === 1)?.anchor ?? edge };
+  };
+  let colCells: PillCells = null;
+  let rowCells: PillCells = null;
   if (selected && rows && cols) {
     const grid = buildGrid(table);
-    colAnchorCell = grid.coverAt(0, selCol)?.anchor ?? null;
-    rowAnchorCell = grid.coverAt(selRow, cols - 1)?.anchor ?? null;
+    colCells = pillCells(Array.from({ length: rows }, (_, r) => grid.coverAt(r, selCol)), "spanX");
+    rowCells = pillCells(Array.from({ length: cols }, (_, c) => grid.coverAt(selRow, cols - 1 - c)), "spanY");
   }
 
   // The table-level affordances are positioned relative to the table's *cell
@@ -2455,8 +2466,8 @@ function applyAnchorPositioning(table: HTMLElement) {
   // When the selected row is level with it, the row cluster goes past it instead
   // of on top of it.
   let rowClusterExtraOffset = 0;
-  if (b && rowAnchorCell && rowCluster && colAddBtn) {
-    const cellRect = rowAnchorCell.getBoundingClientRect();
+  if (b && rowCells && rowCluster && colAddBtn) {
+    const cellRect = rowCells.center.getBoundingClientRect();
     const addRect = colAddBtn.getBoundingClientRect();
     // The row cluster's midline, held inside the visible table as anchorTo holds it.
     const rowMidY = Math.min(Math.max((cellRect.top + cellRect.bottom) / 2, b.minT), b.maxB);
@@ -2470,15 +2481,12 @@ function applyAnchorPositioning(table: HTMLElement) {
     );
   }
 
-  const anchorTo = (
-    prox: ProximityDiv | null,
-    cell: HTMLElement | null,
-    side: "top" | "right",
-  ) => {
-    if (!prox || !cell) return;
+  const anchorTo = (prox: ProximityDiv | null, cells: PillCells, side: "top" | "right") => {
+    if (!prox || !cells) return;
     const el = prox.element;
     el.style.position = "fixed";
-    const a = getElementAnchorName(cell, "btableAnchorName", "btable-cell");
+    const a = getElementAnchorName(cells.edge, "btableAnchorName", "btable-cell");
+    const c = getElementAnchorName(cells.center, "btableAnchorName", "btable-cell");
     (el.style as any).positionAnchor = a;
     el.style.setProperty("position-anchor", a);
     el.style.left = "";
@@ -2494,13 +2502,15 @@ function applyAnchorPositioning(table: HTMLElement) {
       // Above the column, centered on its horizontal midline.
       const top = b ? `max(anchor(top), ${b.minT}px)` : "anchor(top)";
       (el.style as any).top = `calc(${top} - ${gap}px)`;
-      (el.style as any).left = b ? `clamp(${b.minL}px, anchor(center), ${b.maxR}px)` : "anchor(center)";
+      const center = `anchor(${c} center)`;
+      (el.style as any).left = b ? `clamp(${b.minL}px, ${center}, ${b.maxR}px)` : center;
       el.style.transform = "translate(-50%, -100%)";
     } else {
       // Right of the row, centered on its vertical midline.
       const right = b ? `min(anchor(right), ${b.maxR}px)` : "anchor(right)";
       (el.style as any).left = `calc(${right} + ${gap + rowClusterExtraOffset}px)`;
-      (el.style as any).top = b ? `clamp(${b.minT}px, anchor(center), ${b.maxB}px)` : "anchor(center)";
+      const center = `anchor(${c} center)`;
+      (el.style as any).top = b ? `clamp(${b.minT}px, ${center}, ${b.maxB}px)` : center;
       el.style.transform = "translate(0, -50%)";
     }
   };
@@ -2510,10 +2520,10 @@ function applyAnchorPositioning(table: HTMLElement) {
   // operation that clears the selection or removes the anchored cell must hide
   // the "..." pill, otherwise anchorTo() early-returns and leaves it stranded
   // mid-table (the "phantom" affordance).
-  if (colCluster) colCluster.style.display = structural && colAnchorCell ? "flex" : "none";
-  if (rowCluster) rowCluster.style.display = structural && rowAnchorCell ? "flex" : "none";
-  anchorTo(proxColCluster, colAnchorCell, "top");
-  anchorTo(proxRowCluster, rowAnchorCell, "right");
+  if (colCluster) colCluster.style.display = structural && colCells ? "flex" : "none";
+  if (rowCluster) rowCluster.style.display = structural && rowCells ? "flex" : "none";
+  anchorTo(proxColCluster, colCells, "top");
+  anchorTo(proxRowCluster, rowCells, "right");
 
   const haveBounds = b !== null;
   const placePill = (prox: ProximityDiv | null, left: number, top: number, transform: string) => {
