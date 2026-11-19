@@ -51,6 +51,10 @@ export class ProximityDiv {
     Object.assign(wrapper.style, {
       position: "absolute",
       pointerEvents: "none", // allow the child to be clickable without the wrapper intercepting
+      // The wrapper is positioned, so it is the stacking context its child's own
+      // z-index is confined to. Without one here, a host's fixed bar over the
+      // space above the table (Bloom's Change Layout bar) covers the column pill.
+      zIndex: "2147483647",
     } as CSSStyleDeclaration);
 
     // Ensure the child consumes pointer events and fills the wrapper

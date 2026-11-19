@@ -43,9 +43,19 @@ function ensureHighlightDiv(): HTMLDivElement {
   return div;
 }
 
+// The overflow values that cut off what overflows an element.
+const kClippingOverflow = new Set(["hidden", "clip", "scroll", "auto"]);
+
 // Union of the table's visible cell rects, in viewport coordinates; null when the
-// table has no laid-out cells. table-size-buttons.ts imports this for its own
-// overlays, so every overlay measures the table the same way.
+// table has no laid-out cells, or none of them shows. table-size-buttons.ts
+// imports this for its own overlays, so every overlay measures the table the
+// same way.
+//
+// "Visible" includes being cut to what the table and its ancestors let show: a
+// cell whose content overflows runs past the table's own box, and a host page
+// with overflow hidden cuts it off at the page's edge. Without the clip, the
+// pills and "+" buttons below the table float out past the page, under cells
+// that nobody can see.
 export function visibleCellBounds(
   table: HTMLElement,
 ): { minL: number; minT: number; maxR: number; maxB: number } | null {
@@ -63,6 +73,24 @@ export function visibleCellBounds(
     if (r.bottom > maxB) maxB = r.bottom;
   }
   if (!isFinite(minL) || !isFinite(maxR)) return null;
+  // Stops short of <body>: the window's own scrolling is not a clip, and a
+  // scrolled body's box is not where its content shows.
+  for (let el: HTMLElement | null = table; el && el !== document.body; el = el.parentElement) {
+    const style = getComputedStyle(el);
+    const clipsX = kClippingOverflow.has(style.overflowX);
+    const clipsY = kClippingOverflow.has(style.overflowY);
+    if (!clipsX && !clipsY) continue;
+    const clip = el.getBoundingClientRect();
+    if (clipsX) {
+      minL = Math.max(minL, clip.left);
+      maxR = Math.min(maxR, clip.right);
+    }
+    if (clipsY) {
+      minT = Math.max(minT, clip.top);
+      maxB = Math.min(maxB, clip.bottom);
+    }
+  }
+  if (minL >= maxR || minT >= maxB) return null;
   return { minL, minT, maxR, maxB };
 }
 

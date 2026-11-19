@@ -1,0 +1,31 @@
+<!-- e2e fixture: two tables with merged cells along the edges the row and column
+     pills sit beside. In the first, the right column is one cell merged down all
+     three rows; in the second, the top row is one cell merged across both columns.
+     Loaded into the UI harness via /demo/ui-harness.html?fixture=merged-cells -->
+<div
+  id="merged-right"
+  class="bloom-table"
+  data-column-widths="150px,150px"
+  data-row-heights="60px,60px,60px"
+>
+  <div class="bloom-cell" data-content-type="text"><div contenteditable="true">a</div></div>
+  <div class="bloom-cell" data-content-type="text" data-span-y="3"><div contenteditable="true">tall</div></div>
+  <div class="bloom-cell" data-content-type="text"><div contenteditable="true">b</div></div>
+  <div class="bloom-cell bloom-skip"></div>
+  <div class="bloom-cell" data-content-type="text"><div contenteditable="true">c</div></div>
+  <div class="bloom-cell bloom-skip"></div>
+</div>
+
+<div style="height: 120px"></div>
+
+<div
+  id="merged-top"
+  class="bloom-table"
+  data-column-widths="150px,150px"
+  data-row-heights="60px,60px"
+>
+  <div class="bloom-cell" data-content-type="text" data-span-x="2"><div contenteditable="true">wide</div></div>
+  <div class="bloom-cell bloom-skip"></div>
+  <div class="bloom-cell" data-content-type="text"><div contenteditable="true">d</div></div>
+  <div class="bloom-cell" data-content-type="text"><div contenteditable="true">e</div></div>
+</div>

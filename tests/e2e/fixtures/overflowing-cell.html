@@ -1,0 +1,25 @@
+<!-- e2e fixture: a table on a page that clips what overflows it, as a Bloom page
+     does, whose second row is far taller than the page. The middle of that row is
+     well below the page's bottom edge.
+     Loaded into the UI harness via /demo/ui-harness.html?fixture=overflowing-cell -->
+<div id="clip-page" style="width: 500px; height: 400px; overflow: hidden; background: white">
+  <div
+    id="clip-table"
+    class="bloom-table"
+    data-column-widths="fill,fill"
+    data-row-heights="hug,1200px"
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">a</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">b</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">c</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">d</div>
+    </div>
+  </div>
+</div>
