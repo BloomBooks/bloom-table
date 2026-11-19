@@ -1,0 +1,26 @@
+<!-- e2e fixture: a table that fills a page to all four edges, where the page
+     clips what overflows it, as a Bloom page does. The pills and "+" buttons sit
+     outside the page, and the test shrinks the window below the page's size.
+     Loaded into the UI harness via /demo/ui-harness.html?fixture=page-edge -->
+<div id="edge-page" style="width: 600px; height: 800px; overflow: hidden; background: white">
+  <div
+    id="edge-table"
+    class="bloom-table"
+    style="width: 600px; height: 800px"
+    data-column-widths="fill,fill"
+    data-row-heights="fill,fill"
+  >
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">a</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">b</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">c</div>
+    </div>
+    <div class="bloom-cell" data-content-type="text">
+      <div contenteditable="true">d</div>
+    </div>
+  </div>
+</div>

@@ -224,6 +224,8 @@ export function resetTableSizeButtons(): void {
   proxRowAdd = null;
   tablePillTL = null;
   proxTablePillTL = null;
+  scrollRoomMarker?.remove();
+  scrollRoomMarker = null;
   closeMenuPopup();
 
   // The hover previews are cached DOM nodes; keeping them across a reset means
@@ -1898,7 +1900,7 @@ function makeMenuDragHandle(popup: HTMLDivElement): HTMLDivElement {
 
 function positionMenuAtPill(popup: HTMLDivElement, pill: HTMLButtonElement, kind: MenuKind): void {
   const r = pill.getBoundingClientRect();
-  // The row pill sits left of its row; open to its right. Column/table pills sit
+  // The row pill sits right of its row; open further right, off the table. Column/table pills sit
   // above/at a corner; drop the menu down from them.
   positionMenuAtPoint(popup, kind === "row" ? r.right + 4 : r.left, kind === "row" ? r.top : r.bottom + 4);
 }
@@ -2375,15 +2377,29 @@ function getElementAnchorName(el: HTMLElement, key: string, prefix: string): str
   return name;
 }
 
-function getCellAt(table: HTMLElement, targetRow: number, targetCol: number): HTMLElement | null {
-  // One grid model instead of a per-child getRowAndColumn rescan; null on
-  // miss (out of range, or the DOM has no cell at that position).
-  return buildGrid(table).cellAt(targetRow, targetCol) ?? null;
+/**
+ * How much further right than usual the row cluster goes, so that it does not
+ * sit on the column "+" (which is right of the table, centered on the table's
+ * height). 0 unless the selected row's midline is near enough the table's that
+ * the two would overlap; then the width of the "+" plus a gap.
+ */
+export function rowClusterOffsetPastColumnAdd(
+  rowMidY: number,
+  tableMidY: number,
+  clusterHeight: number,
+  columnAddSize: { width: number; height: number },
+  gap: number,
+): number {
+  // Overlapping, or closer than half a gap apart.
+  const overlaps = Math.abs(rowMidY - tableMidY) < (clusterHeight + columnAddSize.height + gap) / 2;
+  return overlaps ? columnAddSize.width + gap : 0;
 }
 
 // Anchor the two contextual clusters (and the corner handle) to the current
 // selection. The column cluster sits above the selected column; the row cluster
-// sits to the left of the selected row.
+// sits to the right of the selected row. Not the left: a host often shows a page
+// whose left edge is the window's left edge, and a table that fills the page
+// would leave a pill on the left nowhere to show.
 function applyAnchorPositioning(table: HTMLElement) {
   // Repositioning re-decides visibility; while Paint Format is active the
   // overlays must stay hidden no matter what triggers a reposition.
@@ -2404,7 +2420,7 @@ function applyAnchorPositioning(table: HTMLElement) {
   } catch {}
 
   // Resolve the selected cell's row/column; clusters anchor to the edge cell of
-  // that line (top cell for the column, first cell for the row). The selected
+  // that line (top cell for the column, last cell for the row). The selected
   // cell must be one of THIS table's own cells — a querySelector would also
   // match a cell of a nested table, whose position can't be resolved against
   // this table, and the pills would silently anchor to cell (0,0).
@@ -2418,13 +2434,44 @@ function applyAnchorPositioning(table: HTMLElement) {
       selCol = pos.column;
     } catch {}
   }
-  const colAnchorCell = selected && rows && cols ? getCellAt(table, 0, selCol) : null;
-  const rowAnchorCell = selected && rows && cols ? getCellAt(table, selRow, 0) : null;
+  // The cell that covers the slot, not the one in it: under a span the slot holds a
+  // hidden .bloom-skip cell, which anchor() cannot resolve against.
+  let colAnchorCell: HTMLElement | null = null;
+  let rowAnchorCell: HTMLElement | null = null;
+  if (selected && rows && cols) {
+    const grid = buildGrid(table);
+    colAnchorCell = grid.coverAt(0, selCol)?.anchor ?? null;
+    rowAnchorCell = grid.coverAt(selRow, cols - 1)?.anchor ?? null;
+  }
+
+  // The table-level affordances are positioned relative to the table's *cell
+  // content* bounds (not the layout box, which can be much larger than the
+  // hugging cells): the union rect of the visible cells. A spanning cell's
+  // rect covers the area its skipped neighbours would, so this is robust to
+  // spans too.
+  const b = visibleCellBounds(table);
+
+  // The column "+" also sits right of the table, centered on the table's height.
+  // When the selected row is level with it, the row cluster goes past it instead
+  // of on top of it.
+  let rowClusterExtraOffset = 0;
+  if (b && rowAnchorCell && rowCluster && colAddBtn) {
+    const cellRect = rowAnchorCell.getBoundingClientRect();
+    const addRect = colAddBtn.getBoundingClientRect();
+    // A hidden element measures 0, so fall back to the pills' usual sizes.
+    rowClusterExtraOffset = rowClusterOffsetPastColumnAdd(
+      (cellRect.top + cellRect.bottom) / 2,
+      (b.minT + b.maxB) / 2,
+      rowCluster.getBoundingClientRect().height || 28,
+      { width: addRect.width || 30, height: addRect.height || 20 },
+      gap,
+    );
+  }
 
   const anchorTo = (
     prox: ProximityDiv | null,
     cell: HTMLElement | null,
-    side: "top" | "left",
+    side: "top" | "right",
   ) => {
     if (!prox || !cell) return;
     const el = prox.element;
@@ -2442,10 +2489,10 @@ function applyAnchorPositioning(table: HTMLElement) {
       (el.style as any).left = `anchor(center)`;
       el.style.transform = "translate(-50%, -100%)";
     } else {
-      // Left of the row, centered on its vertical midline.
-      (el.style as any).left = `calc(anchor(left) - ${gap}px)`;
+      // Right of the row, centered on its vertical midline.
+      (el.style as any).left = `calc(anchor(right) + ${gap + rowClusterExtraOffset}px)`;
       (el.style as any).top = `anchor(center)`;
-      el.style.transform = "translate(-100%, -50%)";
+      el.style.transform = "translate(0, -50%)";
     }
   };
 
@@ -2457,14 +2504,8 @@ function applyAnchorPositioning(table: HTMLElement) {
   if (colCluster) colCluster.style.display = structural && colAnchorCell ? "flex" : "none";
   if (rowCluster) rowCluster.style.display = structural && rowAnchorCell ? "flex" : "none";
   anchorTo(proxColCluster, colAnchorCell, "top");
-  anchorTo(proxRowCluster, rowAnchorCell, "left");
+  anchorTo(proxRowCluster, rowAnchorCell, "right");
 
-  // The table-level affordances are positioned relative to the table's *cell
-  // content* bounds (not the layout box, which can be much larger than the
-  // hugging cells): the union rect of the visible cells. A spanning cell's
-  // rect covers the area its skipped neighbours would, so this is robust to
-  // spans too.
-  const b = visibleCellBounds(table);
   const haveBounds = b !== null;
   const placePill = (prox: ProximityDiv | null, left: number, top: number, transform: string) => {
     if (!prox) return;
@@ -2514,6 +2555,49 @@ function applyAnchorPositioning(table: HTMLElement) {
     placePill(proxTablePillTL, tablePillX, maxB + gap, "translate(-50%, 0)");
   }
 
+  placeScrollRoomMarker();
+}
+
+// The pills and "+" buttons are position: fixed, so they add nothing to how far
+// the document scrolls. A table that runs to the right or bottom edge of a host's
+// page puts some of them past that edge, and in a window smaller than the page
+// they could never be scrolled into view. This invisible element sits just past
+// the furthest of them, in document coordinates, so the document scrolls that far.
+// It stays where it is while the pills are hidden: the proximity gate hides them
+// whenever the pointer strays from the table, and taking the room away then would
+// shrink the document and jump the view under someone who is scrolling.
+let scrollRoomMarker: HTMLDivElement | null = null;
+const kScrollRoomMargin = 8; // px beyond the furthest pill
+
+function placeScrollRoomMarker(): void {
+  let maxRight = -Infinity;
+  let maxBottom = -Infinity;
+  for (const el of [colCluster, rowCluster, tablePillTL, colAddBtn, rowAddBtn]) {
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue; // hidden
+    maxRight = Math.max(maxRight, r.right);
+    maxBottom = Math.max(maxBottom, r.bottom);
+  }
+  if (!isFinite(maxRight)) return;
+  if (!scrollRoomMarker) {
+    scrollRoomMarker = document.createElement("div");
+    // prepare-for-save strips every element carrying this attribute.
+    scrollRoomMarker.setAttribute("data-table-overlay", "scroll-room");
+    Object.assign(scrollRoomMarker.style, {
+      position: "absolute",
+      width: "1px",
+      height: "1px",
+      visibility: "hidden",
+      pointerEvents: "none",
+    } as CSSStyleDeclaration);
+    document.body.appendChild(scrollRoomMarker);
+  }
+  // Only write a changed value: a write makes the browser lay the page out again.
+  const left = `${Math.round(maxRight + window.scrollX + kScrollRoomMargin - 1)}px`;
+  const top = `${Math.round(maxBottom + window.scrollY + kScrollRoomMargin - 1)}px`;
+  if (scrollRoomMarker.style.left !== left) scrollRoomMarker.style.left = left;
+  if (scrollRoomMarker.style.top !== top) scrollRoomMarker.style.top = top;
 }
 
 // The table-edge "+" buttons always append at the far edge of the table,
