@@ -2458,9 +2458,11 @@ function applyAnchorPositioning(table: HTMLElement) {
   if (b && rowAnchorCell && rowCluster && colAddBtn) {
     const cellRect = rowAnchorCell.getBoundingClientRect();
     const addRect = colAddBtn.getBoundingClientRect();
+    // The row cluster's midline, held inside the visible table as anchorTo holds it.
+    const rowMidY = Math.min(Math.max((cellRect.top + cellRect.bottom) / 2, b.minT), b.maxB);
     // A hidden element measures 0, so fall back to the pills' usual sizes.
     rowClusterExtraOffset = rowClusterOffsetPastColumnAdd(
-      (cellRect.top + cellRect.bottom) / 2,
+      rowMidY,
       (b.minT + b.maxB) / 2,
       rowCluster.getBoundingClientRect().height || 28,
       { width: addRect.width || 30, height: addRect.height || 20 },
@@ -2483,15 +2485,22 @@ function applyAnchorPositioning(table: HTMLElement) {
     el.style.top = "";
     el.style.right = "";
     el.style.bottom = "";
+    // Each edge the cell offers is held inside the visible part of the table
+    // (b): a cell that runs past a clipping ancestor would otherwise put its pill
+    // beside cells nobody can see, outside the zone where the pills stay shown.
+    // b is in viewport coordinates, which is what anchor() resolves to for a
+    // fixed element.
     if (side === "top") {
       // Above the column, centered on its horizontal midline.
-      (el.style as any).top = `calc(anchor(top) - ${gap}px)`;
-      (el.style as any).left = `anchor(center)`;
+      const top = b ? `max(anchor(top), ${b.minT}px)` : "anchor(top)";
+      (el.style as any).top = `calc(${top} - ${gap}px)`;
+      (el.style as any).left = b ? `clamp(${b.minL}px, anchor(center), ${b.maxR}px)` : "anchor(center)";
       el.style.transform = "translate(-50%, -100%)";
     } else {
       // Right of the row, centered on its vertical midline.
-      (el.style as any).left = `calc(anchor(right) + ${gap + rowClusterExtraOffset}px)`;
-      (el.style as any).top = `anchor(center)`;
+      const right = b ? `min(anchor(right), ${b.maxR}px)` : "anchor(right)";
+      (el.style as any).left = `calc(${right} + ${gap + rowClusterExtraOffset}px)`;
+      (el.style as any).top = b ? `clamp(${b.minT}px, anchor(center), ${b.maxB}px)` : "anchor(center)";
       el.style.transform = "translate(0, -50%)";
     }
   };
